@@ -11,8 +11,10 @@ app = FastAPI(
     description="Full-stack IBP Backend Engine",
     version="2.0.0"
 )
-
 @app.get("/")
+def read_root():
+    return {"message": "IBP Control Tower API is running!"}
+@app.get("/health")
 def health_check():
     return {"status": "ONLINE", "system": "IBP Enterprise Engine v2.0"}
 
