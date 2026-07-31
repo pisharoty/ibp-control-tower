@@ -1,207 +1,188 @@
-import uvicorn
-import re
-from fastapi import FastAPI, HTTPException
-from pydantic import BaseModel, Field
-from typing import List, Dict, Any, Optional
-import numpy as np
-from scipy.optimize import linprog
+from fastapi import FastAPI
+from pydantic import BaseModel
+from typing import List, Optional
+import random
 
-app = FastAPI(
-    title="Digital Brain — Enterprise IBP Orchestration API",
-    description="Full-stack IBP Backend Engine",
-    version="2.0.0"
-)
-@app.get("/")
-def read_root():
-    return {"message": "IBP Control Tower API is running!"}
-@app.get("/health")
-def health_check():
-    return {"status": "ONLINE", "system": "IBP Enterprise Engine v2.0"}
+app = FastAPI(title="Integrated Business Planning API")
 
-class DSSolverInput(BaseModel):
-    scenario_id: str = "SCENARIO_2026_01"
-    scenario_version: str = "Base S&OP Plan"
-    demand_units: float = Field(100000.0, ge=0)
-    base_list_price: float = Field(50.0, ge=0)
-    trade_spend_pct: float = Field(0.12, ge=0, le=1.0)
-    plant_capacities: List[float] = [40000.0, 45000.0]
-    mfg_unit_costs: List[float] = [12.0, 14.0]
-    logistics_unit_costs: List[float] = [2.5, 3.0]
-    expedite_premium_unit: float = Field(10.0, ge=0)
+# --- Enterprise Integration Sync Endpoints ---
 
-@app.post("/api/v1/ibp/scenarios/run-ds-solver")
-def run_ds_solver(payload: DSSolverInput):
-    gross_revenue = payload.demand_units * payload.base_list_price
-    trade_spend = gross_revenue * payload.trade_spend_pct
-    net_revenue = gross_revenue - trade_spend
-    
-    cap_a, cap_b = payload.plant_capacities[0], payload.plant_capacities[1]
-    cost_a = payload.mfg_unit_costs[0] + payload.logistics_unit_costs[0]
-    cost_b = payload.mfg_unit_costs[1] + payload.logistics_unit_costs[1]
-    cost_exp = cost_a + payload.expedite_premium_unit
-    
-    c = [cost_a, cost_b, cost_exp]
-    A_eq = [[1, 1, 1]]
-    b_eq = [payload.demand_units]
-    bounds = [(0, cap_a), (0, cap_b), (0, None)]
-    
-    res = linprog(c, A_eq=A_eq, b_eq=b_eq, bounds=bounds, method='highs')
-    
-    if not res.success:
-        raise HTTPException(status_code=400, detail="Solver failed to find feasible allocation.")
-        
-    q_a, q_b, q_exp = res.x[0], res.x[1], res.x[2]
-    total_cost = res.fun
-    net_margin = net_revenue - total_cost
-    
+@app.post("/api/v1/ibp/integration/sync-erp")
+def sync_erp():
     return {
-        "scenario_id": payload.scenario_id,
-        "solver_status": "Optimal",
-        "allocation": {
-            "plant_a_std_units": round(q_a, 2),
-            "plant_b_std_units": round(q_b, 2),
-            "expedited_units": round(q_exp, 2)
-        },
-        "waterfall": {
-            "gross_revenue": round(gross_revenue, 2),
-            "trade_spend": round(trade_spend, 2),
-            "net_revenue": round(net_revenue, 2),
-            "total_cogs_logistics": round(total_cost, 2),
-            "net_margin": round(net_margin, 2)
-        }
-    }
-
-class NPIInput(BaseModel):
-    new_product_name: str = "Cosmo Cola Zero Sugar"
-    launch_quarter: str = "Q3 2026"
-    target_launch_units: float = 30000.0
-    like_item_baseline_units: float = 25000.0
-    estimated_cannibalization_pct: float = 0.20
-    base_price: float = 4.50
-
-@app.post("/api/v1/ibp/npi/cannibalization-analysis")
-def analyze_npi_launch(payload: NPIInput):
-    gross_new_revenue = payload.target_launch_units * payload.base_price
-    cannibalized_units = payload.target_launch_units * payload.estimated_cannibalization_pct
-    cannibalized_revenue = cannibalized_units * payload.base_price
-    net_incremental_units = payload.target_launch_units - cannibalized_units
-    net_incremental_revenue = gross_new_revenue - cannibalized_revenue
-    
-    return {
-        "new_product_name": payload.new_product_name,
-        "stage_gate_status": "Stage 3: Pilot Run & Tooling",
-        "gross_launch_units": payload.target_launch_units,
-        "cannibalized_legacy_units": cannibalized_units,
-        "net_incremental_units": net_incremental_units,
-        "financial_impact": {
-            "gross_new_revenue": gross_new_revenue,
-            "cannibalized_revenue_loss": cannibalized_revenue,
-            "net_incremental_revenue": net_incremental_revenue
-        }
-    }
-
-class NLPParseInput(BaseModel):
-    raw_text: str
-
-@app.post("/api/v1/ibp/nlp/parse-intelligence")
-def parse_nlp_intelligence(payload: NLPParseInput):
-    text_lower = payload.raw_text.lower()
-    
-    # Dynamic Retailer Recognition
-    retailers = ["costco", "walmart", "target", "kroger", "amazon", "albertsons", "sam's club"]
-    customer = "Key Customer"
-    for r in retailers:
-        if r in text_lower:
-            customer = r.title()
-            break
-            
-    # Dynamic Number Extraction (e.g. 50,000 or 50000)
-    numbers = re.findall(r'\b\d{1,3}(?:,\d{3})+|\b\d+\b', payload.raw_text)
-    quantity = int(numbers[0].replace(',', '')) if numbers else 10000
-    
-    # Dynamic Product Recognition
-    if "teed off" in text_lower or "energy" in text_lower:
-        product = "Teed Off Energy Drink"
-    elif "cola" in text_lower:
-        product = "Cosmo Cola 20oz"
-    else:
-        product = "Core Beverage SKU"
-        
-    return {
-        "parsed_entities": {
-            "customer": customer,
-            "product_family": product,
-            "incremental_volume_cases": quantity,
-            "timeframe": "Promotional Surge Window"
-        },
-        "auto_generated_pulse_tag": f"COMMERCIAL_DEMAND_SURGE_{customer.upper().replace(' ', '_')}",
-        "routed_target_planner_role": f"Demand Planner - {customer} Retail Account"
-    }
-
-@app.get("/api/v1/ibp/geospatial/nodes")
-def get_geospatial_nodes():
-    return [
-        {"name": "Plant A (Atlanta)", "type": "Plant", "lat": 33.7490, "lon": -84.3880, "status": "Normal", "capacity_util": "88%", "otif_risk": "Low"},
-        {"name": "Plant B (Chicago)", "type": "Plant", "lat": 41.8781, "lon": -87.6298, "status": "High Utilization", "capacity_util": "96%", "otif_risk": "Medium"},
-        {"name": "East Coast DC (NJ)", "type": "DC", "lat": 40.0583, "lon": -74.4057, "status": "Normal", "stockout_risk": "5%", "otif_risk": "Low"},
-        {"name": "West Coast DC (LA)", "type": "DC", "lat": 34.0522, "lon": -118.2437, "status": "Stockout Risk", "stockout_risk": "34%", "otif_risk": "High"},
-        {"name": "Dallas Hub", "type": "Retail Retailer Node", "lat": 32.7767, "lon": -96.7970, "status": "Normal", "stockout_risk": "2%", "otif_risk": "Low"}
-    ]
-
-@app.get("/api/v1/ibp/ekg/graph")
-def get_ekg_graph():
-    return {
-        "nodes": [
-            {"id": "Market_Intel", "group": "Market Knowledge", "label": "Competitor Launch Delay"},
-            {"id": "Customer_Target", "group": "Demand Knowledge", "label": "Target Stores Promo"},
-            {"id": "SKU_CosmoCola", "group": "Demand Knowledge", "label": "Cosmo Cola 20oz"},
-            {"id": "Plant_Atlanta", "group": "Supply Knowledge", "label": "Atlanta Mfg Plant"},
-            {"id": "Supplier_SugarCo", "group": "Supply Knowledge", "label": "SugarCo Ingredient Supplier"},
-            {"id": "PL_GrossRev", "group": "Revenue / Finance", "label": "Gross Revenue Target ($5M)"},
-            {"id": "PL_NetMargin", "group": "Revenue / Finance", "label": "Net Margin ($2.68M)"}
-        ],
-        "edges": [
-            {"source": "Market_Intel", "target": "Customer_Target", "relation": "Drives Demand Surge"},
-            {"source": "Customer_Target", "target": "SKU_CosmoCola", "relation": "Requests Volume"},
-            {"source": "SKU_CosmoCola", "target": "Plant_Atlanta", "relation": "Allocated Production"},
-            {"source": "Plant_Atlanta", "target": "Supplier_SugarCo", "relation": "Requires Raw Materials"},
-            {"source": "SKU_CosmoCola", "target": "PL_GrossRev", "relation": "Generates Sales"},
-            {"source": "Plant_Atlanta", "target": "PL_NetMargin", "relation": "Incurs Production Cost"}
+        "pipeline": "Supply Chain & Manufacturing (ERP)",
+        "sources": [
+            {"source": "SAP S/4HANA (BOM & Inventory)", "records_ingested": 18450, "status": "HEALTHY"},
+            {"source": "MES Plant Floor Sensors", "records_ingested": 42100, "status": "HEALTHY"}
         ]
     }
 
-@app.post("/api/v1/ibp/ingestion/sync-all")
-def sync_enterprise_data():
+@app.post("/api/v1/ibp/integration/sync-crm-plm")
+def sync_crm_plm():
     return {
-        "status": "Success",
-        "sync_timestamp": "2026-07-30T08:45:00Z",
-        "ingestion_summary": [
-            {"source": "SAP S/4HANA (ERP)", "records_ingested": 14200, "latency_ms": 120, "status": "HEALTHY"},
-            {"source": "Salesforce (CRM)", "records_ingested": 3400, "latency_ms": 85, "status": "HEALTHY"},
-            {"source": "FourKites (Logistics)", "records_ingested": 890, "latency_ms": 210, "status": "HEALTHY"},
-            {"source": "Coupa (Procurement)", "records_ingested": 1250, "latency_ms": 95, "status": "HEALTHY"}
+        "pipeline": "Product Lifecycle & Commercial Pipeline",
+        "sources": [
+            {"source": "Salesforce CRM Opportunities", "records_ingested": 3200, "status": "HEALTHY"},
+            {"source": "Arena PLM Stage-Gate Logs", "records_ingested": 450, "status": "HEALTHY"}
         ]
     }
 
-class GapCInput(BaseModel):
-    period_id: str = "FY2027_Q1"
-    long_range_target_revenue: float
-    aop_budget_revenue: float
-    stat_baseline_forecast_revenue: float
-    constrained_ibp_forecast_revenue: float
-
-@app.post("/api/v1/ibp/strategy/aop-gap-analysis")
-def calculate_aop_gaps(payload: GapCInput):
-    strategic_gap = payload.long_range_target_revenue - payload.constrained_ibp_forecast_revenue
-    aop_execution_gap = payload.aop_budget_revenue - payload.constrained_ibp_forecast_revenue
-    unconstrained_risk = payload.stat_baseline_forecast_revenue - payload.constrained_ibp_forecast_revenue
-    
+@app.post("/api/v1/ibp/integration/sync-nlp-outlook")
+def sync_nlp_outlook():
     return {
-        "period_id": payload.period_id,
-        "strategic_gap": strategic_gap,
-        "aop_execution_gap": aop_execution_gap,
-        "unconstrained_to_constrained_risk": unconstrained_risk
+        "pipeline": "Commercial Intelligence & Sentiment Sensing",
+        "sources": [
+            {"source": "Microsoft Outlook / Exchange API", "emails_parsed": 1280, "status": "HEALTHY"},
+            {"source": "Web & Maritime Market Feeds", "articles_parsed": 340, "status": "HEALTHY"}
+        ]
     }
 
-if __name__ == "__main__":
-    uvicorn.run("main:app", host="127.0.0.1", port=8000)
+@app.post("/api/v1/ibp/integration/sync-gis-logistics")
+def sync_gis_logistics():
+    return {
+        "pipeline": "Geospatial & Carrier Tracking",
+        "sources": [
+            {"source": "FourKites Real-Time GPS", "active_shipments": 620, "status": "HEALTHY"},
+            {"source": "project44 Carrier Feeds", "active_truckloads": 410, "status": "HEALTHY"}
+        ]
+    }
+
+@app.post("/api/v1/ibp/integration/sync-ekg-graph")
+def sync_ekg_graph():
+    return {
+        "pipeline": "Enterprise Knowledge Graph Ontology",
+        "sources": [
+            {"source": "Neo4j Knowledge Graph", "nodes_updated": 1420, "edges_updated": 3890, "status": "HEALTHY"}
+        ]
+    }
+
+@app.post("/api/v1/ibp/integration/sync-fpa-strategy")
+def sync_fpa_strategy():
+    return {
+        "pipeline": "FP&A Strategic & Operating Plan",
+        "sources": [
+            {"source": "Anaplan LRP Models", "records_ingested": 890, "status": "HEALTHY"},
+            {"source": "Oracle Hyperion AOP Budget", "records_ingested": 1200, "status": "HEALTHY"}
+        ]
+    }
+
+@app.post("/api/v1/ibp/integration/sync-procurement-trading")
+def sync_procurement_trading():
+    return {
+        "pipeline": "Procurement, Spot Markets & Tariff Schedules",
+        "sources": [
+            {"source": "Coupa Procurement Vendor Quotes", "records_ingested": 2100, "status": "HEALTHY"},
+            {"source": "Bloomberg Commodity Spot Market", "symbols_tracked": 145, "status": "HEALTHY"},
+            {"source": "Descartes Customs Tariff Feeds", "hs_codes_verified": 820, "status": "HEALTHY"}
+        ]
+    }
+
+# --- Module Solvers ---
+
+class DSMatchRequest(BaseModel):
+    unconstrained_demand: int
+    base_price: float
+    trade_spend_pct: float
+    plant_a_cap: int
+    plant_b_cap: int
+    plant_a_cost: float
+    plant_b_cost: float
+    nlp_surcharge_per_unit: float = 0.0
+
+@app.post("/api/v1/ibp/solver/ds-match")
+def solve_ds_match(req: DSMatchRequest):
+    net_price = req.base_price * (1 - req.trade_spend_pct)
+    alloc_a = min(req.unconstrained_demand, req.plant_a_cap)
+    rem_demand = max(0, req.unconstrained_demand - alloc_a)
+    alloc_b = min(rem_demand, req.plant_b_cap)
+    fulfilled = alloc_a + alloc_b
+    
+    gross_rev = fulfilled * req.base_price
+    net_rev = fulfilled * net_price
+    base_cost = (alloc_a * req.plant_a_cost) + (alloc_b * req.plant_b_cost)
+    nlp_risk_impact = fulfilled * req.nlp_surcharge_per_unit
+    total_cost = base_cost + nlp_risk_impact
+    net_margin = net_rev - total_cost
+    
+    return {
+        "fulfilled_demand": fulfilled,
+        "unmet_demand": req.unconstrained_demand - fulfilled,
+        "plant_a_allocation": alloc_a,
+        "plant_b_allocation": alloc_b,
+        "gross_revenue": round(gross_rev, 2),
+        "net_revenue": round(net_rev, 2),
+        "cogs": round(total_cost, 2),
+        "nlp_surcharge_total": round(nlp_risk_impact, 2),
+        "net_margin": round(net_margin, 2)
+    }
+
+class SupplierOffer(BaseModel):
+    supplier_name: str
+    spot_price_per_unit: float
+    inbound_freight_per_unit: float
+    tariff_and_duty_per_unit: float
+    warehousing_per_unit: float
+    lead_time_days: int
+    defect_rate_pct: float
+    disruption_surcharge_per_unit: float = 0.0
+    max_available_units: int
+
+class MakeVsBuyRequest(BaseModel):
+    product_sku: str
+    target_volume: int
+    internal_mfg_cost_per_unit: float
+    internal_freight_per_unit: float
+    internal_lead_time_days: int
+    holding_cost_per_day: float = 0.15
+    supplier_offers: List[SupplierOffer]
+
+@app.post("/api/v1/ibp/trading/make-vs-buy")
+def run_make_vs_buy(req: MakeVsBuyRequest):
+    internal_landed = req.internal_mfg_cost_per_unit + req.internal_freight_per_unit
+    offer = req.supplier_offers[0]
+    
+    base_landed = offer.spot_price_per_unit + offer.inbound_freight_per_unit + offer.tariff_and_duty_per_unit + offer.warehousing_per_unit
+    quality_penalty = base_landed * (offer.defect_rate_pct / 100.0)
+    delay_days = max(0, offer.lead_time_days - req.internal_lead_time_days)
+    delay_penalty = delay_days * req.holding_cost_per_day
+    
+    effective_unit_cost = base_landed + quality_penalty + delay_penalty + offer.disruption_surcharge_per_unit
+    delta = internal_landed - effective_unit_cost
+    is_buy = delta > 0
+    
+    return {
+        "sku": req.product_sku,
+        "target_volume": req.target_volume,
+        "internal_landed_unit_cost": round(internal_landed, 2),
+        "arbitrage_opportunity_found": is_buy,
+        "recommended_action": "BUY (External Supplier)" if is_buy else "MAKE (Internal Production)",
+        "best_supplier": offer.supplier_name,
+        "supplier_effective_unit_cost": round(effective_unit_cost, 2),
+        "unit_savings": round(max(0, delta), 2),
+        "total_pnl_impact": round(delta * req.target_volume, 2),
+        "cost_breakdown": {
+            "base_landed": round(base_landed, 2),
+            "quality_penalty": round(quality_penalty, 2),
+            "delay_penalty": round(delay_penalty, 2),
+            "disruption_surcharge": round(offer.disruption_surcharge_per_unit, 2)
+        }
+    }
+
+class PurchaseOrderRequest(BaseModel):
+    sku: str
+    supplier_name: str
+    volume: int
+    agreed_unit_cost: float
+    total_cost: float
+    action_type: str
+
+@app.post("/api/v1/ibp/trading/execute-po")
+def execute_po(po: PurchaseOrderRequest):
+    po_num = f"PO-COUPA-{random.randint(10000, 99999)}"
+    return {
+        "status": "SUCCESS",
+        "po_number": po_num,
+        "action_type": po.action_type,
+        "message": f"Execution order {po_num} committed to SAP S/4HANA & Coupa.",
+        "committed_financial_impact": round(po.total_cost, 2)
+    }
