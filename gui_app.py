@@ -1,5 +1,8 @@
+import os
 import streamlit as st
 import requests
+
+BACKEND_URL = os.getenv("BACKEND_URL", BACKEND_URL)
 
 st.set_page_config(page_title="Integrated Business Planning Platform", layout="wide")
 
@@ -41,37 +44,37 @@ INTEGRATION_MAP = {
     "D/S Match & Net Margin Solver": {
         "title": "Supply Chain & Manufacturing Pipeline",
         "systems": "SAP S/4HANA ERP, MES Plant Floor, WMS Storage",
-        "endpoint": "http://127.0.0.1:8000/api/v1/ibp/integration/sync-erp"
+        "endpoint": "" + BACKEND_URL + "/api/v1/ibp/integration/sync-erp"
     },
     "Product & NPI Engine": {
         "title": "Product Lifecycle & Commercial Pipeline",
         "systems": "Arena PLM, Salesforce CRM, Stage-Gate Workflow",
-        "endpoint": "http://127.0.0.1:8000/api/v1/ibp/integration/sync-crm-plm"
+        "endpoint": "" + BACKEND_URL + "/api/v1/ibp/integration/sync-crm-plm"
     },
     "NLP Commercial Sensing": {
         "title": "Commercial Intelligence & Sentiment Pipeline",
         "systems": "Microsoft Outlook / Exchange API, Gmail Enterprise, Web Feeds",
-        "endpoint": "http://127.0.0.1:8000/api/v1/ibp/integration/sync-nlp-outlook"
+        "endpoint": "" + BACKEND_URL + "/api/v1/ibp/integration/sync-nlp-outlook"
     },
     "Control Tower GIS Map": {
         "title": "Geospatial & Logistics Visibility Pipeline",
         "systems": "FourKites TMS, project44, Mapbox API",
-        "endpoint": "http://127.0.0.1:8000/api/v1/ibp/integration/sync-gis-logistics"
+        "endpoint": "" + BACKEND_URL + "/api/v1/ibp/integration/sync-gis-logistics"
     },
     "Enterprise Knowledge Graph (EKG)": {
         "title": "Knowledge Graph & Ontology Pipeline",
         "systems": "Neo4j Graph Database, NetworkX Core, Enterprise MDM",
-        "endpoint": "http://127.0.0.1:8000/api/v1/ibp/integration/sync-ekg-graph"
+        "endpoint": "" + BACKEND_URL + "/api/v1/ibp/integration/sync-ekg-graph"
     },
     "Strategy & AOP Analysis": {
         "title": "FP&A Strategic & Operating Plan Pipeline",
         "systems": "Anaplan, SAP BPC, Oracle Hyperion",
-        "endpoint": "http://127.0.0.1:8000/api/v1/ibp/integration/sync-fpa-strategy"
+        "endpoint": "" + BACKEND_URL + "/api/v1/ibp/integration/sync-fpa-strategy"
     },
     "Procurement & Trading Desk": {
         "title": "Procurement, Spot Market & Tariff Pipeline",
         "systems": "Coupa Procurement, Bloomberg Commodity, FourKites Maritime, Descartes Tariff APIs",
-        "endpoint": "http://127.0.0.1:8000/api/v1/ibp/integration/sync-procurement-trading"
+        "endpoint": "" + BACKEND_URL + "/api/v1/ibp/integration/sync-procurement-trading"
     }
 }
 
@@ -122,7 +125,7 @@ if module == "D/S Match & Net Margin Solver":
             "nlp_surcharge_per_unit": active_nlp["surcharge_per_unit"]
         }
         try:
-            res = requests.post("http://127.0.0.1:8000/api/v1/ibp/solver/ds-match", json=payload).json()
+            res = requests.post("" + BACKEND_URL + "/api/v1/ibp/solver/ds-match", json=payload).json()
             m1, m2, m3, m4 = st.columns(4)
             m1.metric("Fulfilled Demand", f"{res['fulfilled_demand']:,} units")
             m2.metric("Gross Revenue", f"${res['gross_revenue']:,.2f}")
@@ -345,7 +348,7 @@ elif module == "Procurement & Trading Desk":
             }]
         }
         try:
-            res = requests.post("http://127.0.0.1:8000/api/v1/ibp/trading/make-vs-buy", json=payload).json()
+            res = requests.post("" + BACKEND_URL + "/api/v1/ibp/trading/make-vs-buy", json=payload).json()
             st.session_state["arbitrage_data"] = res
         except Exception as e:
             st.error(f"Solver connection error: {e}")
@@ -375,7 +378,7 @@ elif module == "Procurement & Trading Desk":
                 "action_type": data["recommended_action"]
             }
             try:
-                po_res = requests.post("http://127.0.0.1:8000/api/v1/ibp/trading/execute-po", json=po_payload).json()
+                po_res = requests.post("" + BACKEND_URL + "/api/v1/ibp/trading/execute-po", json=po_payload).json()
                 
                 st.session_state["executed_decisions"].append({
                     "po_number": po_res["po_number"],
