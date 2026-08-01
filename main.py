@@ -349,6 +349,9 @@ def commit_trade_to_ledger(req: CommitTradeRequest):
 
 
 # =======================================================
+
+
+# =======================================================
 # Enterprise CTRM Trading Engine & Persistent Ledger API
 # =======================================================
 import json
@@ -403,7 +406,9 @@ class CommitTradeReq(BaseModel):
     strategy: str
 
 @app.post("/api/v1/ibp/trading/black-scholes")
+@app.post("/api/v1/ibp/trading/black-scholes/")
 @app.post("/api/v1/ibp/trading/black-76")
+@app.post("/api/v1/ibp/trading/black-76/")
 def calculate_black76(req: Black76Req):
     F, K, T, r, sigma = req.forward_price, req.strike_price, req.time_to_expiration, req.risk_free_rate, req.implied_volatility
     if T <= 0 or sigma <= 0 or F <= 0 or K <= 0:
@@ -439,6 +444,7 @@ def calculate_black76(req: Black76Req):
     }
 
 @app.get("/api/v1/ibp/trading/ledger")
+@app.get("/api/v1/ibp/trading/ledger/")
 def get_trading_ledger():
     ledger = load_ledger()
     return {
@@ -450,145 +456,7 @@ def get_trading_ledger():
     }
 
 @app.post("/api/v1/ibp/trading/commit")
-def commit_trade_to_ledger(req: CommitTradeReq):
-    ledger = load_ledger()
-    trade_id = f"TRD-{len(ledger['trades']) + 1001}"
-    
-    cogs_savings = 0.0
-    if req.option_type.lower() == "call" and req.forward_price > req.strike_price:
-        cogs_savings = (req.forward_price - req.strike_price) * req.contract_volume
-
-    trade_entry = {
-        "id": trade_id,
-        "symbol": req.commodity_symbol,
-        "category": req.commodity_category,
-        "option_type": req.option_type.upper(),
-        "volume": req.contract_volume,
-        "premium_income": req.total_premium_income,
-        "cogs_savings": round(cogs_savings, 2),
-        "strike": req.strike_price,
-        "forward": req.forward_price,
-        "strategy": req.strategy
-    }
-    
-    ledger["trades"].append(trade_entry)
-    ledger["total_hedging_revenue"] += req.total_premium_income
-    ledger["total_cogs_savings"] += cogs_savings
-    save_ledger(ledger)
-    
-    return {
-        "status": "SUCCESS",
-        "message": f"Trade {trade_id} committed to Enterprise Financial Ledger.",
-        "summary": {
-            "total_hedging_revenue": round(ledger["total_hedging_revenue"], 2),
-            "total_cogs_savings": round(ledger["total_cogs_savings"], 2),
-            "trade_count": len(ledger["trades"])
-        }
-    }
-
-
-# =======================================================
-# Enterprise CTRM Engine & Persistent Ledger REST API
-# =======================================================
-import json
-import os
-import math
-from pydantic import BaseModel
-
-LEDGER_FILE = "trades_ledger.json"
-
-def norm_cdf(x: float) -> float:
-    return (1.0 + math.erf(x / math.sqrt(2.0))) / 2.0
-
-def norm_pdf(x: float) -> float:
-    return math.exp(-0.5 * x**2) / math.sqrt(2.0 * math.pi)
-
-def load_ledger():
-    if os.path.exists(LEDGER_FILE):
-        try:
-            with open(LEDGER_FILE, "r") as f:
-                return json.load(f)
-        except Exception:
-            pass
-    return {"trades": [], "total_hedging_revenue": 0.0, "total_cogs_savings": 0.0}
-
-def save_ledger(data):
-    try:
-        with open(LEDGER_FILE, "w") as f:
-            json.dump(data, f, indent=2)
-    except Exception:
-        pass
-
-class Black76Req(BaseModel):
-    commodity_category: str = "Agriculture & Livestock"
-    commodity_symbol: str = "CME Lean Hogs (lbs)"
-    forward_price: float
-    strike_price: float
-    time_to_expiration: float
-    risk_free_rate: float = 0.045
-    implied_volatility: float
-    contract_volume: int = 10000
-    option_type: str = "call"
-
-class CommitTradeReq(BaseModel):
-    commodity_symbol: str
-    commodity_category: str
-    option_type: str
-    contract_volume: int
-    premium_per_unit: float
-    total_premium_income: float
-    strike_price: float
-    forward_price: float
-    strategy: str
-
-@app.post("/api/v1/ibp/trading/black-scholes")
-@app.post("/api/v1/ibp/trading/black-76")
-def calculate_black76(req: Black76Req):
-    F, K, T, r, sigma = req.forward_price, req.strike_price, req.time_to_expiration, req.risk_free_rate, req.implied_volatility
-    if T <= 0 or sigma <= 0 or F <= 0 or K <= 0:
-        return {"premium_per_unit": 0.0, "total_premium_income": 0.0, "greeks": {"delta": 0.0, "vega_1pct_vol": 0.0}, "strategy": "N/A", "trading_desk_recommendation": "Invalid parameters"}
-
-    d1 = (math.log(F / K) + (0.5 * sigma**2) * T) / (sigma * math.sqrt(T))
-    d2 = d1 - sigma * math.sqrt(T)
-    discount = math.exp(-r * T)
-
-    if req.option_type.lower() == "call":
-        price = discount * (F * norm_cdf(d1) - K * norm_cdf(d2))
-        delta = discount * norm_cdf(d1)
-        strategy = "Upside Price Protection / Call Overlay"
-        rec = f"Call Option on {req.commodity_symbol}: Locks maximum purchasing price ceiling at ${K:,.2f}."
-    else:
-        price = discount * (K * norm_cdf(-d2) - F * norm_cdf(-d1))
-        delta = -discount * norm_cdf(-d1)
-        strategy = "Inventory Floor Protection / Put Hedge"
-        rec = f"Put Option on {req.commodity_symbol}: Provides downside price floor at ${K:,.2f} for physical volume."
-
-    vega = discount * F * norm_pdf(d1) * math.sqrt(T) * 0.01
-
-    return {
-        "status": "SUCCESS",
-        "premium_per_unit": round(price, 4),
-        "total_premium_income": round(price * req.contract_volume, 2),
-        "greeks": {
-            "delta": round(delta, 4),
-            "vega_1pct_vol": round(vega * req.contract_volume, 2)
-        },
-        "strategy": strategy,
-        "trading_desk_recommendation": rec
-    }
-
-@app.get("/api/v1/ibp/trading/ledger")
-def get_trading_ledger():
-    ledger = load_ledger()
-    return {
-        "status": "SUCCESS",
-        "total_hedging_revenue": round(ledger.get("total_hedging_revenue", 0.0), 2),
-        "total_cogs_savings": round(ledger.get("total_cogs_savings", 0.0), 2),
-        "trade_count": len(ledger.get("trades", [])),
-        "trades": ledger.get("trades", [])
-    }
-
-@app.post("/api/v1/ibp/trading/commit")
+@app.post("/api/v1/ibp/trading/commit/")
 def commit_trade_to_ledger(req: CommitTradeReq):
     ledger = load_ledger()
     trade_id = f"TRD-{len(ledger['trades']) + 1001}"
