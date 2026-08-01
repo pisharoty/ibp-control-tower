@@ -272,31 +272,48 @@ elif module == "Control Tower GIS Map":
 
 # 5. ENTERPRISE KNOWLEDGE GRAPH
 elif module == "Enterprise Knowledge Graph (EKG)":
-    st.header("Enterprise Knowledge Graph (EKG) Dependency Tree")
-    active_nlp = st.session_state["active_nlp_signal"]
-    
-    st.subheader("Dynamic Risk Correlation & Node Impact")
-    
-    st.json({
-        "Root Commodity Affected": active_nlp["affected_sku"],
-        "Active Disruption Trigger": active_nlp["event_name"],
-        "Sensed Surcharge Exposure": f"+${active_nlp['surcharge_per_unit']:.2f}/unit",
-        "Lead Time Vulnerability Delta": f"+{active_nlp['lead_time_delay_days']} Days",
+
+    # --- Enterprise Knowledge Graph (EKG) Module ---
+    st.subheader("Enterprise Knowledge Graph (EKG) Dependency Tree")
+    st.markdown("##### Dynamic Risk Correlation & Node Impact")
+
+    ledger = st.session_state.get('ledger_data', {"trades": [], "total_hedging_revenue": 0.0, "total_cogs_savings": 0.0, "trade_count": 0})
+    trade_cnt = len(ledger.get("trades", []))
+
+    ekg_json = {
+        "Root Commodity Affected": "Teed Off Energy Drink",
+        "Active Disruption Trigger": "Walmart Order Surge: 50,000 Cases Teed Off Energy Drink",
+        "Sensed Surcharge Exposure": "+$0.75/unit",
+        "Lead Time Vulnerability Delta": "+5 Days",
         "Tier-1 Supplier Status": "SugarCo Global Trading (High Exposure)",
-        "Executed Arbitrage Decisons Count": len(st.session_state["executed_decisions"])
-    })
+        "Executed Arbitrage Decisions Count": trade_cnt
+    }
+    st.json(ekg_json)
+
 
 # 6. STRATEGY & AOP ANALYSIS
 elif module == "Strategy & AOP Analysis":
-    st.header("Strategic Planning & Annual Operating Plan (AOP)")
+
+    # --- Strategy & AOP Analysis Module ---
+    st.subheader("Strategic Planning & Annual Operating Plan (AOP)")
     st.caption("Reconcile live NLP risks and executed trading arbitrage decisions against corporate AOP targets.")
-    
-    total_trade_savings = sum(d.get("pnl_impact", 0) for d in st.session_state["executed_decisions"])
-    
-    c1, c2, c3 = st.columns(3)
-    c1.metric("AOP Operating Margin Target", "$12.4M", "2.1% vs Ly")
-    c2.metric("Committed Arbitrage P&L Benefit", f"${total_trade_savings:,.2f}", f"{len(st.session_state['executed_decisions'])} Trades Executed")
-    c3.metric("Active Risk Surcharge Exposure", f"${st.session_state['active_nlp_signal']['surcharge_per_unit']:.2f}/unit")
+
+    ledger = st.session_state.get('ledger_data', {"trades": [], "total_hedging_revenue": 0.0, "total_cogs_savings": 0.0, "trade_count": 0})
+    trades = ledger.get("trades", [])
+    trade_cnt = len(trades)
+    total_benefit = ledger.get("total_hedging_revenue", 0.0) + ledger.get("total_cogs_savings", 0.0)
+
+    col1, col2, col3 = st.columns(3)
+    col1.metric("AOP Operating Margin Target", "$12.4M", "↑ 2.1% vs LY")
+    col2.metric("Committed Arbitrage P&L Benefit", f"${total_benefit:,.2f}", f"↑ {trade_cnt} Trades Executed")
+    col3.metric("Active Risk Surcharge Exposure", "$0.75/unit")
+
+    st.markdown("##### Executed Trade Log (Flowing into General Ledger)")
+    if trade_cnt > 0:
+        st.dataframe(trades, use_container_width=True)
+    else:
+        st.info("No trade decisions executed yet. Use the Procurement & Trading Desk to execute Make/Buy orders.")
+
 
     st.subheader("Executed Trade Log (Flowing into General Ledger)")
     if st.session_state["executed_decisions"]:
