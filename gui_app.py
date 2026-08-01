@@ -306,6 +306,7 @@ elif module == "Strategy & AOP Analysis":
 
 # 7. PROCUREMENT & TRADING DESK
 elif module == "Procurement & Trading Desk":
+    pass
 if st.button("Run Black-76 Option Valuation & Arbitrage Solver", key="ctrm_btn"):
     payload = {
         "commodity_category": comm_cat,
