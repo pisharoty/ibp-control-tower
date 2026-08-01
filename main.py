@@ -262,3 +262,85 @@ def calculate_ctrm_derivative(req: CommodityOptionRequest):
         "strategy": strategy_type,
         "trading_desk_recommendation": rec
     }
+
+
+# =======================================================
+# Enterprise Persistent Trade Ledger & Multi-Asset CTRM
+# =======================================================
+import json
+import os
+
+LEDGER_FILE = "trades_ledger.json"
+
+def load_ledger():
+    if os.path.exists(LEDGER_FILE):
+        try:
+            with open(LEDGER_FILE, "r") as f:
+                return json.load(f)
+        except Exception:
+            pass
+    return {"trades": [], "total_hedging_revenue": 0.0, "total_cogs_savings": 0.0}
+
+def save_ledger(data):
+    with open(LEDGER_FILE, "w") as f:
+        json.dump(data, f, indent=2)
+
+class CommitTradeRequest(BaseModel):
+    commodity_symbol: str
+    commodity_category: str
+    option_type: str
+    contract_volume: int
+    premium_per_unit: float
+    total_premium_income: float
+    strike_price: float
+    forward_price: float
+    strategy: str
+
+@app.get("/api/v1/ibp/trading/ledger")
+def get_trading_ledger():
+    ledger = load_ledger()
+    return {
+        "status": "SUCCESS",
+        "total_hedging_revenue": round(ledger.get("total_hedging_revenue", 0.0), 2),
+        "total_cogs_savings": round(ledger.get("total_cogs_savings", 0.0), 2),
+        "trade_count": len(ledger.get("trades", [])),
+        "trades": ledger.get("trades", [])
+    }
+
+@app.post("/api/v1/ibp/trading/commit")
+def commit_trade_to_ledger(req: CommitTradeRequest):
+    ledger = load_ledger()
+    trade_id = f"TRD-{len(ledger['trades']) + 1001}"
+    
+    cogs_savings = 0.0
+    if req.option_type.lower() == "call" and req.forward_price > req.strike_price:
+        cogs_savings = (req.forward_price - req.strike_price) * req.contract_volume
+
+    trade_entry = {
+        "id": trade_id,
+        "symbol": req.commodity_symbol,
+        "category": req.commodity_category,
+        "option_type": req.option_type.upper(),
+        "volume": req.contract_volume,
+        "premium_income": req.total_premium_income,
+        "cogs_savings": round(cogs_savings, 2),
+        "strike": req.strike_price,
+        "forward": req.forward_price,
+        "strategy": req.strategy
+    }
+    
+    ledger["trades"].append(trade_entry)
+    ledger["total_hedging_revenue"] += req.total_premium_income
+    ledger["total_cogs_savings"] += cogs_savings
+    save_ledger(ledger)
+    
+    return {
+        "status": "SUCCESS",
+        "message": f"Trade {trade_id} committed to Enterprise Financial Ledger.",
+        "summary": {
+            "total_hedging_revenue": round(ledger["total_hedging_revenue"], 2),
+            "total_cogs_savings": round(ledger["total_cogs_savings"], 2),
+            "trade_count": len(ledger["trades"])
+        }
+    }
+

@@ -395,37 +395,51 @@ elif module == "Procurement & Trading Desk":
                 st.error(f"PO Execution error: {e}")
 
 
-    # --- CTRM Energy & Rare Earths Engine ---
-    if 'hedging_revenue' not in st.session_state:
-        st.session_state['hedging_revenue'] = 0.0
-    if 'committed_trades' not in st.session_state:
-        st.session_state['committed_trades'] = []
-    if 'last_ctrm_res' not in st.session_state:
-        st.session_state['last_ctrm_res'] = None
-
+    # --- CTRM Enterprise Multi-Commodity Derivatives Engine ---
     st.markdown("---")
-    st.subheader("⚡ CTRM Energy & Rare Earths Derivatives Engine (Black-76)")
-    st.caption("Monetize physical inventory, write covered options, and price supply flexibility as real options.")
+    st.subheader("⚡ CTRM Commodity & Derivatives Trading Engine (Black-76)")
+    st.caption("Monetize physical inventory, hedge agricultural/energy inputs, and price supply flexibility as real options.")
 
-    # Ledger Active Banner
-    if st.session_state['hedging_revenue'] > 0:
-        st.success(f"📈 **Corporate P&L Ledger Active**: **${st.session_state['hedging_revenue']:,.2f}** accrued in hedging yield across {len(st.session_state['committed_trades'])} committed trade(s).")
+    # Fetch Persistent Ledger from Backend
+    try:
+        ledger_res = requests.get(f"{BACKEND_URL}/api/v1/ibp/trading/ledger")
+        if ledger_res.status_code == 200:
+            ledger_data = ledger_res.json()
+            hedging_rev = ledger_data.get("total_hedging_revenue", 0.0)
+            cogs_sav = ledger_data.get("total_cogs_savings", 0.0)
+            trade_cnt = ledger_data.get("trade_count", 0)
+            
+            if trade_cnt > 0:
+                st.success(f"📈 **Corporate P&L Ledger Active**: **${hedging_rev:,.2f}** in option yield + **${cogs_sav:,.2f}** in COGS risk protection across **{trade_cnt}** persistent trade(s).")
+    except Exception:
+        ledger_data = {"trades": []}
 
     col_cat, col_sym = st.columns(2)
     with col_cat:
-        comm_cat = st.selectbox("Commodity Sector", ["Energy", "Rare Earths"], key="ctrm_cat")
+        comm_cat = st.selectbox("Commodity Sector", [
+            "Agriculture & Livestock", 
+            "Energy", 
+            "Rare Earths & Battery Metals", 
+            "Industrial Metals"
+        ], key="ctrm_cat")
     with col_sym:
-        if comm_cat == "Energy":
+        if comm_cat == "Agriculture & Livestock":
+            comm_sym = st.selectbox("Asset", ["CME Lean Hogs (lbs)", "CME Corn (Bushels)", "CME Live Cattle (lbs)", "Soybean Meal (Tons)"], key="ctrm_asset_a")
+            default_f, default_vol = 88.50, 0.28
+        elif comm_cat == "Energy":
             comm_sym = st.selectbox("Asset", ["WTI Crude Oil (bbl)", "Henry Hub Natural Gas (MMBtu)", "Electricity (MWh)"], key="ctrm_asset_e")
             default_f, default_vol = 78.50, 0.38
-        else:
+        elif comm_cat == "Rare Earths & Battery Metals":
             comm_sym = st.selectbox("Asset", ["Neodymium NdFeB (kg)", "Lithium Carbonate (MT)", "Dysprosium Oxide (kg)"], key="ctrm_asset_r")
             default_f, default_vol = 145.00, 0.45
+        else:
+            comm_sym = st.selectbox("Asset", ["LME Copper (MT)", "LME Aluminum (MT)", "Nickel (MT)"], key="ctrm_asset_m")
+            default_f, default_vol = 9200.00, 0.22
 
     col_inputs1, col_inputs2 = st.columns(2)
     with col_inputs1:
-        f_price = st.slider("Forward / Futures Price ($/unit)", min_value=10.0, max_value=500.0, value=float(default_f), step=0.5, key="ctrm_f")
-        k_price = st.slider("Strike Price ($/unit)", min_value=10.0, max_value=500.0, value=float(default_f * 1.05), step=0.5, key="ctrm_k")
+        f_price = st.slider("Forward / Futures Price ($/unit)", min_value=1.0, max_value=15000.0, value=float(default_f), step=1.0, key="ctrm_f")
+        k_price = st.slider("Strike Price ($/unit)", min_value=1.0, max_value=15000.0, value=float(default_f * 1.05), step=1.0, key="ctrm_k")
         opt_type = st.radio("Option Type", ["call", "put"], horizontal=True, key="ctrm_type")
 
     with col_inputs2:
@@ -454,7 +468,7 @@ elif module == "Procurement & Trading Desk":
         except Exception as e:
             st.error(f"Connection Error: {e}")
 
-    if st.session_state['last_ctrm_res']:
+    if 'last_ctrm_res' in st.session_state and st.session_state['last_ctrm_res']:
         data = st.session_state['last_ctrm_res']
         st.success(f"Calculated Strategy: {data['strategy']}")
         m1, m2, m3, m4 = st.columns(4)
@@ -467,12 +481,30 @@ elif module == "Procurement & Trading Desk":
 
         st.markdown("##### 💼 Corporate Financial Ledger Sync")
         if st.button("💰 Commit Trade Yield to Corporate P&L Ledger", key="commit_pnl_btn"):
-            income = data['total_premium_income']
-            st.session_state['hedging_revenue'] += income
-            st.session_state['committed_trades'].append({
-                'commodity': data['commodity'],
-                'income': income,
-                'strategy': data['strategy']
-            })
-            st.balloons()
-            st.success(f"✅ Committed **${income:,.2f}** in derivative yield to Corporate P&L! Total Accrued Hedging Revenue: **${st.session_state['hedging_revenue']:,.2f}**")
+            commit_payload = {
+                "commodity_symbol": comm_sym,
+                "commodity_category": comm_cat,
+                "option_type": opt_type,
+                "contract_volume": int(contract_qty),
+                "premium_per_unit": float(data['premium_per_unit']),
+                "total_premium_income": float(data['total_premium_income']),
+                "strike_price": float(k_price),
+                "forward_price": float(f_price),
+                "strategy": data['strategy']
+            }
+            try:
+                commit_res = requests.post(f"{BACKEND_URL}/api/v1/ibp/trading/commit", json=commit_payload)
+                if commit_res.status_code == 200:
+                    st.balloons()
+                    st.success(f"✅ Trade committed to persistent backend ledger!")
+                    st.rerun()
+                else:
+                    st.error(f"Commit Failed: {commit_res.text}")
+            except Exception as e:
+                st.error(f"Connection Error: {e}")
+
+    # Persistent Trades Audit Table
+    if 'trades' in ledger_data and len(ledger_data['trades']) > 0:
+        st.markdown("---")
+        st.subheader("📋 Active Corporate Trade & Derivatives Book")
+        st.dataframe(ledger_data['trades'], use_container_width=True)
