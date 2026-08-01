@@ -2,17 +2,25 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 import math
+import re
 
 # Page configuration
 st.set_page_config(page_title="IBP Control Tower", layout="wide", page_icon="⚡")
 
 # --- Session State Initialization ---
 if 'extracted_demand_surge' not in st.session_state:
-    st.session_state['extracted_demand_surge'] = 0
+    st.session_state['extracted_demand_surge'] = 50000
 if 'unconstrained_demand' not in st.session_state:
-    st.session_state['unconstrained_demand'] = 100000
+    st.session_state['unconstrained_demand'] = 150000
+if 'active_signal_name' not in st.session_state:
+    st.session_state['active_signal_name'] = "Costco Promo Surge (+50,000 cases)"
 if 'ledger_data' not in st.session_state:
-    st.session_state['ledger_data'] = {"trades": [], "total_hedging_revenue": 0.0, "total_cogs_savings": 0.0, "trade_count": 0}
+    st.session_state['ledger_data'] = {
+        "trades": [],
+        "total_hedging_revenue": 0.0,
+        "total_cogs_savings": 0.0,
+        "trade_count": 0
+    }
 
 # Sidebar Navigation
 st.sidebar.title("⚡ IBP Control Tower")
@@ -26,67 +34,150 @@ module = st.sidebar.radio(
     ]
 )
 
+# Helper function to check if overflow was outsourced
+def get_outsourced_info():
+    trades = st.session_state['ledger_data'].get('trades', [])
+    outsourced_vol = 0
+    outsourced_cost_weighted = 0.0
+    for t in trades:
+        if t.get('category') == 'Physical Make/Buy':
+            vol = t.get('volume', 0)
+            outsourced_vol += vol
+            outsourced_cost_weighted += t.get('strike', 12.01) * vol
+    if outsourced_vol > 0:
+        avg_cost = outsourced_cost_weighted / outsourced_vol
+        return outsourced_vol, avg_cost
+    return 0, 0.0
+
 # =============================================================================
 # MODULE 0: EXECUTIVE S&OP DASHBOARD
 # =============================================================================
 if module == "📊 Executive S&OP Dashboard":
     st.header("📊 Executive S&OP & Financial Control Tower")
-    st.caption("High-level enterprise visibility across commercial demand, plant utilization, supply chain costs, and CTRM hedges.")
+    st.caption("Master Enterprise View: Synthesizing commercial demand signals, plant capacities, procurement arbitrage, and CTRM hedges.")
     
-    col1, col2, col3, col4 = st.columns(4)
-    col1.metric("Unconstrained Demand", f"{st.session_state['unconstrained_demand']:,} units")
-    col2.metric("Base Plant Capacity", "85,000 units")
+    total_demand = st.session_state['unconstrained_demand']
+    outsourced_vol, avg_outsource_cost = get_outsourced_info()
     
+    selling_price = 50.00
+    trade_spend_pct = 0.12
+    
+    gross_rev = total_demand * selling_price
+    trade_spend = gross_rev * trade_spend_pct
+    net_rev = gross_rev - trade_spend
+    
+    cap_a, cost_a = 40000, 14.50
+    cap_b, cost_b = 45000, 17.00
+    alloc_a = min(total_demand, cap_a)
+    rem_1 = total_demand - alloc_a
+    alloc_b = min(rem_1, cap_b)
+    overflow = rem_1 - alloc_b
+    
+    actual_outsourced = min(overflow, outsourced_vol)
+    expedited_vol = overflow - actual_outsourced
+    
+    cost_a_tot = alloc_a * cost_a
+    cost_b_tot = alloc_b * cost_b
+    cost_outsource_tot = actual_outsourced * (avg_outsource_cost if avg_outsource_cost > 0 else 12.01)
+    cost_expedited_tot = expedited_vol * 24.50
+    
+    total_supply_chain_cost = cost_a_tot + cost_b_tot + cost_outsource_tot + cost_expedited_tot
+    net_operating_margin = net_rev - total_supply_chain_cost
+    margin_pct = (net_operating_margin / gross_rev) * 100.0 if gross_rev > 0 else 0.0
+
     cogs_sav = st.session_state['ledger_data'].get("total_cogs_savings", 0.0)
     hedge_rev = st.session_state['ledger_data'].get("total_hedging_revenue", 0.0)
-    
-    col3.metric("Procurement COGS Savings", f"${cogs_sav:,.2f}")
-    col4.metric("CTRM Option Premium Yield", f"${hedge_rev:,.2f}")
+
+    # Key Metrics
+    st.subheader("💡 Enterprise Performance Summary")
+    kpi1, kpi2, kpi3, kpi4, kpi5 = st.columns(5)
+    kpi1.metric("Unconstrained Demand", f"{total_demand:,.0f} units")
+    kpi2.metric("Gross Revenue", f"${gross_rev:,.2f}")
+    kpi3.metric("Net Revenue", f"${net_rev:,.2f}")
+    kpi4.metric("Net Operating Margin", f"${net_operating_margin:,.2f}", f"{margin_pct:.1f}% Margin")
+    kpi5.metric("Procurement & Hedging Value", f"${(cogs_sav + hedge_rev):,.2f}")
 
     st.markdown("---")
-    st.info("💡 **Quick Navigation**: Use the sidebar to jump between **Pillar 1 (NLP Sensing)**, **D/S Net Margin LP Solver**, and the **Procurement & CTRM Trading Desk**.")
+    
+    col_dash1, col_dash2 = st.columns(2)
+    with col_dash1:
+        st.markdown("### 📊 Financial Waterfall & Operational Margin")
+        waterfall_df = pd.DataFrame({
+            "Financial Line Item": ["Gross Revenue", "Trade Spend (-12%)", "Net Revenue", "Base Plant Production Cost", "Outsourced / Expedited Fulfillment", "NET OPERATING MARGIN"],
+            "Amount ($)": [f"${gross_rev:,.2f}", f"-${trade_spend:,.2f}", f"${net_rev:,.2f}", f"-${(cost_a_tot + cost_b_tot):,.2f}", f"-${(cost_outsource_tot + cost_expedited_tot):,.2f}", f"${net_operating_margin:,.2f}"]
+        })
+        st.table(waterfall_df)
+
+    with col_dash2:
+        st.markdown("### 🏭 Physical Fulfillment Breakdown")
+        fulfillment_df = pd.DataFrame({
+            "Channel": ["Plant A (In-House)", "Plant B (In-House)", "Tier-1 Outsource Partner", "Expedited Air Freight"],
+            "Volume Allocated": [f"{alloc_a:,.0f} units", f"{alloc_b:,.0f} units", f"{actual_outsourced:,.0f} units", f"{expedited_vol:,.0f} units"],
+            "Unit Cost": ["$14.50", "$17.00", f"${(avg_outsource_cost if avg_outsource_cost > 0 else 12.01):.2f}", "$24.50"]
+        })
+        st.table(fulfillment_df)
+
+    st.markdown("---")
+    st.subheader("📋 Active Corporate General Ledger & Sourcing Book")
+    trades_list = st.session_state['ledger_data'].get('trades', [])
+    if isinstance(trades_list, list) and len(trades_list) > 0:
+        st.dataframe(trades_list, use_container_width=True)
+    else:
+        st.info("ℹ️ No physical or financial trades committed to the ledger yet. Execute decisions in **Procurement & Trading Desk** to populate the ledger.")
 
 # =============================================================================
 # MODULE 1: PILLAR 1 — NLP COMMERCIAL SENSING
 # =============================================================================
 elif module == "💬 Pillar 1: NLP Commercial Sensing":
-    st.header("💬 Pillar 1: NLP Commercial Sensing")
-    st.caption("Extract unstructured commercial intelligence and automatically route demand signals across the S&OP network.")
+    st.header("💬 Pillar 1: NLP Commercial Sensing & Demand Extraction")
+    st.caption("Pillar 1 converts unstructured market intelligence (customer communications, CRM notes, retailer updates) into structured demand signals for the S&OP network.")
 
-    raw_text = st.text_area(
-        "Raw Account Communication / Commercial Signal", 
-        value="Costco wants 50,000 extra cases of Teed off energy drink for a promo", 
-        height=100
+    st.markdown("#### 🎯 Select Commercial Scenario or Input Custom Signal")
+    scenario_choice = st.selectbox(
+        "Pre-configured Commercial Intelligence Signals",
+        [
+            "Costco Promo Surge (+50,000 cases Teed Off Energy)",
+            "Walmart Summer Heat Wave Demand (+75,000 cases)",
+            "Target Back-to-School Flash Sale (+30,000 cases)",
+            "✏️ Custom Free-Text Communication Input"
+        ]
     )
 
-    if st.button("🚀 Parse Intelligence", key="parse_nlp_btn"):
+    if scenario_choice == "Costco Promo Surge (+50,000 cases Teed Off Energy)":
+        default_text = "Costco wants 50,000 extra cases of Teed off energy drink for an upcoming promo campaign."
+    elif scenario_choice == "Walmart Summer Heat Wave Demand (+75,000 cases)":
+        default_text = "Walmart issued an urgent request for 75,000 additional units of Teed Off drink to cover summer heatwave stockouts."
+    elif scenario_choice == "Target Back-to-School Flash Sale (+30,000 cases)":
+        default_text = "Target back-to-school flash promotion requires an additional 30,000 cases next month."
+    else:
+        default_text = "Customer requested 40,000 additional cases for immediate delivery."
+
+    raw_text = st.text_area("Raw Commercial Communication Log", value=default_text, height=100)
+
+    if st.button("🚀 Parse & Route Commercial Signal", key="parse_nlp_btn"):
         text_lower = raw_text.lower()
-        customer = "Costco" if "costco" in text_lower else "Walmart" if "walmart" in text_lower else "Retail Partner"
+        customer = "Costco" if "costco" in text_lower else "Walmart" if "walmart" in text_lower else "Target" if "target" in text_lower else "Retail Partner"
         product = "Teed Off Energy Drink" if "teed off" in text_lower or "energy" in text_lower else "General SKU"
         
-        import re
         numbers = re.findall(r'\b\d{1,3}(?:,\d{3})*\b', raw_text)
         extracted_vol = 50000
         if numbers:
             extracted_vol = int(numbers[0].replace(',', ''))
 
-        pulse_tag = f"COMMERCIAL_DEMAND_SURGE_{customer.upper()}"
-        routed_to = f"Demand Planner - {customer} Retail Account"
-
         st.session_state['extracted_demand_surge'] = extracted_vol
         st.session_state['unconstrained_demand'] = 100000 + extracted_vol
+        st.session_state['active_signal_name'] = f"{customer} Demand Signal (+{extracted_vol:,.0f} units)"
 
-        st.success("🎉 Parsed & Graph-Routed Successfully! 🚀")
+        st.success("🎉 Signal Extracted & Routed Across S&OP Network!")
         
         col_e1, col_e2, col_e3 = st.columns(3)
-        col_e1.metric("Customer", customer)
+        col_e1.metric("Customer Account", customer)
         col_e2.metric("Product Family", product)
-        col_e3.metric("Incremental Volume", f"{extracted_vol:,.0f} cases")
+        col_e3.metric("Incremental Volume Surge", f"{extracted_vol:,.0f} cases")
 
-        st.info(f"**Pulse Tag:** `{pulse_tag}`")
-        st.info(f"**Routed To:** `{routed_to}`")
+        st.info(f"**Pulse Tag:** `COMMERCIAL_DEMAND_SURGE_{customer.upper()}` | **Routed To:** `Demand Planner - {customer} Retail`")
         st.balloons()
-        st.caption("💡 *Demand updated! Navigate to **D/S Match & Net Margin Solver** to view the auto-updated LP allocation.*")
+        st.caption("💡 *Unconstrained demand updated to **" + f"{st.session_state['unconstrained_demand']:,}" + " units**! Navigate to **D/S Match & Net Margin Solver** or **Procurement Desk** to see updated allocations.*")
 
 # =============================================================================
 # MODULE 2: D/S MATCH & NET MARGIN SOLVER
@@ -95,15 +186,18 @@ elif module == "⚖️ D/S Match & Net Margin Solver":
     st.header("⚖️ D/S Match & Net Margin Optimization Solver")
     st.caption("Multi-echelon SciPy LP solver balancing plant capacity, expedited logistics, trade spend, and operating margins.")
 
-    if st.session_state.get('extracted_demand_surge', 0) > 0:
-        st.info(f"📡 **Active Signal Ingested from Pillar 1**: +{st.session_state['extracted_demand_surge']:,} units (Costco Promo Surge)")
+    active_surge = st.session_state.get('extracted_demand_surge', 0)
+    st.info(f"📡 **Active Signal Ingested from Pillar 1**: +{active_surge:,} units ({st.session_state.get('active_signal_name', 'Commercial Surge')})")
 
     total_demand = st.slider(
         "Total Unconstrained Demand (Units)", 
         min_value=50000, max_value=250000, 
-        value=int(st.session_state.get('unconstrained_demand', 100000)), 
+        value=int(st.session_state.get('unconstrained_demand', 150000)), 
         step=5000, key="ds_demand_slider"
     )
+    st.session_state['unconstrained_demand'] = total_demand
+
+    outsourced_vol, avg_outsource_cost = get_outsourced_info()
 
     selling_price = 50.00
     trade_spend_pct = 0.12
@@ -114,21 +208,25 @@ elif module == "⚖️ D/S Match & Net Margin Solver":
 
     cap_a, cost_a = 40000, 14.50
     cap_b, cost_b = 45000, 17.00
-    cost_exp = 24.50
 
     alloc_a = min(total_demand, cap_a)
     rem_1 = total_demand - alloc_a
 
     alloc_b = min(rem_1, cap_b)
-    alloc_exp = rem_1 - alloc_b
+    overflow = rem_1 - alloc_b
+
+    actual_outsourced = min(overflow, outsourced_vol)
+    alloc_exp = overflow - actual_outsourced
 
     cost_a_total = alloc_a * cost_a
     cost_b_total = alloc_b * cost_b
-    cost_exp_total = alloc_exp * cost_exp
-    total_mfg_logistics_cost = cost_a_total + cost_b_total + cost_exp_total
+    cost_outsource_total = actual_outsourced * (avg_outsource_cost if avg_outsource_cost > 0 else 12.01)
+    cost_exp_total = alloc_exp * 24.50
+    
+    total_mfg_logistics_cost = cost_a_total + cost_b_total + cost_outsource_total + cost_exp_total
 
     net_operating_margin = net_rev - total_mfg_logistics_cost
-    margin_pct = (net_operating_margin / gross_rev) * 100.0
+    margin_pct = (net_operating_margin / gross_rev) * 100.0 if gross_rev > 0 else 0.0
 
     st.markdown("---")
     st.subheader("📊 Financial Waterfall & Profitability Summary")
@@ -136,41 +234,43 @@ elif module == "⚖️ D/S Match & Net Margin Solver":
     m1, m2, m3, m4 = st.columns(4)
     m1.metric("Gross Revenue", f"${gross_rev:,.2f}")
     m2.metric("Net Revenue (After Trade Spend)", f"${net_rev:,.2f}")
-    m3.metric("Total Mfg & Freight Cost", f"${total_mfg_logistics_cost:,.2f}")
+    m3.metric("Total Fulfillment Cost", f"${total_mfg_logistics_cost:,.2f}")
     m4.metric("Net Operating Margin", f"${net_operating_margin:,.2f}", f"{margin_pct:.1f}% Margin")
 
     st.markdown("#### 🏭 Supply Chain Allocation Breakdown (SciPy LP)")
     alloc_data = {
-        "Fulfillment Channel": ["Plant A (In-House)", "Plant B (In-House)", "Expedited Air / Freight Overflow", "TOTAL FULFILLMENT"],
-        "Capacity Limit": ["40,000 units", "45,000 units", "Unlimited", "85,000 Max In-House"],
-        "Allocated Volume": [f"{alloc_a:,.0f} units", f"{alloc_b:,.0f} units", f"{alloc_exp:,.0f} units", f"{total_demand:,.0f} units"],
-        "Unit Cost ($/unit)": ["$14.50", "$17.00", "$24.50", f"${(total_mfg_logistics_cost/total_demand):.2f} avg"],
-        "Total Cost ($)": [f"${cost_a_total:,.2f}", f"${cost_b_total:,.2f}", f"${cost_exp_total:,.2f}", f"${total_mfg_logistics_cost:,.2f}"]
+        "Fulfillment Channel": ["Plant A (In-House)", "Plant B (In-House)", "Tier-1 Outsource Partner", "Expedited Air Freight", "TOTAL FULFILLMENT"],
+        "Capacity Limit": ["40,000 units", "45,000 units", "Flexible Contract", "Unlimited Overflow", "85,000 Max In-House"],
+        "Allocated Volume": [f"{alloc_a:,.0f} units", f"{alloc_b:,.0f} units", f"{actual_outsourced:,.0f} units", f"{alloc_exp:,.0f} units", f"{total_demand:,.0f} units"],
+        "Unit Cost ($/unit)": ["$14.50", "$17.00", f"${(avg_outsource_cost if avg_outsource_cost > 0 else 12.01):.2f}", "$24.50", f"${(total_mfg_logistics_cost/total_demand):.2f} avg"],
+        "Total Cost ($)": [f"${cost_a_total:,.2f}", f"${cost_b_total:,.2f}", f"${cost_outsource_total:,.2f}", f"${cost_exp_total:,.2f}", f"${total_mfg_logistics_cost:,.2f}"]
     }
     st.table(alloc_data)
 
     if alloc_exp > 0:
-        st.warning(f"⚠️ **Capacity Bottleneck**: Order volume exceeds maximum internal plant capacity (85,000 units). **{alloc_exp:,.0f} units** routed through expedited freight at a **$10.00/unit penalty**, diluting margin rate to **{margin_pct:.1f}%**.")
-        st.caption("💡 *Action Item: Navigate to **Procurement & Trading Desk** to evaluate outsourcing options for the overflow volume.*")
+        st.warning(f"⚠️ **Capacity Bottleneck**: Order volume exceeds maximum internal plant capacity (85,000 units). **{alloc_exp:,.0f} units** currently routed through expedited air freight at a **$10.00/unit penalty** ($24.50/unit vs $14.50 base cost).")
+        st.info("💡 **Action Item**: Navigate to **Procurement & Trading Desk** to execute an Industrial Arbitrage trade and outsource this overflow volume at $12.01/unit landed cost!")
+    elif actual_outsourced > 0:
+        st.success(f"✅ **Bottleneck Mitigated via Outsourcing**: **{actual_outsourced:,.0f} overflow units** successfully outsourced at **${avg_outsource_cost:.2f}/unit**, bypassing expedited freight penalties and protecting operating margins ({margin_pct:.1f}%).")
     else:
-        st.success(f"✅ **Optimal Allocation**: All demand satisfied through internal plant capacity without expedited penalties. Operating margin: **{margin_pct:.1f}%**.")
+        st.success(f"✅ **Optimal In-House Allocation**: All demand satisfied through internal plant capacity without expedited penalties. Operating margin: **{margin_pct:.1f}%**.")
 
 # =============================================================================
-# MODULE 3: PROCUREMENT & TRADING DESK (INDUSTRIAL MAKE/BUY + CTRM)
+# MODULE 3: PROCUREMENT & TRADING DESK
 # =============================================================================
 elif module == "🏭 Procurement & Trading Desk":
     st.header("🏭 Procurement & Trading Desk")
     st.caption("Execute physical Make vs. Buy arbitrage to mitigate capacity bottlenecks and trade financial derivatives (Black-76).")
 
-    # -------------------------------------------------------------------------
-    # SECTION 1: Industrial Make vs Buy & Capacity Cannibalization Engine
-    # -------------------------------------------------------------------------
     st.subheader("🏭 Industrial Make vs. Buy & Capacity Cannibalization Engine")
-    st.info("📡 **Active Market Signal Ingested**: Costco Order Surge (+50,000 cases Teed Off Energy Drink)")
+    
+    total_dem = st.session_state.get('unconstrained_demand', 150000)
+    suggested_overflow = max(0, total_dem - 85000)
+    st.info(f"📡 **Active Signal Ingested**: Current Demand = {total_dem:,} units | Calculated Unmet Internal Capacity = **{suggested_overflow:,} units**")
 
     col_hdr1, col_hdr2, col_hdr3 = st.columns(3)
     with col_hdr1:
-        order_qty = st.number_input("Target Overflow Volume (Units)", value=65000, step=5000, key="ind_qty")
+        order_qty = st.number_input("Target Overflow Volume (Units)", value=int(suggested_overflow if suggested_overflow > 0 else 65000), step=5000, key="ind_qty")
     with col_hdr2:
         unit_price = st.number_input("End-Market Unit Selling Price ($)", value=50.00, step=1.00, key="ind_price")
     with col_hdr3:
@@ -179,9 +279,8 @@ elif module == "🏭 Procurement & Trading Desk":
     st.markdown("---")
     col_make, col_buy = st.columns(2)
 
-    # In-House Plant (Make)
     with col_make:
-        st.markdown("### 🏬 In-House Plant Economics (Make / Expedited)")
+        st.markdown("### 🏬 In-House Expedited Economics (Make)")
         dm_cost = st.number_input("Direct Materials ($/unit)", value=7.20, step=0.10, key="h_dm")
         dl_cost = st.number_input("Direct Labor ($/unit)", value=4.10, step=0.10, key="h_dl")
         voh_cost = st.number_input("Variable & Expedited Overhead ($/unit)", value=11.50, step=0.50, key="h_voh")
@@ -201,7 +300,6 @@ elif module == "🏭 Procurement & Trading Desk":
         
         st.metric("Total In-House / Expedited Unit Cost", f"${total_unit_make_cost:.2f}")
 
-    # Outsource Supplier (Buy)
     with col_buy:
         st.markdown("### 🌍 Outsource Supplier Landed Cost (Buy)")
         buy_base_quote = st.number_input("Supplier Base Quote ($/unit)", value=9.80, step=0.25, key="h_buy_quote")
@@ -260,30 +358,18 @@ elif module == "🏭 Procurement & Trading Desk":
         st.session_state['ledger_data']['total_cogs_savings'] += cogs_savings_val
         st.session_state['ledger_data']['trade_count'] += 1
         st.balloons()
-        st.success(f"✅ Executed Outsource Arbitrage! Committed ${cogs_savings_val:,.2f} COGS savings to General Ledger.")
+        st.success(f"✅ Executed Outsource Arbitrage! Saved ${cogs_savings_val:,.2f} in COGS. Flowed to General Ledger & D/S Solver!")
         st.rerun()
 
-    # -------------------------------------------------------------------------
-    # SECTION 2: Financial CTRM & Derivatives Engine (Black-76)
-    # -------------------------------------------------------------------------
+    # SECTION 2: Financial CTRM
     st.markdown("---")
     st.subheader("⚡ CTRM Commodity & Derivatives Trading Engine (Black-76)")
     st.caption("Monetize physical inventory, hedge agricultural/energy inputs, and price supply flexibility as real options.")
 
-    ledger_data = st.session_state['ledger_data']
-    trade_cnt = ledger_data.get("trade_count", 0)
-    if trade_cnt > 0:
-        hedging_rev = ledger_data.get("total_hedging_revenue", 0.0)
-        cogs_sav = ledger_data.get("total_cogs_savings", 0.0)
-        st.success(f"📈 **Corporate P&L Ledger Active**: **${hedging_rev:,.2f}** in option yield + **${cogs_sav:,.2f}** in physical COGS risk protection across **{trade_cnt}** persistent trade(s).")
-
     col_cat, col_sym = st.columns(2)
     with col_cat:
         comm_cat = st.selectbox("Commodity Sector", [
-            "Agriculture & Livestock", 
-            "Energy", 
-            "Rare Earths & Battery Metals", 
-            "Industrial Metals"
+            "Agriculture & Livestock", "Energy", "Rare Earths & Battery Metals", "Industrial Metals"
         ], key="ctrm_cat_proc")
     with col_sym:
         if comm_cat == "Agriculture & Livestock":
@@ -354,11 +440,10 @@ elif module == "🏭 Procurement & Trading Desk":
         
         st.info(f"**Trading Desk Action Plan:** {data.get('trading_desk_recommendation', 'N/A')}")
 
-        st.markdown("##### 💼 Corporate Financial Ledger Sync")
         if st.button("💰 Commit Trade Yield to Corporate P&L Ledger", key="commit_pnl_btn_proc"):
             cogs_sav = (f_price - k_price) * contract_qty if opt_type == "call" and f_price > k_price else 0.0
             new_trade = {
-                "id": f"TRD-{len(ledger_data['trades']) + 1001}",
+                "id": f"TRD-{len(st.session_state['ledger_data']['trades']) + 1001}",
                 "symbol": comm_sym,
                 "category": comm_cat,
                 "option_type": opt_type.upper(),
@@ -374,7 +459,7 @@ elif module == "🏭 Procurement & Trading Desk":
             st.session_state['ledger_data']['total_cogs_savings'] += cogs_sav
             st.session_state['ledger_data']['trade_count'] += 1
             st.balloons()
-            st.success("✅ Financial trade committed to persistent P&L ledger!")
+            st.success("✅ Financial trade committed to persistent General Ledger!")
             st.rerun()
 
     trades_list = st.session_state['ledger_data'].get('trades', [])
