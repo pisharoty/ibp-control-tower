@@ -396,9 +396,20 @@ elif module == "Procurement & Trading Desk":
 
 
     # --- CTRM Energy & Rare Earths Engine ---
+    if 'hedging_revenue' not in st.session_state:
+        st.session_state['hedging_revenue'] = 0.0
+    if 'committed_trades' not in st.session_state:
+        st.session_state['committed_trades'] = []
+    if 'last_ctrm_res' not in st.session_state:
+        st.session_state['last_ctrm_res'] = None
+
     st.markdown("---")
     st.subheader("⚡ CTRM Energy & Rare Earths Derivatives Engine (Black-76)")
     st.caption("Monetize physical inventory, write covered options, and price supply flexibility as real options.")
+
+    # Ledger Active Banner
+    if st.session_state['hedging_revenue'] > 0:
+        st.success(f"📈 **Corporate P&L Ledger Active**: **${st.session_state['hedging_revenue']:,.2f}** accrued in hedging yield across {len(st.session_state['committed_trades'])} committed trade(s).")
 
     col_cat, col_sym = st.columns(2)
     with col_cat:
@@ -437,16 +448,31 @@ elif module == "Procurement & Trading Desk":
         try:
             res = requests.post(f"{BACKEND_URL}/api/v1/ibp/trading/black-scholes", json=payload)
             if res.status_code == 200:
-                data = res.json()
-                st.success(f"Calculated Strategy: {data['strategy']}")
-                m1, m2, m3, m4 = st.columns(4)
-                m1.metric("Option Premium / Unit", f"${data['premium_per_unit']}")
-                m2.metric("Total Premium Revenue", f"${data['total_premium_income']:,.2f}")
-                m3.metric("Delta (Δ)", data['greeks']['delta'])
-                m4.metric("1% Vol Vega Impact", f"${data['greeks']['vega_1pct_vol']:,.2f}")
-                
-                st.info(f"**Trading Desk Action Plan:** {data['trading_desk_recommendation']}")
+                st.session_state['last_ctrm_res'] = res.json()
             else:
                 st.error(f"Server Error: {res.text}")
         except Exception as e:
             st.error(f"Connection Error: {e}")
+
+    if st.session_state['last_ctrm_res']:
+        data = st.session_state['last_ctrm_res']
+        st.success(f"Calculated Strategy: {data['strategy']}")
+        m1, m2, m3, m4 = st.columns(4)
+        m1.metric("Option Premium / Unit", f"${data['premium_per_unit']}")
+        m2.metric("Total Premium Revenue", f"${data['total_premium_income']:,.2f}")
+        m3.metric("Delta (Δ)", data['greeks']['delta'])
+        m4.metric("1% Vol Vega Impact", f"${data['greeks']['vega_1pct_vol']:,.2f}")
+        
+        st.info(f"**Trading Desk Action Plan:** {data['trading_desk_recommendation']}")
+
+        st.markdown("##### 💼 Corporate Financial Ledger Sync")
+        if st.button("💰 Commit Trade Yield to Corporate P&L Ledger", key="commit_pnl_btn"):
+            income = data['total_premium_income']
+            st.session_state['hedging_revenue'] += income
+            st.session_state['committed_trades'].append({
+                'commodity': data['commodity'],
+                'income': income,
+                'strategy': data['strategy']
+            })
+            st.balloons()
+            st.success(f"✅ Committed **${income:,.2f}** in derivative yield to Corporate P&L! Total Accrued Hedging Revenue: **${st.session_state['hedging_revenue']:,.2f}**")
