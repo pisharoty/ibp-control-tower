@@ -186,3 +186,79 @@ def execute_po(po: PurchaseOrderRequest):
         "message": f"Execution order {po_num} committed to SAP S/4HANA & Coupa.",
         "committed_financial_impact": round(po.total_cost, 2)
     }
+
+# =======================================================
+# CTRM Black-76 Engine: Energy & Rare Earths Derivatives
+# =======================================================
+from scipy.stats import norm
+import math
+
+class CommodityOptionRequest(BaseModel):
+    commodity_category: str    # "Energy" or "Rare Earths"
+    commodity_symbol: str      # e.g., "WTI Crude Oil", "Neodymium (NdFeB)"
+    forward_price: float       # Current Forward/Futures Price (F)
+    strike_price: float        # Strike Price (K)
+    time_to_expiration: float  # Expiration in Years (T)
+    risk_free_rate: float      # Risk-Free Rate (r), e.g. 0.05
+    implied_volatility: float  # Implied Volatility (sigma), e.g. 0.35
+    contract_volume: int       # Units (e.g., 1,000 Barrels / Kg)
+    option_type: str = "call"  # "call" or "put"
+
+@app.post("/api/v1/ibp/trading/black-scholes")
+def calculate_ctrm_derivative(req: CommodityOptionRequest):
+    F = req.forward_price
+    K = req.strike_price
+    T = req.time_to_expiration
+    r = req.risk_free_rate
+    sigma = req.implied_volatility
+
+    if T <= 0 or sigma <= 0 or F <= 0 or K <= 0:
+        return {"status": "ERROR", "message": "Invalid market inputs."}
+
+    # Black-76 Model Calculations
+    d1 = (math.log(F / K) + (0.5 * sigma**2) * T) / (sigma * math.sqrt(T))
+    d2 = d1 - sigma * math.sqrt(T)
+    discount = math.exp(-r * T)
+
+    if req.option_type.lower() == "call":
+        premium_per_unit = discount * (F * norm.cdf(d1) - K * norm.cdf(d2))
+        delta = discount * norm.cdf(d1)
+    else:
+        premium_per_unit = discount * (K * norm.cdf(-d2) - F * norm.cdf(-d1))
+        delta = -discount * norm.cdf(-d1)
+
+    vega_per_unit = discount * F * norm.pdf(d1) * math.sqrt(T) / 100.0  # 1% volatility change
+    total_premium = premium_per_unit * req.contract_volume
+    total_notional = F * req.contract_volume
+
+    # Tailored Trading Strategy Logic
+    if req.commodity_category == "Energy":
+        if sigma > 0.35 and delta > 0.5:
+            rec = "WRITE_COVERED_CALL: Elevated volatility detected. Monetize physical energy inventory by selling out-of-the-money call options for immediate premium income."
+            strategy_type = "Income Harvesting (Yield Over COGS)"
+        else:
+            rec = "ZERO_COST_COLLAR: Buy a protective put while writing a call to cap energy input costs within a tight corridor."
+            strategy_type = "Cost Stabilization"
+    else:  # Rare Earths
+        if delta < 0.4:
+            rec = "CONTRACTUAL_REAL_OPTION: Low exercise probability. Secure dynamic supplier volume option to absorb geopolitical supply disruptions."
+            strategy_type = "Supply Chain Flexibility Pricing"
+        else:
+            rec = "FORWARD_LOCK_IN: High moneyness. Exercise call option to lock in rare earth raw material pricing against spot spikes."
+            strategy_type = "Critical Materials Floor Hedge"
+
+    return {
+        "status": "SUCCESS",
+        "model": "Black-76 Commodity Options",
+        "commodity": f"{req.commodity_symbol} ({req.commodity_category})",
+        "option_type": req.option_type.upper(),
+        "premium_per_unit": round(premium_per_unit, 4),
+        "total_premium_income": round(total_premium, 2),
+        "notional_contract_value": round(total_notional, 2),
+        "greeks": {
+            "delta": round(delta, 4),
+            "vega_1pct_vol": round(vega_per_unit * req.contract_volume, 2)
+        },
+        "strategy": strategy_type,
+        "trading_desk_recommendation": rec
+    }

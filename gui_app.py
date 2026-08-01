@@ -393,3 +393,60 @@ elif module == "Procurement & Trading Desk":
                 st.success(f"🎉 {po_res['message']} Action committed to Global IBP State.")
             except Exception as e:
                 st.error(f"PO Execution error: {e}")
+
+
+    # --- CTRM Energy & Rare Earths Engine ---
+    st.markdown("---")
+    st.subheader("⚡ CTRM Energy & Rare Earths Derivatives Engine (Black-76)")
+    st.caption("Monetize physical inventory, write covered options, and price supply flexibility as real options.")
+
+    col_cat, col_sym = st.columns(2)
+    with col_cat:
+        comm_cat = st.selectbox("Commodity Sector", ["Energy", "Rare Earths"], key="ctrm_cat")
+    with col_sym:
+        if comm_cat == "Energy":
+            comm_sym = st.selectbox("Asset", ["WTI Crude Oil (bbl)", "Henry Hub Natural Gas (MMBtu)", "Electricity (MWh)"], key="ctrm_asset_e")
+            default_f, default_vol = 78.50, 0.38
+        else:
+            comm_sym = st.selectbox("Asset", ["Neodymium NdFeB (kg)", "Lithium Carbonate (MT)", "Dysprosium Oxide (kg)"], key="ctrm_asset_r")
+            default_f, default_vol = 145.00, 0.45
+
+    col_inputs1, col_inputs2 = st.columns(2)
+    with col_inputs1:
+        f_price = st.slider("Forward / Futures Price ($/unit)", min_value=10.0, max_value=500.0, value=float(default_f), step=0.5, key="ctrm_f")
+        k_price = st.slider("Strike Price ($/unit)", min_value=10.0, max_value=500.0, value=float(default_f * 1.05), step=0.5, key="ctrm_k")
+        opt_type = st.radio("Option Type", ["call", "put"], horizontal=True, key="ctrm_type")
+
+    with col_inputs2:
+        exp_months = st.slider("Contract Expiration (Months)", min_value=1, max_value=24, value=6, key="ctrm_exp")
+        imp_vol = st.slider("Implied Volatility (σ)", min_value=0.05, max_value=1.00, value=float(default_vol), step=0.01, key="ctrm_vol")
+        contract_qty = st.number_input("Contract Volume (Units)", value=10000, step=1000, key="ctrm_qty")
+
+    if st.button("Run Black-76 Option Valuation & Arbitrage Solver", key="ctrm_btn"):
+        payload = {
+            "commodity_category": comm_cat,
+            "commodity_symbol": comm_sym,
+            "forward_price": f_price,
+            "strike_price": k_price,
+            "time_to_expiration": exp_months / 12.0,
+            "risk_free_rate": 0.045,
+            "implied_volatility": imp_vol,
+            "contract_volume": int(contract_qty),
+            "option_type": opt_type
+        }
+        try:
+            res = requests.post(f"{BACKEND_URL}/api/v1/ibp/trading/black-scholes", json=payload)
+            if res.status_code == 200:
+                data = res.json()
+                st.success(f"Calculated Strategy: {data['strategy']}")
+                m1, m2, m3, m4 = st.columns(4)
+                m1.metric("Option Premium / Unit", f"${data['premium_per_unit']}")
+                m2.metric("Total Premium Revenue", f"${data['total_premium_income']:,.2f}")
+                m3.metric("Delta (Δ)", data['greeks']['delta'])
+                m4.metric("1% Vol Vega Impact", f"${data['greeks']['vega_1pct_vol']:,.2f}")
+                
+                st.info(f"**Trading Desk Action Plan:** {data['trading_desk_recommendation']}")
+            else:
+                st.error(f"Server Error: {res.text}")
+        except Exception as e:
+            st.error(f"Connection Error: {e}")
