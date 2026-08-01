@@ -322,32 +322,74 @@ elif module == "Strategy & AOP Analysis":
         st.info("No trade decisions executed yet. Use the Procurement & Trading Desk to execute Make/Buy orders.")
 
 # 7. PROCUREMENT & TRADING DESK
-elif module == "Procurement & Trading Desk":
-
+elif "Procurement" in module or module == "Procurement & Trading Desk":
     # --- Procurement & Trading Desk Module ---
-    st.subheader("⚡ CTRM Commodity & Derivatives Trading Engine (Black-76)")
-    st.caption("Monetize physical inventory, hedge agricultural/energy inputs, and price supply flexibility as real options.")
-
+    st.header("Procurement & Trading Desk")
+    
+    # Ensure ledger state exists
     if 'ledger_data' not in st.session_state:
         st.session_state['ledger_data'] = {"trades": [], "total_hedging_revenue": 0.0, "total_cogs_savings": 0.0, "trade_count": 0}
 
+    # =========================================================================
+    # SECTION 1: Physical Supply Chain Arbitrage (Make vs. Buy Solver)
+    # =========================================================================
+    st.subheader("🏭 Physical Supply Chain Arbitrage & Make vs. Buy Engine")
+    st.caption("Respond to active market signals by executing physical make-or-buy decisions to protect operating margins.")
+
+    st.info("📡 **Active Market Signal Ingested**: Walmart Order Surge (+ $0.75/unit surcharge on Teed Off Energy Drink)")
+
+    col_mb1, col_mb2 = st.columns(2)
+    with col_mb1:
+        make_cost = st.number_input("In-House Plant Unit Cost ($/unit)", value=12.75, step=0.25, key="mb_make_cost")
+        order_qty = st.number_input("Target Order Volume (Units)", value=50000, step=5000, key="mb_qty")
+    with col_mb2:
+        buy_quote = st.number_input("Supplier Spot Buy Quote ($/unit)", value=11.50, step=0.25, key="mb_buy_quote")
+        supplier_name = st.selectbox("Tier-1 Supplier Partner", ["SugarCo Global Trading", "Apex Logistics", "Pacific Rim Supply"], key="mb_supplier")
+
+    savings_per_unit = make_cost - buy_quote
+    total_savings = savings_per_unit * order_qty
+
+    if savings_per_unit > 0:
+        st.success(f"💡 **Physical Arbitrage Opportunity**: Outsourcing order to **{supplier_name}** saves **${savings_per_unit:.2f}/unit** over internal manufacturing (Net P&L Benefit: **${total_savings:,.2f}**).")
+    else:
+        st.warning(f"⚠️ **In-House Manufacturing Preferred**: Internal manufacturing is cheaper by **${abs(savings_per_unit):.2f}/unit**.")
+
+    if st.button("🚀 Execute Physical Arbitrage Decision", key="exec_mb_btn"):
+        decision_type = "BUY (Spot Outsource)" if savings_per_unit > 0 else "MAKE (In-House Production)"
+        cogs_savings_val = max(0.0, total_savings)
+        new_trade = {
+            "id": f"PHYS-{len(st.session_state['ledger_data']['trades']) + 1001}",
+            "symbol": "Teed Off Energy Drink",
+            "category": "Physical Make/Buy",
+            "option_type": decision_type,
+            "volume": int(order_qty),
+            "premium_income": 0.0,
+            "cogs_savings": round(cogs_savings_val, 2),
+            "strike": buy_quote,
+            "forward": make_cost,
+            "strategy": f"Signal Response: {decision_type} via {supplier_name}"
+        }
+        st.session_state['ledger_data']['trades'].append(new_trade)
+        st.session_state['ledger_data']['total_cogs_savings'] += cogs_savings_val
+        st.session_state['ledger_data']['trade_count'] += 1
+        st.balloons()
+        st.success(f"✅ Executed {decision_type}! Committed ${cogs_savings_val:,.2f} COGS savings to General Ledger.")
+        st.rerun()
+
+    st.markdown("---")
+
+    # =========================================================================
+    # SECTION 2: Financial CTRM & Derivatives Engine (Black-76)
+    # =========================================================================
+    st.subheader("⚡ CTRM Commodity & Derivatives Trading Engine (Black-76)")
+    st.caption("Monetize physical inventory, hedge agricultural/energy inputs, and price supply flexibility as real options.")
+
     ledger_data = st.session_state['ledger_data']
-
-    try:
-        ledger_res = requests.get(f"{BACKEND_URL}/api/v1/ibp/trading/ledger", timeout=2)
-        if ledger_res.status_code == 200:
-            fetched = ledger_res.json()
-            if isinstance(fetched, dict):
-                st.session_state['ledger_data'] = fetched
-                ledger_data = fetched
-    except Exception:
-        pass
-
     trade_cnt = ledger_data.get("trade_count", 0)
     if trade_cnt > 0:
         hedging_rev = ledger_data.get("total_hedging_revenue", 0.0)
         cogs_sav = ledger_data.get("total_cogs_savings", 0.0)
-        st.success(f"📈 **Corporate P&L Ledger Active**: **${hedging_rev:,.2f}** in option yield + **${cogs_sav:,.2f}** in COGS risk protection across **{trade_cnt}** persistent trade(s).")
+        st.success(f"📈 **Corporate P&L Ledger Active**: **${hedging_rev:,.2f}** in option yield + **${cogs_sav:,.2f}** in physical COGS risk protection across **{trade_cnt}** persistent trade(s).")
 
     col_cat, col_sym = st.columns(2)
     with col_cat:
@@ -447,11 +489,12 @@ elif module == "Procurement & Trading Desk":
             st.session_state['ledger_data']['total_cogs_savings'] += cogs_sav
             st.session_state['ledger_data']['trade_count'] += 1
             st.balloons()
-            st.success("✅ Trade committed to persistent P&L ledger!")
+            st.success("✅ Financial trade committed to persistent P&L ledger!")
             st.rerun()
 
     trades_list = ledger_data.get('trades', [])
     if isinstance(trades_list, list) and len(trades_list) > 0:
         st.markdown("---")
-        st.subheader("📋 Active Corporate Trade & Derivatives Book")
+        st.subheader("📋 Active Corporate Trade & General Ledger Book")
         st.dataframe(trades_list, use_container_width=True)
+
