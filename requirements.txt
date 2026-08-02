@@ -1,5 +1,5 @@
-fastapi
-uvicorn
 streamlit
-requests
-pydantic
+pandas
+numpy
+plotly
+scipy
