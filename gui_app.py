@@ -13,7 +13,7 @@ if 'extracted_demand_surge' not in st.session_state:
 if 'unconstrained_demand' not in st.session_state:
     st.session_state['unconstrained_demand'] = 150000
 if 'active_signal_name' not in st.session_state:
-    st.session_state['active_signal_name'] = "Costco Promo Surge (+50,000 cases)"
+    st.session_state['active_signal_name'] = "Costco Demand Signal (+50,000 units)"
 if 'ledger_data' not in st.session_state:
     st.session_state['ledger_data'] = {
         "trades": [],
@@ -159,14 +159,18 @@ elif module == "💬 Pillar 1: NLP Commercial Sensing":
         customer = "Costco" if "costco" in text_lower else "Walmart" if "walmart" in text_lower else "Target" if "target" in text_lower else "Retail Partner"
         product = "Teed Off Energy Drink" if "teed off" in text_lower or "energy" in text_lower else "General SKU"
         
-        numbers = re.findall(r'\b\d{1,3}(?:,\d{3})*\b', raw_text)
+        numbers = re.findall(r'\d{1,3}(?:,\d{3})*', raw_text)
         extracted_vol = 50000
         if numbers:
             extracted_vol = int(numbers[0].replace(',', ''))
 
+        new_demand = 100000 + extracted_vol
         st.session_state['extracted_demand_surge'] = extracted_vol
-        st.session_state['unconstrained_demand'] = 100000 + extracted_vol
+        st.session_state['unconstrained_demand'] = new_demand
         st.session_state['active_signal_name'] = f"{customer} Demand Signal (+{extracted_vol:,.0f} units)"
+        
+        # Explicitly update procurement widget state
+        st.session_state['ind_qty'] = max(0, new_demand - 85000)
 
         st.success("🎉 Signal Extracted & Routed Across S&OP Network!")
         
@@ -177,7 +181,6 @@ elif module == "💬 Pillar 1: NLP Commercial Sensing":
 
         st.info(f"**Pulse Tag:** `COMMERCIAL_DEMAND_SURGE_{customer.upper()}` | **Routed To:** `Demand Planner - {customer} Retail`")
         st.balloons()
-        st.caption("💡 *Unconstrained demand updated to **" + f"{st.session_state['unconstrained_demand']:,}" + " units**! Navigate to **D/S Match & Net Margin Solver** or **Procurement Desk** to see updated allocations.*")
 
 # =============================================================================
 # MODULE 2: D/S MATCH & NET MARGIN SOLVER
@@ -265,12 +268,18 @@ elif module == "🏭 Procurement & Trading Desk":
     st.subheader("🏭 Industrial Make vs. Buy & Capacity Cannibalization Engine")
     
     total_dem = st.session_state.get('unconstrained_demand', 150000)
+    sig_name = st.session_state.get('active_signal_name', 'Commercial Surge')
     suggested_overflow = max(0, total_dem - 85000)
-    st.info(f"📡 **Active Signal Ingested**: Current Demand = {total_dem:,} units | Calculated Unmet Internal Capacity = **{suggested_overflow:,} units**")
+    
+    # Fully dynamic context banner
+    st.info(f"📡 **Active Commercial Signal Ingested**: `{sig_name}` | Total Demand = **{total_dem:,} units** | Calculated Unmet Internal Capacity = **{suggested_overflow:,} units**")
+
+    if 'ind_qty' not in st.session_state:
+        st.session_state['ind_qty'] = int(suggested_overflow)
 
     col_hdr1, col_hdr2, col_hdr3 = st.columns(3)
     with col_hdr1:
-        order_qty = st.number_input("Target Overflow Volume (Units)", value=int(suggested_overflow if suggested_overflow > 0 else 65000), step=5000, key="ind_qty")
+        order_qty = st.number_input("Target Overflow Volume (Units)", min_value=0, max_value=200000, step=5000, key="ind_qty")
     with col_hdr2:
         unit_price = st.number_input("End-Market Unit Selling Price ($)", value=50.00, step=1.00, key="ind_price")
     with col_hdr3:
