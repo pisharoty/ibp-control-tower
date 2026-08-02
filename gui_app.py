@@ -3,6 +3,7 @@ import pandas as pd
 import numpy as np
 import math
 import re
+import plotly.graph_objects as go
 
 # Page configuration
 st.set_page_config(page_title="IBP Control Tower", layout="wide", page_icon="⚡")
@@ -28,9 +29,10 @@ module = st.sidebar.radio(
     "Select Module",
     [
         "📊 Executive S&OP Dashboard",
-        "💬 Pillar 1: NLP Commercial Sensing",
+        "💬 NLP Commercial Sensing",
         "⚖️ D/S Match & Net Margin Solver",
-        "🏭 Procurement & Trading Desk"
+        "🏭 Procurement & Trading Desk",
+        "🌐 Global Network & Logistics Map"
     ]
 )
 
@@ -126,11 +128,11 @@ if module == "📊 Executive S&OP Dashboard":
         st.info("ℹ️ No physical or financial trades committed to the ledger yet. Execute decisions in **Procurement & Trading Desk** to populate the ledger.")
 
 # =============================================================================
-# MODULE 1: PILLAR 1 — NLP COMMERCIAL SENSING
+# MODULE 1: NLP COMMERCIAL SENSING
 # =============================================================================
-elif module == "💬 Pillar 1: NLP Commercial Sensing":
-    st.header("💬 Pillar 1: NLP Commercial Sensing & Demand Extraction")
-    st.caption("Pillar 1 converts unstructured market intelligence (customer communications, CRM notes, retailer updates) into structured demand signals for the S&OP network.")
+elif module == "💬 NLP Commercial Sensing":
+    st.header("💬 NLP Commercial Sensing & Demand Extraction")
+    st.caption("Converts unstructured market intelligence (customer communications, CRM notes, retailer updates) into structured demand signals for the S&OP network.")
 
     st.markdown("#### 🎯 Select Commercial Scenario or Input Custom Signal")
     scenario_choice = st.selectbox(
@@ -168,8 +170,6 @@ elif module == "💬 Pillar 1: NLP Commercial Sensing":
         st.session_state['extracted_demand_surge'] = extracted_vol
         st.session_state['unconstrained_demand'] = new_demand
         st.session_state['active_signal_name'] = f"{customer} Demand Signal (+{extracted_vol:,.0f} units)"
-        
-        # Explicitly update procurement widget state
         st.session_state['ind_qty'] = max(0, new_demand - 85000)
 
         st.success("🎉 Signal Extracted & Routed Across S&OP Network!")
@@ -271,7 +271,6 @@ elif module == "🏭 Procurement & Trading Desk":
     sig_name = st.session_state.get('active_signal_name', 'Commercial Surge')
     suggested_overflow = max(0, total_dem - 85000)
     
-    # Fully dynamic context banner
     st.info(f"📡 **Active Commercial Signal Ingested**: `{sig_name}` | Total Demand = **{total_dem:,} units** | Calculated Unmet Internal Capacity = **{suggested_overflow:,} units**")
 
     if 'ind_qty' not in st.session_state:
@@ -476,3 +475,99 @@ elif module == "🏭 Procurement & Trading Desk":
         st.markdown("---")
         st.subheader("📋 Active Corporate General Ledger & Sourcing Book")
         st.dataframe(trades_list, use_container_width=True)
+
+# =============================================================================
+# MODULE 4: GLOBAL NETWORK & LOGISTICS MAP (RESTORED)
+# =============================================================================
+elif module == "🌐 Global Network & Logistics Map":
+    st.header("🌐 Global Supply Chain & Logistics Control Map")
+    st.caption("Real-time geographic visibility into manufacturing plants, supplier hubs, transit choke points, and active ocean/air shipments.")
+
+    g1, g2, g3, g4 = st.columns(4)
+    g1.metric("Active Ocean Shipments", "14 Vessels", "+2 In-Transit")
+    g2.metric("Chokepoint Bottlenecks", "1 Critical", "Suez Canal Disruptions")
+    g3.metric("Plant Capacity Utilized", "100%", "Maxed Out (85k units)")
+    g4.metric("Average Transit Delay", "+3.8 Days", "Suez Circumvent Route")
+
+    # Plotly Geographic Map Creation
+    nodes_df = pd.DataFrame([
+        {"name": "Plant A (In-House Mfg)", "lat": 32.7767, "lon": -96.7970, "type": "Plant", "status": "100% Utilized (40,000 units)", "color": "blue", "size": 14},
+        {"name": "Plant B (In-House Mfg)", "lat": 41.8781, "lon": -87.6298, "type": "Plant", "status": "100% Utilized (45,000 units)", "color": "blue", "size": 14},
+        {"name": "SugarCo Tier-1 Partner", "lat": 10.8231, "lon": 106.6297, "type": "Supplier Hub", "status": "Active Arbitrage Outsource Partner", "color": "green", "size": 16},
+        {"name": "Suez Canal Chokepoint", "lat": 30.5852, "lon": 32.2654, "type": "Bottleneck", "status": "⚠️ Critical Blockage / +5 Day Delay", "color": "red", "size": 18},
+        {"name": "Port of Long Beach", "lat": 33.7701, "lon": -118.1937, "type": "Port Hub", "status": "Moderate Berth Congestion", "color": "orange", "size": 12},
+        {"name": "Rotterdam Gateway", "lat": 51.9244, "lon": 4.4777, "type": "Distribution Hub", "status": "Normal Operations", "color": "blue", "size": 12}
+    ])
+
+    fig = go.Figure()
+
+    for _, row in nodes_df.iterrows():
+        fig.add_trace(go.Scattergeo(
+            lon=[row['lon']],
+            lat=[row['lat']],
+            text=f"<b>{row['name']}</b><br>Type: {row['type']}<br>Status: {row['status']}",
+            mode='markers+text',
+            textposition="top center",
+            marker=dict(size=row['size'], color=row['color'], symbol='circle'),
+            name=row['name']
+        ))
+
+    # Transpacific Route (SugarCo Vietnam -> Long Beach USA)
+    fig.add_trace(go.Scattergeo(
+        lon=[106.6297, -118.1937],
+        lat=[10.8231, 33.7701],
+        mode='lines',
+        line=dict(width=2.5, color='green', dash='dot'),
+        name='Transpacific Route (SugarCo Outsource Shipping Lane)'
+    ))
+
+    # Eurasia Chokepoint Route (Asia -> Suez -> Europe)
+    fig.add_trace(go.Scattergeo(
+        lon=[106.6297, 32.2654, 4.4777],
+        lat=[10.8231, 30.5852, 51.9244],
+        mode='lines',
+        line=dict(width=2.5, color='red', dash='dash'),
+        name='Red Sea / Suez Route (Suez Canal Blockage Warning Zone)'
+    ))
+
+    fig.update_layout(
+        title='📍 Global Network Telemetry & Freight Corridors',
+        geo=dict(
+            projection_type='equirectangular',
+            showland=True,
+            landcolor="rgb(240, 243, 246)",
+            countrycolor="rgb(200, 200, 200)",
+            coastlinecolor="rgb(180, 180, 180)",
+        ),
+        margin=dict(l=0, r=0, t=40, b=0),
+        height=520
+    )
+
+    st.plotly_chart(fig, use_container_width=True)
+
+    st.markdown("---")
+    st.subheader("🚢 Live Shipment Telemetry & Risk Matrix")
+    shipment_df = pd.DataFrame({
+        "Shipment ID": ["SHP-8841", "SHP-9012", "SHP-7734", "SHP-3310"],
+        "Origin": ["Ho Chi Minh (SugarCo)", "Rotterdam Hub", "Dallas (Plant A)", "Chicago (Plant B)"],
+        "Destination": ["Port of Long Beach", "Port of Newark", "Costco Distribution DC", "Walmart Regional DC"],
+        "Carrier / Freight Mode": ["Maersk Ocean Line", "Hapag-Lloyd Ocean", "FedEx Freight (Ground)", "Expedited Air Freight"],
+        "SKU Volume": ["65,000 units", "20,000 units", "40,000 units", "25,000 units"],
+        "ETA": ["Aug 14, 2026", "Aug 19, 2026", "Aug 05, 2026", "Aug 04, 2026"],
+        "Risk Status": ["🟢 On-Time", "🔴 +5 Days (Suez Re-route)", "🟢 On-Time", "🟡 Expedited ($24.50/unit)"]
+    })
+    st.table(shipment_df)
+
+# =============================================================================
+# FOOTER ARCHITECTURE SCHEMA EXPANDER
+# =============================================================================
+st.sidebar.markdown("---")
+with st.sidebar.expander("⚙️ System Architecture & API Schema"):
+    st.markdown("""
+    **API Endpoints & Integration Mapping:**
+    * **NLP Sensing**: `POST /api/v1/nlp/commercial-signal` (Salesforce CRM / EDI 850)
+    * **D/S Solver**: `POST /api/v1/ds/scipy-solve` (SAP IBP / Kinaxis Orchestrator)
+    * **Make/Buy**: `POST /api/v1/procurement/arbitrage-commit` (ERP SAP MM Purchase Orders)
+    * **CTRM Pricing**: `GET /api/v1/ctrm/black76-greeks` (CME Futures & Options Data Feed)
+    * **Logistics Telemetry**: `GET /api/v1/logistics/ais-tracking` (Project44 / FourKites AIS)
+    """)
