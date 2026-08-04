@@ -51,63 +51,21 @@ def get_outsourced_info():
         return outsourced_vol, avg_cost
     return 0, 0.0
 
-# =====================================================================
-# MODULE ROUTING & NAVIGATION CONTROLLER
-# =====================================================================
-# Check active selected module from sidebar radio
-if 'selected_module' in locals() or 'selected_module' in globals():
-    active_nav = selected_module
-else:
-    active_nav = st.session_state.get('selected_module', "D/S Match & Net Margin Solver")
-
-# Render CTRM Desk on D/S Solver and Procurement & Trading Desk modules
-if active_nav in ["D/S Match & Net Margin Solver", "Procurement & Trading Desk"]:
-    st.markdown("---")
-    st.header("🛡️ CTRM Event-Driven Hedging & Arbitrage Desk")
-    st.caption(f"Active Commodity Exposure: **{shock_data['commodity']}**")
-
-    ctrm_bridge = CTRMExtensionEngine()
-    arbitrage_info = ctrm_bridge.detect_arbitrage_risk(ds_run)
-    staged_ticket = ctrm_bridge.select_model_and_structure_hedge(ds_run)
-
-    col_a, col_b, col_c, col_d = st.columns(4)
-    col_a.metric("Unhedged Margin Risk", f"${arbitrage_info['unhedged_margin_risk_usd']:,.2f}")
-    col_b.metric("Pricing Model", staged_ticket.selected_model.value.replace("_", " "))
-    col_c.metric("Notional Volume", f"{staged_ticket.notional_volume:,.0f} units")
-    col_d.metric("Option Premium", f"${staged_ticket.estimated_premium:,.2f}")
-
-    st.info(f"💡 **Recommendation**: Activate **{staged_ticket.selected_model.value}** to cap price volatility at **${staged_ticket.strike_price:.2f}/unit**.")
-
-    if st.button("⚡ Approve & Execute CTRM Option Trade", type="primary"):
-        approved_ticket = ctrm_bridge.approve_hedge_order(staged_ticket)
-        results = ctrm_bridge.execute_and_close_loop(ds_run, approved_ticket, market_price_at_expiry=shock_data["spot_price"] * 1.1)
-        
-        if 'ledger_data' in st.session_state:
-            st.session_state['ledger_data']['trades'].append(results)
-            st.session_state['ledger_data']['trade_count'] += 1
-            st.session_state['ledger_data']['total_hedging_revenue'] += results['financial_waterfall']['hedge_payout_received_usd']
-            st.session_state['ledger_data']['total_cogs_savings'] += (
-                results['financial_waterfall']['hedge_payout_received_usd'] - results['financial_waterfall']['hedge_premium_paid_usd']
-            )
-        
-        st.balloons()
-        st.success(f"Trade **{approved_ticket.order_id}** EXECUTED on Exchange for **{shock_data['commodity']}**!")
-        st.subheader("📊 Closed-Loop Financial Waterfall")
-        st.json(results["financial_waterfall"])
-
 
 # =====================================================================
-# CTRM RISK DESK & NAVIGATION ROUTER
+# CTRM RISK ENGINE & DISRUPTION INJECTOR MODULE
 # =====================================================================
 from ctrm_engine import CTRMExtensionEngine, DSSolverOutput, RiskEventType
 
-st.sidebar.markdown("---")
-st.sidebar.subheader("🌋 Risk Scenario Injector")
-
+# 1. Initialize State Variables
 if "active_disruption" not in st.session_state:
     st.session_state["active_disruption"] = "Standard Market Price Volatility"
 if "custom_scenarios" not in st.session_state:
     st.session_state["custom_scenarios"] = {}
+
+# 2. Sidebar Controls
+st.sidebar.markdown("---")
+st.sidebar.subheader("🌋 Risk Scenario Injector")
 
 st.sidebar.caption("⚡ Auto-Ingest Telemetry Alerts:")
 col_nlp1, col_nlp2 = st.sidebar.columns(2)
@@ -221,8 +179,10 @@ if st.sidebar.button("🚨 Inject Selected Shock to CTRM Desk", type="primary", 
     st.sidebar.success(f"Injected: {selected_event_label}")
 
 active_label = st.session_state["active_disruption"]
-st.sidebar.info(f"📡 **Active Signal Ingested:**\n`{active_label}`")
+st.sidebar.info(f"📡 **Active Signal Ingested:**
+`{active_label}`")
 
+# 3. Compute shock_data FIRST
 shock_data = COMMODITY_SHOCK_MATRIX.get(active_label, COMMODITY_SHOCK_MATRIX["Standard Market Price Volatility"])
 
 ds_run = DSSolverOutput(
@@ -238,20 +198,21 @@ ds_run = DSSolverOutput(
     network_throughput_ratio=shock_data["throughput"]
 )
 
-# Render CTRM UI block ONLY when on D/S Solver or Procurement Desk tabs
-current_nav = locals().get("selected_module", globals().get("selected_module", st.session_state.get("selected_module", None)))
+# 4. CONDITIONAL TAB ROUTER:
+# Only render CTRM Desk UI if user is on relevant trading tabs!
+active_module = locals().get("selected_module", globals().get("selected_module", st.session_state.get("selected_module", None)))
 
-if current_nav in ["D/S Match & Net Margin Solver", "Procurement & Trading Desk"]:
+if active_module in ["D/S Match & Net Margin Solver", "Procurement & Trading Desk"]:
     st.markdown("---")
     st.header("🛡️ CTRM Event-Driven Hedging & Arbitrage Desk")
-    st.caption(f"Active Commodity Exposure: **{shock_data["commodity"]}**")
+    st.caption(f"Active Commodity Exposure: **{shock_data['commodity']}**")
 
     ctrm_bridge = CTRMExtensionEngine()
     arbitrage_info = ctrm_bridge.detect_arbitrage_risk(ds_run)
     staged_ticket = ctrm_bridge.select_model_and_structure_hedge(ds_run)
 
     col_a, col_b, col_c, col_d = st.columns(4)
-    col_a.metric("Unhedged Margin Risk", f"${arbitrage_info["unhedged_margin_risk_usd"]:,.2f}")
+    col_a.metric("Unhedged Margin Risk", f"${arbitrage_info['unhedged_margin_risk_usd']:,.2f}")
     col_b.metric("Pricing Model", staged_ticket.selected_model.value.replace("_", " "))
     col_c.metric("Notional Volume", f"{staged_ticket.notional_volume:,.0f} units")
     col_d.metric("Option Premium", f"${staged_ticket.estimated_premium:,.2f}")
@@ -271,6 +232,6 @@ if current_nav in ["D/S Match & Net Margin Solver", "Procurement & Trading Desk"
             )
         
         st.balloons()
-        st.success(f"Trade **{approved_ticket.order_id}** EXECUTED on Exchange for **{shock_data["commodity"]}**!")
+        st.success(f"Trade **{approved_ticket.order_id}** EXECUTED on Exchange for **{shock_data['commodity']}**!")
         st.subheader("📊 Closed-Loop Financial Waterfall")
         st.json(results["financial_waterfall"])
