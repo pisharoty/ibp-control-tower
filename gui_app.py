@@ -4,6 +4,7 @@ import numpy as np
 import plotly.express as px
 import plotly.graph_objects as go
 import re
+import json
 
 # =====================================================================
 # SESSION STATE INITIALIZATION
@@ -44,7 +45,7 @@ persona = st.sidebar.selectbox(
         "📦 Process Goods & FMCG Enterprise",
         "📈 Merchant Trading & Commodity Risk Desk"
     ],
-    key="platform_persona_v7"
+    key="platform_persona_v10"
 )
 
 selected_module = st.sidebar.radio(
@@ -55,9 +56,10 @@ selected_module = st.sidebar.radio(
         "⚖️ Demand/Supply Match & Plant Load Balancer",
         "📈 Physical Procurement & Contract Desk",
         "🛡️ CTRM Event-Driven Hedging Desk",
-        "🌐 Global Logistics Network & GIS Control Tower"
+        "🌐 Global Logistics Network & GIS Control Tower",
+        "🔌 Integration & Architecture Endpoints"
     ],
-    key="nav_module_selection_v7"
+    key="nav_module_selection_v10"
 )
 
 st.session_state["selected_module"] = selected_module
@@ -82,43 +84,66 @@ else:  # Merchant Trading
     plant2_name = "Regional Hub Terminal B"
     toller_name = "3rd-Party Merchant Storage Arbitrage"
 
+# Helper function for NLP extraction
+def parse_demand_from_text(text):
+    patterns = [
+        r'(?:spike|surge|demand|units|cases|batches)\s*(?:of|by)?\s*~?\s*(\d+[\d,]*)',
+        r'(\d+[\d,]*)\s*(?:additional|extra)?\s*(?:units|cases|batches|lots|MT)'
+    ]
+    for p in patterns:
+        m = re.search(p, text, re.IGNORECASE)
+        if m:
+            val_str = m.group(1).replace(',', '')
+            if val_str.isdigit() and int(val_str) > 100:
+                return int(val_str)
+    return 65000
+
 # =====================================================================
 # MODULE 1: EXECUTIVE S&OP CONTROL TOWER
 # =====================================================================
 if "Executive S&OP" in selected_module:
     st.title("📊 Executive S&OP Control Tower")
     st.caption(f"Active Persona View: **{persona}**")
-    st.markdown("Real-time financial alignment, demand-supply balance, and integrated operational KPIs.")
+    st.markdown("Real-time financial alignment, financial waterfalls, and trade hedge benefit reconciliation.")
     
     surge = st.session_state.get("extracted_demand_surge", 65000)
     unconstrained_val = 120.0 + (surge * 0.00025)
+    trade_offset = 3.25
+    cogs_drag = -12.4
+    net_ebitda = round(120.0 + (surge * 0.00025) + cogs_drag + trade_offset, 2)
     
     col1, col2, col3, col4 = st.columns(4)
     col1.metric("Annual Operating Plan (AOP)", "$120.0M", "+4.2%")
-    col2.metric("Unconstrained Demand (AOP + NLP Surge)", f"${unconstrained_val:.1f}M", f"+{surge:,} {term_unit}")
-    col3.metric("Constrained Supply Plan", "$118.2M", "-1.5%")
-    col4.metric("Net Margin Gap", "$17.3M", "-2.1%", delta_color="inverse")
+    col2.metric("Unconstrained Demand (AOP + Surge)", f"${unconstrained_val:.1f}M", f"+{surge:,} {term_unit}")
+    col3.metric("CTRM Hedge & Trade Benefit", f"+${trade_offset:.2f}M", "Derivative Gain")
+    col4.metric("Net Realized EBITDA", f"${net_ebitda:.2f}M", "+6.4%", delta_color="normal")
     
     st.markdown("---")
-    st.subheader("📈 Integrated S&OP Financial Alignment Gap")
-    df_sop = pd.DataFrame({
-        "Month": ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"],
-        "AOP Target": [10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10],
-        "Unconstrained Demand": [10.5, 11, 11.2, 11.8, 12, 12.5, 11.9, 11.5 + (surge/50000), 11.2, 11, 10.8, 10.1],
-        "Constrained Supply": [9.8, 9.9, 10.0, 10.1, 9.7, 9.8, 9.9, 10.0, 9.8, 9.9, 9.7, 9.6]
-    })
-    fig_sop = px.line(df_sop, x="Month", y=["AOP Target", "Unconstrained Demand", "Constrained Supply"],
-                      title="12-Month S&OP Demand vs. Supply vs. AOP ($M)")
-    st.plotly_chart(fig_sop, use_container_width=True)
-
-    st.subheader("📋 Physical & Paper Financial Reconciliation")
-    st.markdown(f"Reconciling physical production load balancing across **{plant1_name}**, **{plant2_name}**, and paper CTRM hedges.")
+    st.subheader("📊 Executive Financial Waterfall (Volume-to-Value Bridge)")
+    st.caption("Reconciling operational demand surge, toller premiums, and financial paper trade offsets into net realized margin.")
     
+    fig_waterfall = go.Figure(go.Waterfall(
+        name="S&OP Bridge",
+        orientation="v",
+        measure=["relative", "relative", "relative", "relative", "total"],
+        x=["Base AOP Revenue", f"Trade Promo Surge (+{surge:,})", "Raw Material COGS Volatility", "CTRM Derivative Hedge Offset", "Net Realized EBITDA"],
+        textposition="outside",
+        text=[f"$120.0M", f"+${(surge * 0.00025):.2f}M", f"-${abs(cogs_drag):.2f}M", f"+${trade_offset:.2f}M", f"${net_ebitda:.2f}M"],
+        y=[120.0, surge * 0.00025, cogs_drag, trade_offset, 0],
+        connector={"line": {"color": "rgb(63, 63, 63)"}},
+        decreasing={"marker": {"color": "#EF553B"}},
+        increasing={"marker": {"color": "#00CC96"}},
+        totals={"marker": {"color": "#636EFA"}}
+    ))
+    fig_waterfall.update_layout(title="Volume-to-Value S&OP Financial Bridge ($M)", showlegend=False, height=450)
+    st.plotly_chart(fig_waterfall, use_container_width=True)
+
+    st.subheader("📋 Physical & Paper Financial Reconciliation Desk")
     rec_df = pd.DataFrame({
-        "Financial Vector": ["Base Unconstrained Demand", f"NLP Demand Surge ({surge:,} {term_unit})", "Internal Plant COGS", "3rd-Party Toller Premium", "CTRM Hedge Gains / Offsets"],
-        "Physical Value ($M)": [120.0, surge * 0.00025, -82.5, -12.4, 0.0],
-        "Paper Derivative Offset ($M)": [0.0, 0.0, 0.0, 0.0, 3.25],
-        "Net S&OP Impact ($M)": [120.0, surge * 0.00025, -82.5, -12.4, 3.25]
+        "Financial Vector": ["Base Unconstrained Demand", f"NLP Demand Surge ({surge:,} {term_unit})", "Internal Plant COGS", "3rd-Party Toller Premium", "CTRM Derivative Offset / Hedge Gain"],
+        "Physical Value ($M)": [120.0, round(surge * 0.00025, 2), -82.5, -12.4, 0.0],
+        "Paper Derivative Offset ($M)": [0.0, 0.0, 0.0, 0.0, trade_offset],
+        "Net S&OP Financial Impact ($M)": [120.0, round(surge * 0.00025, 2), -82.5, -12.4, trade_offset]
     })
     st.dataframe(rec_df, use_container_width=True)
 
@@ -156,7 +181,7 @@ elif "NLP Commercial" in selected_module:
                 "🚀 Post-Promo Campaign Feedback (Q3 Flash Sale)",
                 "✍️ Custom Email Input"
             ],
-            key="email_preset_selector_v7"
+            key="email_preset_selector_v10"
         )
         
         if email_preset == "🎪 Post-Trade Show Sales Debrief (CES Expo 2026)":
@@ -179,13 +204,12 @@ Margin risks are high if we get hit with freight surcharges."""
         else:
             default_email = ""
 
-        user_email = st.text_area("Email Content Body:", value=default_email, height=180, key="email_text_area_v7")
+        user_email = st.text_area("Email Content Body:", value=default_email, height=180, key="email_text_area_v10")
         
-        if st.button("🧠 Extract NLP Demand Intent & Quantify Surge", type="primary", key="btn_parse_email_v7"):
+        if st.button("🧠 Extract NLP Demand Intent & Quantify Surge", type="primary", key="btn_parse_email_v10"):
             if user_email.strip():
-                numbers = re.findall(r'(\d+[\d,]*)\s*units', user_email, re.IGNORECASE)
-                extracted_vol = int(numbers[0].replace(',', '')) if numbers else 65000
-                sentiment = "POSITIVE (High Intent)" if "overwhelming" in user_email.lower() or "blew past" in user_email.lower() else "NEUTRAL"
+                extracted_vol = parse_demand_from_text(user_email)
+                sentiment = "POSITIVE (High Intent)" if ("overwhelming" in user_email.lower() or "blew past" in user_email.lower()) else "NEUTRAL"
                 
                 st.session_state["extracted_demand_surge"] = extracted_vol
                 st.toast(f"Parsed {extracted_vol:,} {term_unit} from Email!", icon="📧")
@@ -201,32 +225,31 @@ Margin risks are high if we get hit with freight surcharges."""
 
     with tab3:
         st.subheader("🌐 Live Telemetry & Black Swan Feeds")
-        st.caption("Direct telemetry hooks that trigger real-time updates across the platform.")
         col_t1, col_t2 = st.columns(2)
         with col_t1:
             st.markdown("### 🚢 FBX Freight Spot Rate Index")
             st.metric("FBX Global Container Freight Index", "$3,840 / FEU", "+14.2%")
-            if st.button("📡 Stream Live FBX Rate Surge to Risk Injector", key="btn_fbx_stream_v7"):
+            if st.button("📡 Stream Live FBX Rate Surge to Risk Injector", key="btn_fbx_stream_v10"):
                 st.session_state["active_disruption"] = "Icelandic Volcanic Ash (North Atlantic Freight Corridor)"
                 st.toast("Updated Risk Injector with Live FBX Freight Index!", icon="🚀")
                 
         with col_t2:
             st.markdown("### 🌀 NOAA Maritime Weather Radar")
             st.metric("Pacific Water Anomaly Index", "+2.8°C", "El Niño Active")
-            if st.button("📡 Stream NOAA Climate Signal to Risk Injector", key="btn_noaa_stream_v7"):
+            if st.button("📡 Stream NOAA Climate Signal to Risk Injector", key="btn_noaa_stream_v10"):
                 st.session_state["active_disruption"] = "El Niño Climate Shock (Pacific Ocean Warm Current)"
                 st.toast("Updated Risk Injector with Live NOAA Weather Alert!", icon="🌊")
 
     st.markdown("---")
     st.subheader("🎯 Active Demand Shock Extractor Override")
     current_surge = st.session_state.get("extracted_demand_surge", 65000)
-    demand_surge = st.slider(f"Extracted Surge Volume ({term_unit})", 10000, 200000, int(current_surge), step=5000, key="nlp_demand_surge_slider_v7")
+    demand_surge = st.slider(f"Extracted Surge Volume ({term_unit})", 10000, 200000, int(current_surge), step=5000, key="nlp_demand_surge_slider_v10")
     st.session_state["extracted_demand_surge"] = demand_surge
 
 # =====================================================================
 # MODULE 3: DEMAND/SUPPLY MATCH & PLANT LOAD BALANCER
 # =====================================================================
-elif "D/S Match" in selected_module:
+elif "Demand/Supply Match" in selected_module or "Plant Load" in selected_module:
     st.title("⚖️ Demand/Supply Match & Plant Load Balancer")
     st.caption(f"Active Persona View: **{persona}**")
     st.markdown("Linear programming optimization for global plant load balancing, make vs. buy arbitrage, and profit maximization.")
@@ -234,9 +257,9 @@ elif "D/S Match" in selected_module:
     col1, col2 = st.columns(2)
     with col1:
         st.subheader("⚙️ Solver Inputs & Cost Parameters")
-        base_price = st.number_input("Base Selling Price ($/unit)", value=250.0, key="ds_base_price_v7")
-        flex_cost = st.number_input("3rd-Party Toller / CMO Cost ($/unit)", value=165.0, key="ds_flex_cost_v7")
-        penalty_cost = st.number_input("Unmet Demand Penalty ($/unit)", value=80.0, key="ds_penalty_cost_v7")
+        base_price = st.number_input("Base Selling Price ($/unit)", value=250.0, key="ds_base_price_v10")
+        flex_cost = st.number_input("3rd-Party Toller / CMO Cost ($/unit)", value=165.0, key="ds_flex_cost_v10")
+        penalty_cost = st.number_input("Unmet Demand Penalty ($/unit)", value=80.0, key="ds_penalty_cost_v10")
         
     with col2:
         st.subheader("📊 Dynamic Optimal Allocation Summary")
@@ -272,7 +295,7 @@ elif "D/S Match" in selected_module:
     col_b2.metric("Semiconductor / Component Units", f"{(primary_cap + flex_alloc) * 2.0:,.0f} Units")
     col_b3.metric("Freight Capacity Needed", f"{(primary_cap + flex_alloc) / 50:,.0f} Container FEUs")
     
-    if st.button("📦 Push Requisitions to Physical Procurement Desk", type="primary", key="btn_push_req_v7"):
+    if st.button("📦 Push Requisitions to Physical Procurement Desk", type="primary", key="btn_push_req_v10"):
         st.toast("Successfully generated physical procurement requisitions!", icon="📦")
 
 # =====================================================================
@@ -286,13 +309,21 @@ elif "Procurement" in selected_module:
     surge = st.session_state.get("extracted_demand_surge", 65000)
     st.info(f"📦 **Active BOM Requisitions Ingested from D/S Solver**: Requesting **{(450000 + surge) * 0.02:,.0f} MT** of raw metals/inputs and **{(450000 + surge) / 50:,.0f} FEUs** of maritime freight.")
 
-    st.subheader("💼 Active Physical Procurement Contracts")
+    col_pr1, col_pr2 = st.columns([3, 1])
+    with col_pr1:
+        st.subheader("💼 Active Physical Procurement Contracts")
+    with col_pr2:
+        if st.button("🛡️ Execute Paper Hedge for BOM", type="primary", key="btn_proc_hedge_v10"):
+            st.session_state["active_disruption"] = "Standard Market Price Volatility"
+            st.toast("Routed BOM exposure to CTRM Engine for option pricing!", icon="🛡️")
+            st.info("💡 Open the **🛡️ CTRM Event-Driven Hedging Desk** tab to finalize paper trade execution.")
+
     df_contracts = pd.DataFrame(st.session_state["physical_contracts"])
     st.dataframe(df_contracts, use_container_width=True)
 
     st.markdown("---")
     st.subheader("✍️ Book New Physical Procurement Contract")
-    with st.form("new_physical_contract_form_v7"):
+    with st.form("new_physical_contract_form_v10"):
         col_c1, col_c2, col_c3 = st.columns(3)
         c_id = col_c1.text_input("Contract ID", f"CTR-2026-D{len(st.session_state['physical_contracts'])+1}")
         c_comm = col_c2.text_input("Commodity / Input", "Primary Aluminum / Copper Rods")
@@ -312,11 +343,10 @@ elif "Procurement" in selected_module:
             st.toast(f"Registered Contract {c_id}!", icon="📝")
 
     st.subheader("📜 Executed Physical Deal Register")
-    st.caption("Flows committed physical purchasing spend directly into the Executive S&OP Financial Waterfall.")
     st.dataframe(pd.DataFrame(st.session_state["physical_contracts"]), use_container_width=True)
 
 # =====================================================================
-# MODULE 5: CTRM EVENT-DRIVEN HEDGING DESK (ISOLATED CLEAN MODULE)
+# MODULE 5: CTRM EVENT-DRIVEN HEDGING DESK
 # =====================================================================
 elif "CTRM Event-Driven" in selected_module:
     st.title("🛡️ CTRM Event-Driven Hedging Desk")
@@ -363,7 +393,7 @@ elif "CTRM Event-Driven" in selected_module:
         
         st.success(f"💡 **Recommendation**: Activate **{staged_ticket.selected_model.value}** to cap price volatility at **${staged_ticket.strike_price:.2f}/unit**.")
         
-        if st.button("⚡ Approve & Execute CTRM Option Trade", type="primary", key="btn_exec_ctrm_v7"):
+        if st.button("⚡ Approve & Execute CTRM Option Trade", type="primary", key="btn_exec_ctrm_v10"):
             approved_ticket = ctrm_bridge.approve_hedge_order(staged_ticket)
             results = ctrm_bridge.execute_and_close_loop(ds_run, approved_ticket, market_price_at_expiry=s_info["p_spot"] * 1.1)
             
@@ -382,31 +412,110 @@ elif "CTRM Event-Driven" in selected_module:
 elif "Global Logistics" in selected_module:
     st.title("🌐 Global Logistics Network & GIS Control Tower")
     st.caption(f"Active Persona View: **{persona}**")
-    st.markdown("Geospatial tracking of plants, maritime choke points, and black swan disruption zones.")
+    st.markdown("Geospatial tracking of plants, regional DCs, customer proximity, and live freight telematic streams.")
     
-    nodes = pd.DataFrame({
-        "Name": [plant1_name, plant2_name, toller_name, "Port of Rotterdam", "Port of Shanghai", "Panama Canal Node", "Suez Canal Corridor"],
-        "lat": [42.3314, 48.1351, 32.7767, 51.9244, 31.2304, 9.0800, 30.5852],
-        "lon": [-83.0458, 11.5820, -96.7970, 4.4777, 121.4737, -79.6800, 32.3132],
-        "Node Type": ["Internal Plant A", "Internal Plant B", "3rd-Party CMO", "Port", "Port", "Maritime Bottleneck", "War Risk Zone"],
-        "Status": ["Operational (100%)", "Operational (100%)", "Flex Active", "Congested", "Operational", "Drought Hazard", "High Risk"],
-        "Size": [20, 20, 15, 12, 12, 25, 25]
+    # 1. Spatial Locations (Plants, DCs, Customers)
+    spatial_nodes = pd.DataFrame({
+        "Name": [plant1_name, plant2_name, toller_name, "Chicago Logistics Hub DC", "Frankfurt Regional DC", "Walmart Bentonville Hub", "Target Midwest Depot", "Panama Canal Node"],
+        "lat": [42.3314, 48.1351, 32.7767, 41.8781, 50.1109, 36.3729, 44.9778, 9.0800],
+        "lon": [-83.0458, 11.5820, -96.7970, -87.6298, 8.6821, -94.2088, -93.2650, -79.6800],
+        "Category": ["Manufacturing Plant", "Manufacturing Plant", "3rd-Party Toller", "Warehouse DC", "Warehouse DC", "Customer Fulfillment Hub", "Customer Fulfillment Hub", "Maritime Chokepoint"],
+        "Status": ["Operational (100%)", "Operational (100%)", "Flex Active", "Operational (94%)", "Operational (88%)", "Receiving Active", "Receiving Active", "Drought Hazard"],
+        "Size": [22, 22, 16, 18, 18, 15, 15, 25]
     })
     
-    fig_map = px.scatter_mapbox(
-        nodes,
-        lat="lat",
-        lon="lon",
-        hover_name="Name",
-        hover_data=["Node Type", "Status"],
-        color="Status",
-        size="Size",
-        color_discrete_map={"Operational (100%)": "green", "Flex Active": "blue", "Congested": "orange", "High Risk": "red", "Drought Hazard": "purple"},
-        zoom=1,
-        height=550
-    )
-    fig_map.update_layout(mapbox_style="open-street-map")
-    st.plotly_chart(fig_map, use_container_width=True)
+    col_map, col_prox = st.columns([2, 1])
+    
+    with col_map:
+        st.subheader("🗺️ Global Network Spatial Map")
+        fig_map = px.scatter_mapbox(
+            spatial_nodes,
+            lat="lat",
+            lon="lon",
+            hover_name="Name",
+            hover_data=["Category", "Status"],
+            color="Category",
+            size="Size",
+            zoom=1,
+            height=460
+        )
+        fig_map.update_layout(mapbox_style="open-street-map", margin={"r":0,"t":0,"l":0,"b":0})
+        st.plotly_chart(fig_map, use_container_width=True)
+        
+    with col_prox:
+        st.subheader("🏬 Plant-DC-Customer Proximity")
+        st.caption("Optimal fulfillment proximity matrix to best serve customer hubs:")
+        
+        prox_df = pd.DataFrame({
+            "Customer Hub": ["Walmart Bentonville", "Target Midwest", "Tesco UK Fleet"],
+            "Primary DC": ["Chicago Hub DC", "Chicago Hub DC", "Frankfurt DC"],
+            "Origin Plant": [plant1_name, plant1_name, plant2_name],
+            "Distance": ["550 mi", "380 mi", "420 km"],
+            "Transit SLA": ["1.2 Days", "0.9 Days", "1.0 Days"]
+        })
+        st.dataframe(prox_df, use_container_width=True)
+
+    st.markdown("---")
+    st.subheader("🚢 Real-Time Freight & Shipment Telemetry Stream")
+    st.caption("Live carrier API webhooks (Project44 / FourKites) streaming container locations and temperature sensors.")
+    
+    shipments = pd.DataFrame({
+        "Shipment ID": ["SHP-2026-901", "SHP-2026-902", "SHP-2026-903", "SHP-2026-904"],
+        "Carrier": ["Maersk Line", "FedEx Supply Chain", "Hapag-Lloyd", "DHL Global Freight"],
+        "Origin": [plant1_name, "Chicago Logistics Hub DC", plant2_name, toller_name],
+        "Destination": ["Walmart Bentonville Hub", "Target Midwest Depot", "Frankfurt Regional DC", "Chicago Logistics Hub DC"],
+        "Cargo Ingested": ["45,000 Cases", "22,000 Units", "15,000 MT Softs", "12,000 Component Wafers"],
+        "Telemetry / IoT": ["2.4°C (Normal)", "21.0°C (Ambient)", "-18.5°C (Reefers)", "19.5°C (Ambient)"],
+        "Status / ETA": ["🟢 On-Time (ETA 4 hrs)", "🟢 On-Time (ETA 12 hrs)", "🟡 Congested (ETA +1 Day)", "🔴 Delayed (Volcano Ash)"]
+    })
+    st.dataframe(shipments, use_container_width=True)
+
+# =====================================================================
+# MODULE 7: INTEGRATION & ARCHITECTURE ENDPOINTS
+# =====================================================================
+elif "Integration & Architecture" in selected_module:
+    st.title("🔌 Integration & Architecture Endpoints")
+    st.caption("Live system integration waypoints, REST/GraphQL endpoints, and enterprise API connections.")
+    
+    st.markdown("This tab details the bidirectional API integration hooks connecting operational planning with enterprise ERPs, TMS networks, and financial exchanges.")
+    
+    col_ep1, col_ep2 = st.columns(2)
+    
+    with col_ep1:
+        st.subheader("📡 Active Enterprise Integration Waypoints")
+        
+        endpoints_data = [
+            {"Tab / Module": "Executive S&OP", "Protocol": "REST / OData", "Endpoint URL": "/api/v1/sop/financial-waterfall", "Target System": "SAP S/4HANA / Anaplan", "Status": "🟢 ACTIVE 200 OK"},
+            {"Tab / Module": "NLP Sensing", "Protocol": "Webhook / RSS", "Endpoint URL": "/api/v1/nlp/ingest-email-signal", "Target System": "Microsoft Exchange / LLM Engine", "Status": "🟢 ACTIVE 200 OK"},
+            {"Tab / Module": "D/S Match Solver", "Protocol": "gRPC / Python", "Endpoint URL": "/api/v1/solver/opt-allocate", "Target System": "Gurobi / COIN-OR LP Solver", "Status": "🟢 ACTIVE 200 OK"},
+            {"Tab / Module": "Physical Procurement", "Protocol": "REST / EDI 850", "Endpoint URL": "/api/v1/procurement/po-bridge", "Target System": "SAP Ariba / Oracle SCM", "Status": "🟢 ACTIVE 200 OK"},
+            {"Tab / Module": "CTRM Hedging Desk", "Protocol": "FIX 4.4 / REST", "Endpoint URL": "/api/v1/ctrm/fix-order-execution", "Target System": "CME Group / ICE / LME Gateway", "Status": "🟢 ACTIVE 200 OK"},
+            {"Tab / Module": "GIS Logistics Tower", "Protocol": "WebSocket / REST", "Endpoint URL": "/api/v1/gis/project44-telemetry", "Target System": "Project44 / FourKites Telematics", "Status": "🟢 ACTIVE 200 OK"}
+        ]
+        
+        st.dataframe(pd.DataFrame(endpoints_data), use_container_width=True)
+
+    with col_ep2:
+        st.subheader("🧪 Interactive Endpoint Tester & Payload Inspection")
+        selected_endpoint = st.selectbox(
+            "Select Integration Waypoint to Test:",
+            ["/api/v1/sop/financial-waterfall", "/api/v1/nlp/ingest-email-signal", "/api/v1/solver/opt-allocate", "/api/v1/procurement/po-bridge", "/api/v1/ctrm/fix-order-execution", "/api/v1/gis/project44-telemetry"],
+            key="select_ep_test_v10"
+        )
+        
+        if st.button("⚡ Test Endpoint Ping", type="primary", key="btn_test_ep_v10"):
+            st.toast(f"Ping successful for {selected_endpoint}!", icon="⚡")
+            
+            sample_payloads = {
+                "/api/v1/sop/financial-waterfall": {"status": 200, "base_aop_usd": 120000000, "hedge_gain_usd": 3250000, "net_ebitda_usd": 127100000},
+                "/api/v1/nlp/ingest-email-signal": {"status": 200, "parsed_units": 85000, "confidence": 0.94, "event": "Trade Show Signal"},
+                "/api/v1/solver/opt-allocate": {"status": 200, "solver_status": "OPTIMAL", "flex_allocated": 65000, "primary_plant_util": 1.0},
+                "/api/v1/procurement/po-bridge": {"status": 200, "po_number": "PO-2026-9921", "vendor": "Rio Tinto", "status": "APPROVED"},
+                "/api/v1/ctrm/fix-order-execution": {"status": 200, "order_id": "ORD-CTRM-2026-8831", "exchange": "ICE", "exec_price": 23.18},
+                "/api/v1/gis/project44-telemetry": {"status": 200, "container_id": "SHP-2026-901", "temp_celsius": 2.4, "gps": [42.33, -83.04]}
+            }
+            
+            st.json(sample_payloads[selected_endpoint])
 
 # =====================================================================
 # GLOBAL SIDEBAR: RISK SCENARIO INJECTOR
@@ -416,25 +525,25 @@ st.sidebar.subheader("🌋 Risk Scenario Injector")
 st.sidebar.caption("⚡ Auto-Ingest Telemetry Alerts:")
 
 col_nlp1, col_nlp2 = st.sidebar.columns(2)
-if col_nlp1.button("🌋 Iceland Ash", use_container_width=True, key="ctrm_ash_v7"):
+if col_nlp1.button("🌋 Iceland Ash", use_container_width=True, key="ctrm_ash_v10"):
     st.session_state["active_disruption"] = "Icelandic Volcanic Ash (North Atlantic Freight Corridor)"
     st.toast("Ingested: Volcanic Ash Cloud Alert!", icon="🌋")
 
-if col_nlp2.button("🌊 El Niño AIS", use_container_width=True, key="ctrm_elnino_v7"):
+if col_nlp2.button("🌊 El Niño AIS", use_container_width=True, key="ctrm_elnino_v10"):
     st.session_state["active_disruption"] = "El Niño Climate Shock (Pacific Ocean Warm Current)"
     st.toast("Ingested: Sea surface anomaly confirmed!", icon="🌊")
 
 col_nlp3, col_nlp4 = st.sidebar.columns(2)
-if col_nlp3.button("💥 Seismic Feed", use_container_width=True, key="ctrm_seismic_v7"):
+if col_nlp3.button("💥 Seismic Feed", use_container_width=True, key="ctrm_seismic_v10"):
     st.session_state["active_disruption"] = "Seismic Earthquake Shock (Port Facilities Damage)"
     st.toast("Ingested: Port Infrastructure Impaired!", icon="💥")
 
-if col_nlp4.button("🪧 Flash Strike", use_container_width=True, key="ctrm_strike_v7"):
+if col_nlp4.button("🪧 Flash Strike", use_container_width=True, key="ctrm_strike_v10"):
     st.session_state["active_disruption"] = "Port Union Flash Strike (Zero Cargo Discharge)"
     st.toast("Ingested: Union Strike Active!", icon="🪧")
 
 with st.sidebar.expander("🎨 Custom Disruption Builder (CME/ICE)"):
-    with st.form("custom_disruption_form_v7"):
+    with st.form("custom_disruption_form_v10"):
         c_name = st.text_input("Disruption Title", "Panama Canal Drought Bottleneck")
         c_comm = st.text_input("Target Commodity", "CME Freight Futures (FBX)")
         c_base = st.number_input("Base Price ($)", value=120.0)
@@ -460,10 +569,10 @@ selected_event_label = st.sidebar.selectbox(
     "Select Supply Chain Shock:",
     options=disruption_options,
     index=default_idx,
-    key="ctrm_shock_select_v7"
+    key="ctrm_shock_select_v10"
 )
 
-if st.sidebar.button("🚨 Inject Selected Shock to Platform", type="primary", use_container_width=True, key="ctrm_inject_v7"):
+if st.sidebar.button("🚨 Inject Selected Shock to Platform", type="primary", use_container_width=True, key="ctrm_inject_v10"):
     st.session_state["active_disruption"] = selected_event_label
     st.sidebar.success(f"Injected: {selected_event_label}")
 
