@@ -57,19 +57,18 @@ def get_outsourced_info():
 # =====================================================================
 from ctrm_engine import CTRMExtensionEngine, DSSolverOutput, RiskEventType
 
-# 1. Initialize State Variables
+# 1. Initialize Session State
 if "active_disruption" not in st.session_state:
     st.session_state["active_disruption"] = "Standard Market Price Volatility"
 if "custom_scenarios" not in st.session_state:
     st.session_state["custom_scenarios"] = {}
 
-# 2. Sidebar Controls
+# 2. Sidebar Risk Controls
 st.sidebar.markdown("---")
 st.sidebar.subheader("🌋 Risk Scenario Injector")
-
 st.sidebar.caption("⚡ Auto-Ingest Telemetry Alerts:")
-col_nlp1, col_nlp2 = st.sidebar.columns(2)
 
+col_nlp1, col_nlp2 = st.sidebar.columns(2)
 if col_nlp1.button("🌋 Iceland Ash", use_container_width=True):
     st.session_state["active_disruption"] = "Icelandic Volcanic Ash (North Atlantic Freight Corridor)"
     st.toast("⚡ Ingested: Eyjafjallajökull Volcanic Ash Cloud Alert!", icon="🌋")
@@ -179,10 +178,9 @@ if st.sidebar.button("🚨 Inject Selected Shock to CTRM Desk", type="primary", 
     st.sidebar.success(f"Injected: {selected_event_label}")
 
 active_label = st.session_state["active_disruption"]
-st.sidebar.info(f"📡 **Active Signal Ingested:**
-`{active_label}`")
+st.sidebar.info(f"📡 **Active Signal Ingested:** {active_label}")
 
-# 3. Compute shock_data FIRST
+# 3. Safely calculate shock_data
 shock_data = COMMODITY_SHOCK_MATRIX.get(active_label, COMMODITY_SHOCK_MATRIX["Standard Market Price Volatility"])
 
 ds_run = DSSolverOutput(
@@ -198,8 +196,7 @@ ds_run = DSSolverOutput(
     network_throughput_ratio=shock_data["throughput"]
 )
 
-# 4. CONDITIONAL TAB ROUTER:
-# Only render CTRM Desk UI if user is on relevant trading tabs!
+# 4. Route CTRM UI only to trading/margin modules
 active_module = locals().get("selected_module", globals().get("selected_module", st.session_state.get("selected_module", None)))
 
 if active_module in ["D/S Match & Net Margin Solver", "Procurement & Trading Desk"]:
