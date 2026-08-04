@@ -649,3 +649,107 @@ selected_event_label = st.sidebar.selectbox(
         "Standard Market Price Volatility"
     ]
 )
+
+# =====================================================================
+# NLP & AIS SIGNAL STREAM + INTELLIGENT COMMODITY MAPPER
+# =====================================================================
+st.sidebar.markdown("---")
+st.sidebar.subheader("📰 Live NLP & AIS Signal Stream")
+
+# 1. Initialize session state key if needed
+if 'active_disruption' not in st.session_state:
+    st.session_state['active_disruption'] = "Standard Market Price Volatility"
+
+# 2. Simulated Live Feeds Triggering Alerts
+col_nlp1, col_nlp2 = st.sidebar.columns(2)
+
+if col_nlp1.button("🌋 Suez Volcanic Alert", use_container_width=True):
+    st.session_state['active_disruption'] = "Volcanic Ash Disruption (Suez Air/Sea Corridor)"
+    st.toast("⚡ NLP Ingested: Suez Airway Volcanic Ash Disruption!", icon="🌋")
+
+if col_nlp2.button("🌊 El Niño AIS Alert", use_container_width=True):
+    st.session_state['active_disruption'] = "El Niño Climate Shock (Pacific Ocean Warm Current)"
+    st.toast("⚡ AIS Ingested: Sea surface anomaly confirmed in Pacific!", icon="🌊")
+
+if st.sidebar.button("💥 Seismic Earthquake Alert", use_container_width=True):
+    st.session_state['active_disruption'] = "Seismic Earthquake Shock (Port Facilities Damage)"
+    st.toast("⚡ Seismograph Alert: Port Infrastructure Impaired!", icon="💥")
+
+# 3. Manual Selector Dropdown (synced automatically with NLP/AIS alerts)
+disruption_options = [
+    "El Niño Climate Shock (Pacific Ocean Warm Current)",
+    "Volcanic Ash Disruption (Suez Air/Sea Corridor)",
+    "Seismic Earthquake Shock (Port Facilities Damage)",
+    "Standard Market Price Volatility"
+]
+
+default_idx = (
+    disruption_options.index(st.session_state['active_disruption']) 
+    if st.session_state['active_disruption'] in disruption_options 
+    else 3
+)
+
+selected_event_label = st.sidebar.selectbox(
+    "Inject Physical Supply Chain Shock:",
+    options=disruption_options,
+    index=default_idx
+)
+
+# Update state if manual selection changes
+st.session_state['active_disruption'] = selected_event_label
+st.sidebar.info(f"📡 **Active Signal Ingested:**\n`{selected_event_label}`")
+
+# 4. Intelligent Commodity Mapping Matrix
+COMMODITY_SHOCK_MATRIX = {
+    "El Niño Climate Shock (Pacific Ocean Warm Current)": {
+        "commodity": "Raw Sugar & Soft Commodities",
+        "event_type": RiskEventType.CLIMATE_SHOCK_EL_NINO,
+        "baseline_price": 22.50,
+        "spot_price": 28.40,
+        "volatility": 0.32,
+        "throughput": 0.70
+    },
+    "Volcanic Ash Disruption (Suez Air/Sea Corridor)": {
+        "commodity": "Jet Fuel & Expedited Freight Index",
+        "event_type": RiskEventType.VOLCANIC_ASH_DISRUPTION,
+        "baseline_price": 85.00,
+        "spot_price": 135.00,
+        "volatility": 0.55,
+        "throughput": 0.40
+    },
+    "Seismic Earthquake Shock (Port Facilities Damage)": {
+        "commodity": "Semiconductor Wafers & Rare Metals",
+        "event_type": RiskEventType.SEISMIC_EARTHQUAKE_SHOCK,
+        "baseline_price": 450.00,
+        "spot_price": 720.00,
+        "volatility": 0.65,
+        "throughput": 0.20
+    },
+    "Standard Market Price Volatility": {
+        "commodity": "Industrial Primary Aluminum",
+        "event_type": RiskEventType.STANDARD_VOLATILITY,
+        "baseline_price": 2200.00,
+        "spot_price": 2350.00,
+        "volatility": 0.18,
+        "throughput": 1.00
+    }
+}
+
+shock_data = COMMODITY_SHOCK_MATRIX.get(
+    selected_event_label, 
+    COMMODITY_SHOCK_MATRIX["Standard Market Price Volatility"]
+)
+
+# 5. Build Dynamic D/S Solver Output for CTRM Desk
+ds_run = DSSolverOutput(
+    scenario_name=selected_event_label,
+    commodity_name=shock_data["commodity"],
+    incremental_gross_profit=7137631.0,
+    flex_capacity_cost=930194.0,
+    volume_shortfall_units=float(st.session_state.get('extracted_demand_surge', 50000)),
+    baseline_price=shock_data["baseline_price"],
+    spot_price=shock_data["spot_price"],
+    implied_volatility=shock_data["volatility"],
+    risk_event_type=shock_data["event_type"],
+    network_throughput_ratio=shock_data["throughput"]
+)
