@@ -571,3 +571,65 @@ with st.sidebar.expander("⚙️ System Architecture & API Schema"):
     * **CTRM Pricing**: `GET /api/v1/ctrm/black76-greeks` (CME Futures & Options Data Feed)
     * **Logistics Telemetry**: `GET /api/v1/logistics/ais-tracking` (Project44 / FourKites AIS)
     """)
+
+# =====================================================================
+# CTRM RISK MANAGEMENT & DERIVATIVE EXECUTION DESK
+# =====================================================================
+from ctrm_engine import CTRMExtensionEngine, DSSolverOutput, RiskEventType
+
+st.markdown("---")
+st.header("🛡️ CTRM Event-Driven Hedging & Arbitrage Desk")
+st.caption("Convert physical supply chain bottlenecks into executable financial derivatives.")
+
+# Initialize CTRM Engine
+ctrm_bridge = CTRMExtensionEngine()
+
+# Pull active scenario volume from session state
+surge_vol = st.session_state.get('extracted_demand_surge', 50000)
+
+# Build D/S Solver payload from active IBP scenario
+ds_run = DSSolverOutput(
+    scenario_name=st.session_state.get('active_signal_name', 'Costco Demand Signal (+50,000 units)'),
+    commodity_name="Raw Commodity Input",
+    incremental_gross_profit=7137631.0,
+    flex_capacity_cost=930194.0,
+    volume_shortfall_units=float(surge_vol),
+    baseline_price=22.50,
+    spot_price=28.40,
+    implied_volatility=0.32,
+    risk_event_type=RiskEventType.CLIMATE_SHOCK_EL_NINO,
+    network_throughput_ratio=0.70
+)
+
+# Detect Arbitrage & Structure Ticket
+arbitrage_info = ctrm_bridge.detect_arbitrage_risk(ds_run)
+staged_ticket = ctrm_bridge.select_model_and_structure_hedge(ds_run)
+
+# UI Metrics Display
+col_a, col_b, col_c, col_d = st.columns(4)
+col_a.metric("Unhedged Margin Risk", f"${arbitrage_info['unhedged_margin_risk_usd']:,.2f}")
+col_b.metric("Pricing Model", staged_ticket.selected_model.value.replace("_", " "))
+col_c.metric("Notional Volume", f"{staged_ticket.notional_volume:,.0f} units")
+col_d.metric("Option Premium", f"${staged_ticket.estimated_premium:,.2f}")
+
+st.info(f"💡 **Recommendation**: Activate **{staged_ticket.selected_model.value}** to cap price volatility at **${staged_ticket.strike_price}/unit**.")
+
+# Approval and Execution Button
+if st.button("⚡ Approve & Execute CTRM Option Trade", type="primary"):
+    approved_ticket = ctrm_bridge.approve_hedge_order(staged_ticket)
+    results = ctrm_bridge.execute_and_close_loop(ds_run, approved_ticket, market_price_at_expiry=32.00)
+    
+    # Automatically update session state ledger
+    if 'ledger_data' in st.session_state:
+        st.session_state['ledger_data']['trades'].append(results)
+        st.session_state['ledger_data']['trade_count'] += 1
+        st.session_state['ledger_data']['total_hedging_revenue'] += results['financial_waterfall']['hedge_payout_received_usd']
+        st.session_state['ledger_data']['total_cogs_savings'] += (
+            results['financial_waterfall']['hedge_payout_received_usd'] - results['financial_waterfall']['hedge_premium_paid_usd']
+        )
+    
+    st.balloons()
+    st.success(f"Trade **{approved_ticket.order_id}** EXECUTED on Exchange!")
+    
+    st.subheader("📊 Closed-Loop Financial Waterfall")
+    st.json(results["financial_waterfall"])
