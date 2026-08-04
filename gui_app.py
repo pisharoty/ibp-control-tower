@@ -633,3 +633,19 @@ if st.button("⚡ Approve & Execute CTRM Option Trade", type="primary"):
     
     st.subheader("📊 Closed-Loop Financial Waterfall")
     st.json(results["financial_waterfall"])
+
+# =====================================================================
+# INTERACTIVE RISK DISASTER SELECTOR
+# =====================================================================
+st.sidebar.markdown("---")
+st.sidebar.subheader("🌋 Risk Scenario Injector")
+
+selected_event_label = st.sidebar.selectbox(
+    "Inject Physical Supply Chain Shock:",
+    options=[
+        "El Niño Climate Shock (Pacific Ocean Warm Current)",
+        "Volcanic Ash Disruption (Suez Air/Sea Corridor)",
+        "Seismic Earthquake Shock (Port Facilities Damage)",
+        "Standard Market Price Volatility"
+    ]
+)

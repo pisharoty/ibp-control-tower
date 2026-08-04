@@ -13,7 +13,8 @@ class RiskEventType(Enum):
     STANDARD_VOLATILITY = "Standard_Price_Volatility"
     CLIMATE_SHOCK_EL_NINO = "Climate_Shock_El_Nino"
     CROP_YIELD_DEFICIT = "Geospatial_Crop_Yield_Deficit"
-
+    VOLCANIC_ASH_DISRUPTION = "Volcanic_Ash_Disruption"
+    SEISMIC_EARTHQUAKE_SHOCK = "Seismic_Earthquake_Shock"
 
 class ModelType(Enum):
     MODEL_ALPHA_BLACK76 = "Model_Alpha_Black76"
