@@ -52,7 +52,7 @@ def get_outsourced_info():
     return 0, 0.0
 
 
-# >>> UNIQUE_CTRM_RISK_ENGINE_DESK_FINAL <<<
+# >>> UNIQUE_CTRM_RISK_ENGINE_DESK_DEPLOYED <<<
 from ctrm_engine import CTRMExtensionEngine, DSSolverOutput, RiskEventType
 
 # Initialize Session State
@@ -67,21 +67,21 @@ st.sidebar.subheader("🌋 Risk Scenario Injector")
 st.sidebar.caption("⚡ Auto-Ingest Telemetry Alerts:")
 
 col_nlp1, col_nlp2 = st.sidebar.columns(2)
-if col_nlp1.button("🌋 Iceland Ash", use_container_width=True, key="ctrm_btn_iceland_ash_v1"):
+if col_nlp1.button("🌋 Iceland Ash", use_container_width=True, key="ctrm_ash_btn"):
     st.session_state["active_disruption"] = "Icelandic Volcanic Ash (North Atlantic Freight Corridor)"
     st.toast("⚡ Ingested: Eyjafjallajökull Volcanic Ash Cloud Alert!", icon="🌋")
 
-if col_nlp2.button("🌊 El Niño AIS", use_container_width=True, key="ctrm_btn_el_nino_v1"):
+if col_nlp2.button("🌊 El Niño AIS", use_container_width=True, key="ctrm_elnino_btn"):
     st.session_state["active_disruption"] = "El Niño Climate Shock (Pacific Ocean Warm Current)"
     st.toast("⚡ Ingested: Sea surface anomaly confirmed in Pacific!", icon="🌊")
 
-if st.sidebar.button("💥 Seismic Earthquake Feed", use_container_width=True, key="ctrm_btn_seismic_v1"):
+if st.sidebar.button("💥 Seismic Earthquake Feed", use_container_width=True, key="ctrm_seismic_btn"):
     st.session_state["active_disruption"] = "Seismic Earthquake Shock (Port Facilities Damage)"
     st.toast("⚡ Ingested: Port Infrastructure Impaired!", icon="💥")
 
 with st.sidebar.expander("🎨 Custom Disruption Model Builder (CME/ICE)"):
-    with st.form("custom_disruption_form_unique"):
-        c_name = st.text_input("Disruption Title", "Panama Canal Drought Bottleneck", key="ctrm_c_name_v1")
+    with st.form("custom_disruption_form_prod"):
+        c_name = st.text_input("Disruption Title", "Panama Canal Drought Bottleneck", key="ctrm_title")
         c_comm = st.selectbox("Target Commodity (CME/ICE)", [
             "CME Freight Futures (FBX)",
             "ICE Arabica Coffee (KC)",
@@ -89,22 +89,22 @@ with st.sidebar.expander("🎨 Custom Disruption Model Builder (CME/ICE)"):
             "CBOT Corn Futures (ZC)",
             "LME Primary Copper (HG)",
             "Custom Ticker / Asset"
-        ], key="ctrm_c_comm_v1")
+        ], key="ctrm_target_comm")
         if c_comm == "Custom Ticker / Asset":
-            c_comm = st.text_input("Custom Asset Ticker", "CME Random Length Lumber", key="ctrm_c_custom_ticker_v1")
+            c_comm = st.text_input("Custom Asset Ticker", "CME Random Length Lumber", key="ctrm_cust_ticker")
             
         c_type_str = st.selectbox("Pricing Engine Routing", [
             "Volcanic / Air Corridor Shock (Hawkes Jump)",
             "Climate / Weather Anomaly (Hawkes Jump)",
             "Seismic / Facility Loss (Parametric CAT)",
             "Standard / Geopolitical Volatility (Black-76)"
-        ], key="ctrm_c_type_v1")
+        ], key="ctrm_routing")
         
         col_p1, col_p2 = st.columns(2)
-        c_base = col_p1.number_input("Base Price ($)", value=120.0, key="ctrm_c_base_v1")
-        c_spot = col_p2.number_input("Spot Price ($)", value=195.0, key="ctrm_c_spot_v1")
-        c_vol = st.slider("Implied Volatility (σ)", 0.05, 1.50, 0.45, 0.05, key="ctrm_c_vol_v1")
-        c_thru = st.slider("Throughput Ratio (θ)", 0.05, 1.00, 0.30, 0.05, key="ctrm_c_thru_v1")
+        c_base = col_p1.number_input("Base Price ($)", value=120.0, key="ctrm_pbase")
+        c_spot = col_p2.number_input("Spot Price ($)", value=195.0, key="ctrm_pspot")
+        c_vol = st.slider("Implied Volatility (σ)", 0.05, 1.50, 0.45, 0.05, key="ctrm_pvol")
+        c_thru = st.slider("Throughput Ratio (θ)", 0.05, 1.00, 0.30, 0.05, key="ctrm_pthru")
         
         submit_custom = st.form_submit_button("🚀 Inject Custom Scenario", type="primary")
         if submit_custom:
@@ -169,10 +169,10 @@ selected_event_label = st.sidebar.selectbox(
     "Select Physical Supply Chain Shock:",
     options=disruption_options,
     index=default_idx,
-    key="ctrm_select_shock_v1"
+    key="ctrm_shock_select"
 )
 
-if st.sidebar.button("🚨 Inject Selected Shock to CTRM Desk", type="primary", use_container_width=True, key="ctrm_btn_inject_shock_v1"):
+if st.sidebar.button("🚨 Inject Selected Shock to CTRM Desk", type="primary", use_container_width=True, key="ctrm_inject_btn"):
     st.session_state["active_disruption"] = selected_event_label
     st.sidebar.success(f"Injected: {selected_event_label}")
 
@@ -215,7 +215,7 @@ if nav_mod in ["D/S Match & Net Margin Solver", "Procurement & Trading Desk"]:
 
     st.info(f"💡 **Recommendation**: Activate **{staged_ticket.selected_model.value}** to cap price volatility at **${staged_ticket.strike_price:.2f}/unit**.")
 
-    if st.button("⚡ Approve & Execute CTRM Option Trade", type="primary", key="ctrm_btn_execute_trade_v1"):
+    if st.button("⚡ Approve & Execute CTRM Option Trade", type="primary", key="ctrm_exec_trade"):
         approved_ticket = ctrm_bridge.approve_hedge_order(staged_ticket)
         results = ctrm_bridge.execute_and_close_loop(ds_run, approved_ticket, market_price_at_expiry=shock_data["spot_price"] * 1.1)
         
