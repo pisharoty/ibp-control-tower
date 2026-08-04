@@ -3,12 +3,15 @@ import pandas as pd
 import numpy as np
 import plotly.express as px
 import plotly.graph_objects as go
+import re
 
 # Initialize Session State Variables
 if "active_disruption" not in st.session_state:
     st.session_state["active_disruption"] = "Standard Market Price Volatility"
 if "custom_scenarios" not in st.session_state:
     st.session_state["custom_scenarios"] = {}
+if "extracted_demand_surge" not in st.session_state:
+    st.session_state["extracted_demand_surge"] = 50000
 if "ledger_data" not in st.session_state:
     st.session_state["ledger_data"] = {
         "trades": [],
@@ -25,15 +28,14 @@ selected_module = st.sidebar.radio(
     "Select Module",
     [
         "📊 Executive S&OP Dashboard",
-        "🧠 NLP Commercial Sensing",
+        "🧠 NLP Commercial Sensing & Email Intelligence",
         "⚖️ D/S Match & Net Margin Solver",
         "📈 Procurement & Trading Desk",
         "🌐 Global Network & Logistics Map"
     ],
-    key="nav_module_selection_v5"
+    key="nav_module_selection_v6"
 )
 
-# Store active module in session state
 st.session_state["selected_module"] = selected_module
 
 # Imports for CTRM Extension
@@ -68,28 +70,108 @@ if "Executive S&OP" in selected_module:
     st.plotly_chart(fig_sop, use_container_width=True)
 
 # =====================================================================
-# MODULE 2: NLP COMMERCIAL SENSING
+# MODULE 2: NLP COMMERCIAL SENSING & EMAIL INTELLIGENCE
 # =====================================================================
 elif "NLP Commercial" in selected_module:
-    st.title("🧠 NLP Commercial Sensing & Demand Signals")
-    st.markdown("Unstructured market intelligence, social sentiment, and news feed ingestion.")
+    st.title("🧠 NLP Commercial Sensing & Email Intelligence")
+    st.markdown("Ingest unstructured signals from news feeds, social media, **post-trade show emails**, and **marketing promo debriefs**.")
     
-    st.subheader("📡 Live Signals & Sentiment Ingestion")
-    signals = pd.DataFrame({
-        "Source": ["Twitter / X", "Bloomberg News", "Custom Tariff Regulatory Feed", "Supplier Portal"],
-        "Signal Detected": ["Port Congestion Warning", "Red Sea Shipping Surcharge", "Rare Earth Export Restriction", "Semiconductor Lead Time Spike"],
-        "Sentiment Score": [-0.85, -0.62, -0.91, -0.45],
-        "Confidence": ["94%", "88%", "97%", "82%"]
-    })
-    st.dataframe(signals, use_container_width=True)
+    tab1, tab2, tab3 = st.tabs([
+        "📡 Live Web Signals", 
+        "📧 Email & Event Debrief Parser", 
+        "🌐 Freight & Weather Telemetry Feeds"
+    ])
     
-    st.subheader("🎯 Real-Time Demand Shock Extractor")
-    demand_surge = st.slider("Extracted Surge Volume (Units)", 10000, 200000, 50000, step=5000, key="nlp_demand_surge_slider")
+    with tab1:
+        st.subheader("📡 Live Web Signals & Sentiment Ingestion")
+        signals = pd.DataFrame({
+            "Source": ["Twitter / X", "Bloomberg News", "Custom Tariff Feed", "Supplier Portal"],
+            "Signal Detected": ["Port Congestion Warning", "Red Sea Shipping Surcharge", "Rare Earth Export Restriction", "Semiconductor Lead Time Spike"],
+            "Sentiment Score": [-0.85, -0.62, -0.91, -0.45],
+            "Confidence": ["94%", "88%", "97%", "82%"]
+        })
+        st.dataframe(signals, use_container_width=True)
+
+    with tab2:
+        st.subheader("📧 Unstructured Email & Field Report Extractor")
+        st.caption("Parse post-trade show debriefs and promotional feedback to capture early demand spikes before formal ERP entry.")
+        
+        email_preset = st.selectbox(
+            "Select Email Sample or Enter Custom Text:",
+            [
+                "🎪 Post-Trade Show Sales Debrief (CES Expo 2026)",
+                "🚀 Post-Promo Campaign Feedback (Q3 Flash Sale)",
+                "✍️ Custom Email Input"
+            ],
+            key="email_preset_selector_v6"
+        )
+        
+        if email_preset == "🎪 Post-Trade Show Sales Debrief (CES Expo 2026)":
+            default_email = """From: vpsales@enterprise.com
+Date: Aug 3, 2026
+Subject: CES 2026 Recap - Massive Foot Traffic & Verbal Commitments
+
+Team, post-CES debrief: We experienced overwhelming interest in our primary commodity line. 
+Major retail distributors (Walmart, Target) gave verbal commitments for Q3/Q4. 
+We estimate an unconstrained demand spike of ~85,000 additional units over baseline over the next 60 days. 
+Supply chain needs to prep flex capacity ASAP!"""
+        elif email_preset == "🚀 Post-Promo Campaign Feedback (Q3 Flash Sale)":
+            default_email = """From: marketing.lead@enterprise.com
+Date: Aug 2, 2026
+Subject: Q3 Promo Performance - Stockout Warning!
+
+Our regional summer promotion blew past expectations. Conversion rates are up 340%. 
+Distributors in EMEA are requesting an emergency replenishment of roughly 120,000 units. 
+Margin risks are high if we get hit with freight surcharges."""
+        else:
+            default_email = ""
+
+        user_email = st.text_area("Email Content Body:", value=default_email, height=180, key="email_text_area_v6")
+        
+        if st.button("🧠 Extract NLP Demand Intent & Quantify Surge", type="primary", key="btn_parse_email_v6"):
+            if user_email.strip():
+                numbers = re.findall(r'(\d+[\d,]*)\s*units', user_email, re.IGNORECASE)
+                extracted_vol = int(numbers[0].replace(',', '')) if numbers else 65000
+                sentiment = "POSITIVE (High Intent)" if "overwhelming" in user_email.lower() or "blew past" in user_email.lower() else "NEUTRAL"
+                
+                st.session_state["extracted_demand_surge"] = extracted_vol
+                st.toast(f"Parsed {extracted_vol:,} units from Email!", icon="📧")
+                
+                col_e1, col_e2, col_e3 = st.columns(3)
+                col_e1.metric("Extracted Event Type", "Trade Show / Promo Signal")
+                col_e2.metric("Extracted Demand Surge", f"{extracted_vol:,} units")
+                col_e3.metric("NLP Confidence & Sentiment", sentiment)
+                
+                st.success(f"✅ Propagated **{extracted_vol:,} units** of demand surge directly to **D/S Match Solver** and **CTRM Hedging Desk**!")
+            else:
+                st.warning("Please paste email content first.")
+
+    with tab3:
+        st.subheader("🌐 Live Freight & Weather Telemetry Streams")
+        st.caption("Direct telemetry hooks that trigger real-time updates in the Risk Scenario Injector.")
+        col_t1, col_t2 = st.columns(2)
+        with col_t1:
+            st.markdown("### 🚢 FBX Freight Spot Rate Index")
+            st.metric("FBX Global Container Freight Index", "$3,840 / FEU", "+14.2%")
+            if st.button("📡 Stream Live FBX Rate Surge to Risk Injector", key="btn_fbx_stream"):
+                st.session_state["active_disruption"] = "Icelandic Volcanic Ash (North Atlantic Freight Corridor)"
+                st.toast("Updated CTRM Risk Injector with Live FBX Freight Index!", icon="🚀")
+                
+        with col_t2:
+            st.markdown("### 🌀 NOAA Maritime Weather Radar")
+            st.metric("Pacific Water Anomaly Index", "+2.8°C", "El Niño Active")
+            if st.button("📡 Stream NOAA Climate Signal to Risk Injector", key="btn_noaa_stream"):
+                st.session_state["active_disruption"] = "El Niño Climate Shock (Pacific Ocean Warm Current)"
+                st.toast("Updated CTRM Risk Injector with Live NOAA Weather Alert!", icon="🌊")
+
+    st.markdown("---")
+    st.subheader("🎯 Active Demand Shock Extractor Override")
+    current_surge = st.session_state.get("extracted_demand_surge", 50000)
+    demand_surge = st.slider("Extracted Surge Volume (Units)", 10000, 200000, int(current_surge), step=5000, key="nlp_demand_surge_slider_v6")
     st.session_state["extracted_demand_surge"] = demand_surge
-    st.success(f"Extracted Demand Surge of {demand_surge:,} units propagated to D/S Matcher!")
 
 # =====================================================================
-# MODULE 3: D/S MATCH & NET MARGIN SOLVER
+# MODULE 3: D/S MATCH & NET MARGIN SOLVER (100% DYNAMIC METRICS)
 # =====================================================================
 elif "D/S Match" in selected_module:
     st.title("⚖️ Demand/Supply Match & Net Margin Solver")
@@ -98,15 +180,25 @@ elif "D/S Match" in selected_module:
     col1, col2 = st.columns(2)
     with col1:
         st.subheader("⚙️ Solver Inputs")
-        st.number_input("Base Selling Price ($/unit)", value=250.0, key="ds_base_price")
-        st.number_input("Flex Capacity Cost ($/unit)", value=45.0, key="ds_flex_cost")
-        st.number_input("Unmet Penalty Cost ($/unit)", value=80.0, key="ds_penalty_cost")
+        base_price = st.number_input("Base Selling Price ($/unit)", value=250.0, key="ds_base_price_v6")
+        flex_cost = st.number_input("Flex Capacity Cost ($/unit)", value=45.0, key="ds_flex_cost_v6")
+        penalty_cost = st.number_input("Unmet Penalty Cost ($/unit)", value=80.0, key="ds_penalty_cost_v6")
         
     with col2:
-        st.subheader("📊 Optimal Allocation Summary")
-        st.write("**Primary Network Capacity**: 450,000 units")
-        st.write("**Flex Network Allocation**: 50,000 units")
-        st.write("**Maximized Gross Profit**: $18.45M")
+        st.subheader("📊 Dynamic Optimal Allocation Summary")
+        surge_vol = st.session_state.get("extracted_demand_surge", 50000)
+        primary_cap = 450000
+        flex_alloc = min(surge_vol, 100000)
+        unmet_units = max(0, surge_vol - flex_alloc)
+        
+        base_margin = base_price - 150.0
+        flex_margin = base_price - flex_cost - 150.0
+        
+        calc_profit = (primary_cap * base_margin) + (flex_alloc * flex_margin) - (unmet_units * penalty_cost)
+        
+        st.metric("Primary Network Capacity", f"{primary_cap:,} units")
+        st.metric("Flex Network Allocation (from NLP Surge)", f"{flex_alloc:,} units", delta=f"Surge: {surge_vol:,} units")
+        st.metric("Maximized Gross Profit", f"${calc_profit/1e6:,.2f}M")
 
 # =====================================================================
 # MODULE 4: PROCUREMENT & TRADING DESK
@@ -133,7 +225,6 @@ elif "Global Network" in selected_module:
     st.title("🌐 Global Logistics Network & GIS Control Tower")
     st.markdown("Real-time geospatial tracking of maritime routes, distribution nodes, and disruption zones.")
     
-    # Map Visualization
     nodes = pd.DataFrame({
         "Name": ["Port of Shanghai", "Port of Rotterdam", "Port of LA", "Suez Canal Bottleneck", "Panama Canal Node"],
         "lat": [31.2304, 51.9244, 33.7405, 30.5852, 9.0800],
@@ -162,7 +253,7 @@ else:
     st.info("Select a module from the sidebar navigation to view dashboard details.")
 
 # =====================================================================
-# CTRM RISK SCENARIO INJECTOR & HEDGING ENGINE (SIDEBAR + MAIN)
+# CTRM RISK SCENARIO INJECTOR & HEDGING ENGINE
 # =====================================================================
 if CTRM_AVAILABLE:
     st.sidebar.markdown("---")
@@ -170,21 +261,21 @@ if CTRM_AVAILABLE:
     st.sidebar.caption("⚡ Auto-Ingest Telemetry Alerts:")
 
     col_nlp1, col_nlp2 = st.sidebar.columns(2)
-    if col_nlp1.button("🌋 Iceland Ash", use_container_width=True, key="ctrm_ash_v5"):
+    if col_nlp1.button("🌋 Iceland Ash", use_container_width=True, key="ctrm_ash_v6"):
         st.session_state["active_disruption"] = "Icelandic Volcanic Ash (North Atlantic Freight Corridor)"
         st.toast("⚡ Ingested: Eyjafjallajökull Volcanic Ash Cloud Alert!", icon="🌋")
 
-    if col_nlp2.button("🌊 El Niño AIS", use_container_width=True, key="ctrm_elnino_v5"):
+    if col_nlp2.button("🌊 El Niño AIS", use_container_width=True, key="ctrm_elnino_v6"):
         st.session_state["active_disruption"] = "El Niño Climate Shock (Pacific Ocean Warm Current)"
         st.toast("⚡ Ingested: Sea surface anomaly confirmed in Pacific!", icon="🌊")
 
-    if st.sidebar.button("💥 Seismic Earthquake Feed", use_container_width=True, key="ctrm_seismic_v5"):
+    if st.sidebar.button("💥 Seismic Earthquake Feed", use_container_width=True, key="ctrm_seismic_v6"):
         st.session_state["active_disruption"] = "Seismic Earthquake Shock (Port Facilities Damage)"
         st.toast("⚡ Ingested: Port Infrastructure Impaired!", icon="💥")
 
     with st.sidebar.expander("🎨 Custom Disruption Model Builder (CME/ICE)"):
-        with st.form("custom_disruption_form_v5"):
-            c_name = st.text_input("Disruption Title", "Panama Canal Drought Bottleneck", key="ctrm_title_v5")
+        with st.form("custom_disruption_form_v6"):
+            c_name = st.text_input("Disruption Title", "Panama Canal Drought Bottleneck", key="ctrm_title_v6")
             c_comm = st.selectbox("Target Commodity (CME/ICE)", [
                 "CME Freight Futures (FBX)",
                 "ICE Arabica Coffee (KC)",
@@ -192,22 +283,22 @@ if CTRM_AVAILABLE:
                 "CBOT Corn Futures (ZC)",
                 "LME Primary Copper (HG)",
                 "Custom Ticker / Asset"
-            ], key="ctrm_comm_v5")
+            ], key="ctrm_comm_v6")
             if c_comm == "Custom Ticker / Asset":
-                c_comm = st.text_input("Custom Asset Ticker", "CME Random Length Lumber", key="ctrm_cust_v5")
+                c_comm = st.text_input("Custom Asset Ticker", "CME Random Length Lumber", key="ctrm_cust_v6")
                 
             c_type_str = st.selectbox("Pricing Engine Routing", [
                 "Volcanic / Air Corridor Shock (Hawkes Jump)",
                 "Climate / Weather Anomaly (Hawkes Jump)",
                 "Seismic / Facility Loss (Parametric CAT)",
                 "Standard / Geopolitical Volatility (Black-76)"
-            ], key="ctrm_routing_v5")
+            ], key="ctrm_routing_v6")
             
             col_p1, col_p2 = st.columns(2)
-            c_base = col_p1.number_input("Base Price ($)", value=120.0, key="ctrm_pbase_v5")
-            c_spot = col_p2.number_input("Spot Price ($)", value=195.0, key="ctrm_pspot_v5")
-            c_vol = st.slider("Implied Volatility (σ)", 0.05, 1.50, 0.45, 0.05, key="ctrm_pvol_v5")
-            c_thru = st.slider("Throughput Ratio (θ)", 0.05, 1.00, 0.30, 0.05, key="ctrm_pthru_v5")
+            c_base = col_p1.number_input("Base Price ($)", value=120.0, key="ctrm_pbase_v6")
+            c_spot = col_p2.number_input("Spot Price ($)", value=195.0, key="ctrm_pspot_v6")
+            c_vol = st.slider("Implied Volatility (σ)", 0.05, 1.50, 0.45, 0.05, key="ctrm_pvol_v6")
+            c_thru = st.slider("Throughput Ratio (θ)", 0.05, 1.00, 0.30, 0.05, key="ctrm_pthru_v6")
             
             submit_custom = st.form_submit_button("🚀 Inject Custom Scenario", type="primary")
             if submit_custom:
@@ -272,10 +363,10 @@ if CTRM_AVAILABLE:
         "Select Physical Supply Chain Shock:",
         options=disruption_options,
         index=default_idx,
-        key="ctrm_shock_select_v5"
+        key="ctrm_shock_select_v6"
     )
 
-    if st.sidebar.button("🚨 Inject Selected Shock to CTRM Desk", type="primary", use_container_width=True, key="ctrm_inject_v5"):
+    if st.sidebar.button("🚨 Inject Selected Shock to CTRM Desk", type="primary", use_container_width=True, key="ctrm_inject_v6"):
         st.session_state["active_disruption"] = selected_event_label
         st.sidebar.success(f"Injected: {selected_event_label}")
 
@@ -297,7 +388,6 @@ if CTRM_AVAILABLE:
         network_throughput_ratio=shock_data["throughput"]
     )
 
-    # CTRM Desk is displayed on active trading & margin modules
     if any(m in selected_module for m in ["D/S Match", "Procurement"]):
         st.markdown("---")
         st.header("🛡️ CTRM Event-Driven Hedging & Arbitrage Desk")
@@ -315,7 +405,7 @@ if CTRM_AVAILABLE:
 
         st.info(f"💡 **Recommendation**: Activate **{staged_ticket.selected_model.value}** to cap price volatility at **${staged_ticket.strike_price:.2f}/unit**.")
 
-        if st.button("⚡ Approve & Execute CTRM Option Trade", type="primary", key="ctrm_exec_trade_v5"):
+        if st.button("⚡ Approve & Execute CTRM Option Trade", type="primary", key="ctrm_exec_trade_v6"):
             approved_ticket = ctrm_bridge.approve_hedge_order(staged_ticket)
             results = ctrm_bridge.execute_and_close_loop(ds_run, approved_ticket, market_price_at_expiry=shock_data["spot_price"] * 1.1)
             
