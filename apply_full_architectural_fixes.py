@@ -1,4 +1,4 @@
-import streamlit as st
+updated_app_code = """import streamlit as st
 import pandas as pd
 import numpy as np
 import plotly.express as px
@@ -227,22 +227,22 @@ elif any(k in selected_module for k in ["NLP Commercial", "Global Macro"]):
         )
         
         if email_preset == "🎪 Post-Trade Show Sales Debrief (CES Expo 2026)":
-            default_email = """From: vpsales@enterprise.com
+            default_email = \"\"\"From: vpsales@enterprise.com
 Date: Aug 3, 2026
 Subject: CES 2026 Recap - Massive Foot Traffic & Verbal Commitments
 
 Team, post-CES debrief: We experienced overwhelming interest in our primary commodity line. 
 Major retail distributors (Walmart, Target) gave verbal commitments for Q3/Q4. 
 We estimate an unconstrained demand spike of ~85,000 additional units over baseline over the next 60 days. 
-Supply chain needs to prep flex capacity ASAP!"""
+Supply chain needs to prep flex capacity ASAP!\"\"\"
         elif email_preset == "🚀 Post-Promo Campaign Feedback (Q3 Flash Sale)":
-            default_email = """From: marketing.lead@enterprise.com
+            default_email = \"\"\"From: marketing.lead@enterprise.com
 Date: Aug 2, 2026
 Subject: Q3 Promo Performance - Stockout Warning!
 
 Our regional summer promotion blew past expectations. Conversion rates are up 340%. 
 Distributors in EMEA are requesting an emergency replenishment of roughly 120,000 units. 
-Margin risks are high if we get hit with freight surcharges."""
+Margin risks are high if we get hit with freight surcharges.\"\"\"
         else:
             default_email = ""
 
@@ -711,3 +711,9 @@ if st.sidebar.button("🚨 Inject Selected Shock to Platform", type="primary", u
 
 active_label = st.session_state["active_disruption"]
 st.sidebar.info(f"📡 **Active Signal Ingested:** {active_label}")
+"""
+
+with open("gui_app.py", "w") as f:
+    f.write(updated_app_code.strip() + "\n")
+
+print("✅ Full architectural updates applied successfully to gui_app.py!")
