@@ -11,8 +11,8 @@ import feedparser
 class BulletproofDataEngine:
     """
     Enterprise Data Engine for S&OP Control Towers.
-    Fetches real-time market, news sentiment, and express parcel telemetry 
-    with instant fallback to structured canned mock data upon network failures.
+    Fetches real-time market, news sentiment, freight proxies, and express parcel 
+    telemetry with instant fallback to structured canned mock data upon network failures.
     """
     
     # -------------------------------------------------------------------
@@ -39,6 +39,12 @@ class BulletproofDataEngine:
         "origin": "Memphis, TN (MEM Hub)",
         "destination": "Austin, TX (Fab Plant)",
         "delay_hours": 0,
+        "source": "🟡 CANNED MOCK"
+    }
+
+    CANNED_FREIGHT = {
+        "fbx_index": "$3,840 / FEU",
+        "change": "+14.2%",
         "source": "🟡 CANNED MOCK"
     }
 
@@ -124,6 +130,32 @@ class BulletproofDataEngine:
         except Exception:
             return cls.CANNED_PARCEL
 
+    # -------------------------------------------------------------------
+    # 4. Global Ocean Container Freight Proxy Engine (yfinance ZIM)
+    # -------------------------------------------------------------------
+    @classmethod
+    def get_freight_market_signal(cls) -> dict:
+        """Fetch live ocean freight proxy performance from market tickers."""
+        try:
+            zim = yf.Ticker("ZIM")
+            hist = zim.history(period="5d")
+            if not hist.empty:
+                latest_close = hist['Close'].iloc[-1]
+                prev_close = hist['Close'].iloc[-2]
+                pct_change = ((latest_close - prev_close) / prev_close) * 100
+                
+                # Estimate FBX proxy rate based on container equity momentum
+                base_fbx = 3840.0
+                dynamic_fbx = int(base_fbx * (1 + (pct_change / 100)))
+                
+                return {
+                    "fbx_index": f"${dynamic_fbx:,} / FEU",
+                    "change": f"{pct_change:+.1f}%",
+                    "source": "🟢 LIVE YFINANCE (ZIM Container Proxy)"
+                }
+        except Exception:
+            return cls.CANNED_FREIGHT
+
 
 # =======================================================================
 # Execution Demonstration Block
@@ -158,5 +190,12 @@ if __name__ == "__main__":
     print(f"    • Route:      {parcel_feed['origin']}  ➔  {parcel_feed['destination']}")
     print(f"    • Status:     {parcel_feed['status']}")
     print(f"    • Data Source: {parcel_feed['source']}")
+
+    # 4. Test Ocean Container Freight Proxy Signal
+    freight_feed = engine.get_freight_market_signal()
+    print(f"\n[4] OCEAN CONTAINER FREIGHT SPOT RATE PROXY")
+    print(f"    • FBX Index:  {freight_feed['fbx_index']}")
+    print(f"    • 5-Day Chg:  {freight_feed['change']}")
+    print(f"    • Data Source: {freight_feed['source']}")
     
     print("\n" + "="*70 + "\n")
