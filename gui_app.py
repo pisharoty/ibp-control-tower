@@ -241,7 +241,22 @@ if any(k in selected_module for k in ["Executive S&OP", "Integrated Business Pla
     })
     st.dataframe(rec_df, use_container_width=True)
 
-## =====================================================================
+# -------------------------------------------------------------------
+# Multi-Industry & Commodity NLP News Sensing Query Matrix
+# -------------------------------------------------------------------
+COMMODITY_NLP_QUERIES = {
+    "🛒 Retail & Omnichannel Goods": "retail inventory port dwell consumer demand logistics bottleneck",
+    "🌾 Food, Beverage & Agriculture": "food supply chain refrigerated freight crop yield shortage drought",
+    "🧼 FMCG, CPG & Household Goods": "CPG packaging material cost palm oil pulp paper supply chain",
+    "🔬 Semiconductors & High-Tech": "semiconductor wafer fab shortage supply chain disruption",
+    "🚗 Automotive & Mobility OEM": "automotive supply chain parts shortage logistics delay EV battery",
+    "🏗️ Steel, Ferrous & Heavy Metals": "steel prices iron ore scrap metal supply chain bottleneck",
+    "🛢️ Energy, Chemicals & Feedstocks": "crude oil chemical feedstock plastic resin supply chain",
+    "💊 Pharma, MedTech & Healthcare": "pharmaceutical cold chain API active ingredient supply shortage"
+}
+
+
+# =====================================================================
 # ROUTER 2: NLP COMMERCIAL SENSING
 # =====================================================================
 elif any(k in selected_module for k in ["NLP Commercial", "Global Macro"]):
@@ -256,33 +271,71 @@ elif any(k in selected_module for k in ["NLP Commercial", "Global Macro"]):
     ])
     
     with tab1:
-        st.subheader("📡 Live Web Signals & Sentiment Ingestion")
+        st.subheader("📡 Multi-Industry Commercial NLP Sensing Engine")
+        st.caption("Select your operational domain to dynamically route Google News RSS scraping & TextBlob sentiment analysis.")
         
-        # 🟢 Fetch real-time NLP signal (with automatic fallback to canned mock data)
-        live_nlp = BulletproofDataEngine.get_nlp_news_signal(query="semiconductor supply chain")
+        # 🎯 Dynamic Domain & Commodity Selector Dropdown
+        col_sel1, col_sel2 = st.columns([2, 1])
+        with col_sel1:
+            selected_domain = st.selectbox(
+                "Select Operational Sector / Commodity Focus:",
+                options=list(COMMODITY_NLP_QUERIES.keys()),
+                index=3 if "Industrial" in str(persona) else 0,
+                key="nlp_multi_industry_selector_v14"
+            )
+        with col_sel2:
+            st.caption("Active RSS Search Query:")
+            search_query = COMMODITY_NLP_QUERIES[selected_domain]
+            st.code(search_query, language="text")
+
+        st.markdown("---")
         
+        # 🟢 Fetch real-time domain-tailored NLP signal
+        live_nlp = BulletproofDataEngine.get_nlp_news_signal(query=search_query)
+
+        # 📊 Primary Live Signal Card & Sentiment Metric
+        col_n1, col_n2 = st.columns([3, 1])
+        with col_n1:
+            st.markdown(f"**Latest Live Scraped Signal ({selected_domain}):**")
+            st.info(f"📰 \"{live_nlp.get('headline', 'N/A')}\"")
+            st.caption(f"Data Feed: {live_nlp.get('source', '🟢 LIVE NEWS RSS')}")
+            
+        with col_n2:
+            st.metric(
+                label="TextBlob Polarity", 
+                value=f"{live_nlp.get('sentiment', 0.0):+.2f}", 
+                delta=live_nlp.get("risk", "🟢 STABLE")
+            )
+
+        if st.button("⚡ Ingest This Sector Signal into Platform Engine", key="btn_ingest_domain_nlp_v14"):
+            st.session_state["active_disruption"] = f"NLP Shock ({selected_domain}): {live_nlp.get('headline')}"
+            st.toast(f"Ingested live {selected_domain} signal into CTRM & Platform Engine!", icon="🚀")
+
+        st.markdown(" ")
+        st.markdown("### 📊 Ingested Intelligence Signals Stream")
+
         signals = pd.DataFrame([
             {
-                "Source": live_nlp.get("source", "🟢 LIVE NEWS RSS"),
+                "Source": f"{live_nlp.get('source', '🟢 LIVE NEWS RSS')}",
                 "Signal Detected": live_nlp.get("headline", "Semiconductor Lead Time Spike"),
                 "Sentiment Score": live_nlp.get("sentiment", 0.0),
                 "Confidence / Risk": live_nlp.get("risk", "🟢 STABLE")
             },
             {
                 "Source": "Twitter / X", 
-                "Signal Detected": "Port Congestion Warning", 
+                "Signal Detected": "Port Congestion & Dwell Time Warning", 
                 "Sentiment Score": -0.85, 
                 "Confidence / Risk": "🔴 HIGH RISK"
             },
             {
                 "Source": "Bloomberg News", 
-                "Signal Detected": "Red Sea Shipping Surcharge", 
+                "Signal Detected": "Red Sea Shipping Freight Surcharge", 
                 "Sentiment Score": -0.62, 
                 "Confidence / Risk": "🔴 HIGH RISK"
             },
             {
                 "Source": "Custom Tariff Feed", 
-                "Signal Detected": "Rare Earth Export Restriction", 
+                "Signal Detected": "Rare Earth Export License Restriction", 
                 "Sentiment Score": -0.91, 
                 "Confidence / Risk": "🔴 HIGH RISK"
             }
