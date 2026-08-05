@@ -1,3 +1,4 @@
+from bulletproof_engine import BulletproofDataEngine
 import streamlit as st
 import pandas as pd
 import numpy as np
