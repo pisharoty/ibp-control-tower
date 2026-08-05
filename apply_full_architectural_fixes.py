@@ -4,15 +4,16 @@ import numpy as np
 import plotly.express as px
 import plotly.graph_objects as go
 import re
-import json
+import math
+from scipy.stats import norm
 
 # =====================================================================
 # SESSION STATE INITIALIZATION
 # =====================================================================
 if "active_disruption" not in st.session_state:
     st.session_state["active_disruption"] = "Standard Market Price Volatility"
-if "custom_scenarios" not in st.session_state:
-    st.session_state["custom_scenarios"] = {}
+if "custom_scenario_params" not in st.session_state:
+    st.session_state["custom_scenario_params"] = None
 if "extracted_demand_surge" not in st.session_state:
     st.session_state["extracted_demand_surge"] = 65000
 if "ctrm_ledger" not in st.session_state:
@@ -26,13 +27,6 @@ if "bom_requisitions" not in st.session_state:
 
 st.set_page_config(page_title="IBP Enterprise Control Tower", layout="wide")
 
-# Imports for CTRM Extension
-try:
-    from ctrm_engine import CTRMExtensionEngine, DSSolverOutput, RiskEventType
-    CTRM_AVAILABLE = True
-except ImportError:
-    CTRM_AVAILABLE = False
-
 # =====================================================================
 # SIDEBAR: PERSONA SWITCHER & DYNAMIC MODULE NAVIGATION
 # =====================================================================
@@ -45,7 +39,7 @@ persona = st.sidebar.selectbox(
         "📦 Process Goods & FMCG Enterprise",
         "📈 Merchant Trading & Commodity Risk Desk"
     ],
-    key="platform_persona_v11"
+    key="platform_persona_v12"
 )
 
 # Persona-Specific Module Mapping
@@ -79,11 +73,10 @@ elif "FMCG" in persona:
     plant1_name = "Midwest Processing Facility"
     plant2_name = "Rotterdam Blending Plant"
     toller_name = "Regional Co-Packer & Cold Storage"
-else:  # Merchant Trading
+else:  # Merchant Trading (Removed Load Balancer Module)
     module_options = [
         "📊 Daily Trading Balance Sheet & Position Tower",
         "🧠 Global Macro & Satellite Market Intelligence",
-        "⚖️ Supply/Demand Balance & Terminal Load Balancer",
         "📈 Physical Off-Take & Merchant Storage Desk",
         "🛡️ CTRM Derivatives & Risk Arbitrage Desk",
         "🌐 Global Maritime AIS & Cargo GIS Tower",
@@ -98,7 +91,7 @@ else:  # Merchant Trading
 selected_module = st.sidebar.radio(
     "Select Operational Module",
     module_options,
-    key="nav_module_selection_v11"
+    key="nav_module_selection_v12"
 )
 
 st.session_state["selected_module"] = selected_module
@@ -116,6 +109,19 @@ def parse_demand_from_text(text):
             if val_str.isdigit() and int(val_str) > 100:
                 return int(val_str)
     return 65000
+
+# Black76 / Black-Scholes Option Pricer Helper
+def black76_call_put(S, K, T, r, sigma):
+    if T <= 0 or sigma <= 0:
+        return 0.0, 0.0, 0.0, 0.0
+    d1 = (math.log(S / K) + (0.5 * sigma ** 2) * T) / (sigma * math.sqrt(T))
+    d2 = d1 - sigma * math.sqrt(T)
+    
+    call = math.exp(-r * T) * (S * norm.cdf(d1) - K * norm.cdf(d2))
+    put = math.exp(-r * T) * (K * norm.cdf(-d2) - S * norm.cdf(-d1))
+    delta_call = math.exp(-r * T) * norm.cdf(d1)
+    vega = S * math.exp(-r * T) * norm.pdf(d1) * math.sqrt(T) / 100.0
+    return call, put, delta_call, vega
 
 # Dynamic Contracts Injector per Persona
 def get_persona_contracts(persona_type):
@@ -180,7 +186,7 @@ if any(k in selected_module for k in ["Executive S&OP", "Integrated Business Pla
 
     st.subheader("📋 Executive Financial Audit Ledger & Variance Decomposition")
     rec_df = pd.DataFrame({
-        "Financial Vector": ["Base Unconstrained Demand", f"NLP Demand Surge ({surge:,} {term_unit})", "Internal Plant COGS", f"3rd-Party Toller Premium ({toller_name})", "CTRM Derivative Offset / Hedge Gain"],
+        "Financial Vector": ["Base Unconstrained Demand", f"NLP Demand Surge ({surge:,} {term_unit})", "Internal Plant COGS", f"3rd-Party Storage/Toller Premium ({toller_name})", "CTRM Derivative Offset / Hedge Gain"],
         "Physical Value ($M)": [120.0, round(surge * 0.00025, 2), -82.5, -12.4, 0.0],
         "Paper Derivative Offset ($M)": [0.0, 0.0, 0.0, 0.0, trade_offset],
         "Net S&OP Financial Impact ($M)": [120.0, round(surge * 0.00025, 2), -82.5, -12.4, trade_offset],
@@ -223,7 +229,7 @@ elif any(k in selected_module for k in ["NLP Commercial", "Global Macro"]):
                 "🚀 Post-Promo Campaign Feedback (Q3 Flash Sale)",
                 "✍️ Custom Email Input"
             ],
-            key="email_preset_selector_v11"
+            key="email_preset_selector_v12"
         )
         
         if email_preset == "🎪 Post-Trade Show Sales Debrief (CES Expo 2026)":
@@ -246,9 +252,9 @@ Margin risks are high if we get hit with freight surcharges.\"\"\"
         else:
             default_email = ""
 
-        user_email = st.text_area("Email Content Body:", value=default_email, height=180, key="email_text_area_v11")
+        user_email = st.text_area("Email Content Body:", value=default_email, height=180, key="email_text_area_v12")
         
-        if st.button("🧠 Extract NLP Demand Intent & Quantify Surge", type="primary", key="btn_parse_email_v11"):
+        if st.button("🧠 Extract NLP Demand Intent & Quantify Surge", type="primary", key="btn_parse_email_v12"):
             if user_email.strip():
                 extracted_vol = parse_demand_from_text(user_email)
                 sentiment = "POSITIVE (High Intent)" if ("overwhelming" in user_email.lower() or "blew past" in user_email.lower()) else "NEUTRAL"
@@ -261,7 +267,7 @@ Margin risks are high if we get hit with freight surcharges.\"\"\"
                 col_e2.metric("Extracted Demand Surge", f"{extracted_vol:,} {term_unit}")
                 col_e3.metric("NLP Confidence & Sentiment", sentiment)
                 
-                st.success(f"✅ Propagated **{extracted_vol:,} {term_unit}** of demand surge directly to **D/S Match Solver** and **Physical Procurement Desk**!")
+                st.success(f"✅ Propagated **{extracted_vol:,} {term_unit}** of demand surge directly to **Physical Procurement Desk**!")
             else:
                 st.warning("Please paste email content first.")
 
@@ -271,27 +277,27 @@ Margin risks are high if we get hit with freight surcharges.\"\"\"
         with col_t1:
             st.markdown("### 🚢 FBX Freight Spot Rate Index")
             st.metric("FBX Global Container Freight Index", "$3,840 / FEU", "+14.2%")
-            if st.button("📡 Stream Live FBX Rate Surge to Risk Injector", key="btn_fbx_stream_v11"):
+            if st.button("📡 Stream Live FBX Rate Surge to Risk Injector", key="btn_fbx_stream_v12"):
                 st.session_state["active_disruption"] = "Icelandic Volcanic Ash (North Atlantic Freight Corridor)"
                 st.toast("Updated Risk Injector with Live FBX Freight Index!", icon="🚀")
                 
         with col_t2:
             st.markdown("### 🌀 NOAA Maritime Weather Radar")
             st.metric("Pacific Water Anomaly Index", "+2.8°C", "El Niño Active")
-            if st.button("📡 Stream NOAA Climate Signal to Risk Injector", key="btn_noaa_stream_v11"):
+            if st.button("📡 Stream NOAA Climate Signal to Risk Injector", key="btn_noaa_stream_v12"):
                 st.session_state["active_disruption"] = "El Niño Climate Shock (Pacific Ocean Warm Current)"
                 st.toast("Updated Risk Injector with Live NOAA Weather Alert!", icon="🌊")
 
     st.markdown("---")
     st.subheader("🎯 Active Demand Shock Extractor Override")
     current_surge = st.session_state.get("extracted_demand_surge", 65000)
-    demand_surge = st.slider(f"Extracted Surge Volume ({term_unit})", 10000, 200000, int(current_surge), step=5000, key="nlp_demand_surge_slider_v11")
+    demand_surge = st.slider(f"Extracted Surge Volume ({term_unit})", 10000, 200000, int(current_surge), step=5000, key="nlp_demand_surge_slider_v12")
     st.session_state["extracted_demand_surge"] = demand_surge
 
 # =====================================================================
-# ROUTER 3: DEMAND/SUPPLY MATCH & PLANT LOAD BALANCER
+# ROUTER 3: DEMAND/SUPPLY MATCH & PLANT LOAD BALANCER (Industrial / FMCG Only)
 # =====================================================================
-elif any(k in selected_module for k in ["Demand/Supply", "Plant Load", "Batch Processing", "Terminal Load"]):
+elif any(k in selected_module for k in ["Demand/Supply", "Plant Load", "Batch Processing"]):
     st.title("⚖️ Demand/Supply Match & Plant Load Balancer")
     st.caption(f"Active Persona View: **{persona}**")
     st.markdown("Linear programming optimization for global plant load balancing, make vs. buy arbitrage, and profit maximization.")
@@ -299,10 +305,10 @@ elif any(k in selected_module for k in ["Demand/Supply", "Plant Load", "Batch Pr
     col1, col2 = st.columns(2)
     with col1:
         st.subheader("⚙️ Interactive Solver Optimization Parameters")
-        base_price = st.number_input("Base Selling Price ($/unit)", value=250.0, key="ds_base_price_v11")
-        flex_cost = st.number_input(f"3rd-Party Toller / CMO Cost ($/unit): {toller_name}", value=165.0, key="ds_flex_cost_v11")
-        cmo_penalty = st.slider("CMO Expedited Surcharge / Penalty Rate (%)", 0, 50, 15, key="ds_cmo_penalty_slider_v11")
-        unmet_penalty = st.number_input("Unmet Demand Penalty ($/unit)", value=80.0, key="ds_penalty_cost_v11")
+        base_price = st.number_input("Base Selling Price ($/unit)", value=250.0, key="ds_base_price_v12")
+        flex_cost = st.number_input(f"3rd-Party Toller / CMO Cost ($/unit): {toller_name}", value=165.0, key="ds_flex_cost_v12")
+        cmo_penalty = st.slider("CMO Expedited Surcharge / Penalty Rate (%)", 0, 50, 15, key="ds_cmo_penalty_slider_v12")
+        unmet_penalty = st.number_input("Unmet Demand Penalty ($/unit)", value=80.0, key="ds_penalty_cost_v12")
         
     with col2:
         st.subheader("📊 Dynamic Optimal Allocation Summary")
@@ -343,7 +349,7 @@ elif any(k in selected_module for k in ["Demand/Supply", "Plant Load", "Batch Pr
     col_b2.metric("Semiconductor / Component Units", f"{req_semis:,.0f} Units")
     col_b3.metric("Freight Capacity Needed", f"{req_freight:,.0f} Container FEUs")
     
-    if st.button("📦 Generate & Push Requisitions to Physical Procurement Desk", type="primary", key="btn_push_req_v11"):
+    if st.button("📦 Generate & Push Requisitions to Physical Procurement Desk", type="primary", key="btn_push_req_v12"):
         st.session_state["bom_requisitions"] = {
             "metals_mt": req_metals,
             "semis_units": req_semis,
@@ -352,7 +358,7 @@ elif any(k in selected_module for k in ["Demand/Supply", "Plant Load", "Batch Pr
         st.toast("Successfully generated & pushed physical procurement requisitions!", icon="📦")
 
 # =====================================================================
-# ROUTER 4: PHYSICAL PROCUREMENT & CONTRACT DESK
+# ROUTER 4: PHYSICAL PROCUREMENT & CONTRACT DESK / OFF-TAKE
 # =====================================================================
 elif any(k in selected_module for k in ["Physical Procurement", "Agri-Ingredients", "Physical Off-Take", "Procurement"]):
     st.title("📈 Physical Procurement & Contract Desk")
@@ -366,11 +372,10 @@ elif any(k in selected_module for k in ["Physical Procurement", "Agri-Ingredient
     with col_pr1:
         st.subheader("💼 Active Physical Procurement Contracts")
     with col_pr2:
-        if st.button("🛡️ Execute Paper Hedge for BOM", type="primary", key="btn_proc_hedge_v11"):
+        if st.button("🛡️ Execute Paper Hedge for BOM", type="primary", key="btn_proc_hedge_v12"):
             st.session_state["active_disruption"] = "Standard Market Price Volatility"
             st.toast("Routed BOM exposure to CTRM Engine for option pricing!", icon="🛡️")
 
-    # Load Persona-Bound Contracts
     active_contracts = get_persona_contracts(persona)
     st.dataframe(pd.DataFrame(active_contracts), use_container_width=True)
 
@@ -380,9 +385,9 @@ elif any(k in selected_module for k in ["Physical Procurement", "Agri-Ingredient
     
     col_arb1, col_arb2 = st.columns(2)
     with col_arb1:
-        freight_tariff = st.number_input("Inbound Freight & Tariff Surcharge ($/unit)", value=45.0, key="arb_tariff_v11")
+        freight_tariff = st.number_input("Inbound Freight & Tariff Surcharge ($/unit)", value=45.0, key="arb_tariff_v12")
     with col_arb2:
-        holding_cost = st.number_input("Internal Storage / Holding Cost ($/unit)", value=15.0, key="arb_holding_v11")
+        holding_cost = st.number_input("Internal Storage / Holding Cost ($/unit)", value=15.0, key="arb_holding_v12")
 
     if "Industrial" in persona:
         arb_data = [
@@ -456,23 +461,6 @@ elif any(k in selected_module for k in ["Physical Procurement", "Agri-Ingredient
         
     st.dataframe(pd.DataFrame(arb_data), use_container_width=True)
 
-    st.markdown("---")
-    st.subheader("✍️ Book New Physical Procurement Contract")
-    with st.form("new_physical_contract_form_v11"):
-        col_c1, col_c2, col_c3 = st.columns(3)
-        c_id = col_c1.text_input("Contract ID", f"CTR-2026-N{len(active_contracts)+1}")
-        c_comm = col_c2.text_input("Commodity / Input", "Agri Softs / Metals")
-        c_supp = col_c3.text_input("Physical Supplier", "Cargill / Rio Tinto")
-        
-        col_c4, col_c5, col_c6 = st.columns(3)
-        c_vol = col_c4.text_input("Contract Volume", "25,000 Units")
-        c_price = col_c5.text_input("Fixed Unit Price", "$2,150 / Unit")
-        c_status = col_c6.selectbox("Contract Status", ["Executing", "Active", "Under Review"])
-        
-        submit_contract = st.form_submit_button("📝 Register Physical Contract", type="primary")
-        if submit_contract:
-            st.toast(f"Registered Contract {c_id}!", icon="📝")
-
 # =====================================================================
 # ROUTER 5: CTRM EVENT-DRIVEN HEDGING DESK
 # =====================================================================
@@ -483,30 +471,65 @@ elif any(k in selected_module for k in ["CTRM", "Hedging", "Derivatives"]):
     
     surge = st.session_state.get("extracted_demand_surge", 65000)
     active_label = st.session_state.get("active_disruption", "Standard Market Price Volatility")
+    custom_params = st.session_state.get("custom_scenario_params")
     
     st.info(f"📡 **Active Risk Signal Ingested**: {active_label} | **Notional Surge Exposure**: {surge:,} {term_unit}")
+
+    # Dynamic Pricing Header based on Custom Scenario
+    if custom_params:
+        S = 2200.0  # Spot base
+        K = custom_params["strike"]
+        T = custom_params["duration_days"] / 365.0
+        r = custom_params["rate"]
+        sigma = custom_params["iv"]
+        
+        c_price, p_price, delta_c, vega_c = black76_call_put(S, K, T, r, sigma)
+        
+        st.success(f"⚡ **Custom Option Priced Live**: Call Premium: **${c_price:.2f}** | Put Premium: **${p_price:.2f}** | Delta (Δ): **{delta_c:.2f}** | Vega (ν): **{vega_c:.2f}**")
     
     col_a, col_b, col_c, col_d = st.columns(4)
     col_a.metric("Unhedged Margin Risk", f"${(surge * 150.0):,.2f}")
     col_b.metric("Pricing Engine", "Black76 Jump-Diffusion")
     col_c.metric("Notional Volume", f"{surge:,} {term_unit}")
-    col_d.metric("Recommended Derivative Structure", "Asian Call Option Collar")
+    col_d.metric("Recommended Structure", "Asian Call Option Collar")
 
     st.markdown("---")
     st.subheader("📊 Black76 Option Volatility Surface Matrix & Greeks")
     st.caption("Pricing European and Asian options across strike prices, tenors, and implied volatility curves:")
 
-    vol_surface = pd.DataFrame({
-        "Option Tenor": ["1 Month (30D)", "2 Months (60D)", "3 Months (90D)", "6 Months (180D)"],
-        "Strike Price ($)": ["$2,200 (ATM)", "$2,250 (OTM)", "$2,300 (OTM)", "$2,400 (DOTM)"],
-        "Call Premium ($)": ["$42.50", "$38.20", "$31.10", "$22.40"],
-        "Put Premium ($)": ["$41.10", "$49.50", "$58.00", "$74.20"],
-        "Implied Vol (σ)": ["18.5%", "22.4%", "26.1%", "31.0%"],
-        "Delta (Δ)": [0.52, 0.44, 0.38, 0.27],
-        "Gamma (Γ)": [0.012, 0.010, 0.008, 0.005],
-        "Vega (ν)": [14.2, 18.5, 22.1, 28.4]
-    })
-    st.dataframe(vol_surface, use_container_width=True)
+    if custom_params:
+        # Dynamically Render Surface around Custom Scenario Inputs
+        S_spot = 2200.0
+        r = custom_params["rate"]
+        sigma = custom_params["iv"]
+        
+        surface_rows = []
+        for days, label in [(30, "1 Month (30D)"), (60, "2 Months (60D)"), (90, "3 Months (90D)"), (180, "6 Months (180D)")]:
+            T = days / 365.0
+            K = custom_params["strike"]
+            cp, pp, d_val, v_val = black76_call_put(S_spot, K, T, r, sigma)
+            surface_rows.append({
+                "Option Tenor": label,
+                "Strike Price ($)": f"${K:,.0f}",
+                "Call Premium ($)": f"${cp:.2f}",
+                "Put Premium ($)": f"${pp:.2f}",
+                "Implied Vol (σ)": f"{sigma*100:.1f}%",
+                "Delta (Δ)": round(d_val, 2),
+                "Vega (ν)": round(v_val, 2)
+            })
+        st.dataframe(pd.DataFrame(surface_rows), use_container_width=True)
+    else:
+        vol_surface = pd.DataFrame({
+            "Option Tenor": ["1 Month (30D)", "2 Months (60D)", "3 Months (90D)", "6 Months (180D)"],
+            "Strike Price ($)": ["$2,200 (ATM)", "$2,250 (OTM)", "$2,300 (OTM)", "$2,400 (DOTM)"],
+            "Call Premium ($)": ["$42.50", "$38.20", "$31.10", "$22.40"],
+            "Put Premium ($)": ["$41.10", "$49.50", "$58.00", "$74.20"],
+            "Implied Vol (σ)": ["18.5%", "22.4%", "26.1%", "31.0%"],
+            "Delta (Δ)": [0.52, 0.44, 0.38, 0.27],
+            "Gamma (Γ)": [0.012, 0.010, 0.008, 0.005],
+            "Vega (ν)": [14.2, 18.5, 22.1, 28.4]
+        })
+        st.dataframe(vol_surface, use_container_width=True)
 
     st.markdown("---")
     st.subheader("⚡ FIX 4.4 Order Execution Gateway")
@@ -515,7 +538,7 @@ elif any(k in selected_module for k in ["CTRM", "Hedging", "Derivatives"]):
     exchange = col_f2.selectbox("Execution Exchange", ["CME Group", "ICE Futures Europe", "London Metal Exchange (LME)"])
     lots = col_f3.number_input("Lots / Contracts", value=int(surge / 100))
 
-    if st.button("⚡ Execute & Route FIX 4.4 Paper Order to Exchange", type="primary", key="btn_fix_exec_v11"):
+    if st.button("⚡ Execute & Route FIX 4.4 Paper Order to Exchange", type="primary", key="btn_fix_exec_v12"):
         st.balloons()
         st.success(f"✅ FIX 4.4 Order Executed: {order_type} on **{exchange}** for **{lots:,} Lots**! Tag 35=D / Tag 150=0 (Filled @ $38.20/unit)")
         st.json({
@@ -644,7 +667,6 @@ elif any(k in selected_module for k in ["Integration"]):
         endpoints_data = [
             {"Tab / Module": "Executive S&OP", "Protocol": "REST / OData", "Endpoint URL": "/api/v1/sop/financial-waterfall", "Target System": "SAP S/4HANA / Anaplan", "Status": "🟢 ACTIVE 200 OK"},
             {"Tab / Module": "NLP Sensing", "Protocol": "Webhook / RSS", "Endpoint URL": "/api/v1/nlp/ingest-email-signal", "Target System": "Microsoft Exchange / LLM Engine", "Status": "🟢 ACTIVE 200 OK"},
-            {"Tab / Module": "D/S Match Solver", "Protocol": "gRPC / Python", "Endpoint URL": "/api/v1/solver/opt-allocate", "Target System": "Gurobi / COIN-OR LP Solver", "Status": "🟢 ACTIVE 200 OK"},
             {"Tab / Module": "Physical Procurement", "Protocol": "REST / EDI 850", "Endpoint URL": "/api/v1/procurement/po-bridge", "Target System": "SAP Ariba / Oracle SCM", "Status": "🟢 ACTIVE 200 OK"},
             {"Tab / Module": "CTRM Hedging Desk", "Protocol": "FIX 4.4 / REST", "Endpoint URL": "/api/v1/ctrm/fix-order-execution", "Target System": "CME Group / ICE / LME Gateway", "Status": "🟢 ACTIVE 200 OK"},
             {"Tab / Module": "GIS Logistics Tower", "Protocol": "WebSocket / REST", "Endpoint URL": "/api/v1/gis/project44-telemetry", "Target System": "Project44 / FourKites Telematics", "Status": "🟢 ACTIVE 200 OK"}
@@ -655,15 +677,14 @@ elif any(k in selected_module for k in ["Integration"]):
         st.subheader("🧪 Interactive Endpoint Tester & Payload Inspection")
         selected_endpoint = st.selectbox(
             "Select Integration Waypoint to Test:",
-            ["/api/v1/sop/financial-waterfall", "/api/v1/nlp/ingest-email-signal", "/api/v1/solver/opt-allocate", "/api/v1/procurement/po-bridge", "/api/v1/ctrm/fix-order-execution", "/api/v1/gis/project44-telemetry"],
-            key="select_ep_test_v11"
+            ["/api/v1/sop/financial-waterfall", "/api/v1/nlp/ingest-email-signal", "/api/v1/procurement/po-bridge", "/api/v1/ctrm/fix-order-execution", "/api/v1/gis/project44-telemetry"],
+            key="select_ep_test_v12"
         )
-        if st.button("⚡ Test Endpoint Ping", type="primary", key="btn_test_ep_v11"):
+        if st.button("⚡ Test Endpoint Ping", type="primary", key="btn_test_ep_v12"):
             st.toast(f"Ping successful for {selected_endpoint}!", icon="⚡")
             sample_payloads = {
                 "/api/v1/sop/financial-waterfall": {"status": 200, "base_aop_usd": 120000000, "hedge_gain_usd": 3250000, "net_ebitda_usd": 127100000},
                 "/api/v1/nlp/ingest-email-signal": {"status": 200, "parsed_units": 85000, "confidence": 0.94, "event": "Trade Show Signal"},
-                "/api/v1/solver/opt-allocate": {"status": 200, "solver_status": "OPTIMAL", "flex_allocated": 65000, "primary_plant_util": 1.0},
                 "/api/v1/procurement/po-bridge": {"status": 200, "po_number": "PO-2026-9921", "vendor": "Rio Tinto", "status": "APPROVED"},
                 "/api/v1/ctrm/fix-order-execution": {"status": 200, "order_id": "ORD-CTRM-2026-8831", "exchange": "ICE", "exec_price": 38.20},
                 "/api/v1/gis/project44-telemetry": {"status": 200, "container_id": "REEFER-901", "temp_celsius": -19.8, "gps": [41.87, -87.62]}
@@ -671,19 +692,21 @@ elif any(k in selected_module for k in ["Integration"]):
             st.json(sample_payloads[selected_endpoint])
 
 # =====================================================================
-# GLOBAL SIDEBAR: RISK SCENARIO INJECTOR
+# GLOBAL SIDEBAR: RISK SCENARIO INJECTOR & CUSTOM PRICER BUILDER
 # =====================================================================
 st.sidebar.markdown("---")
 st.sidebar.subheader("🌋 Risk Scenario Injector")
 st.sidebar.caption("⚡ Auto-Ingest Telemetry Alerts:")
 
 col_nlp1, col_nlp2 = st.sidebar.columns(2)
-if col_nlp1.button("🌋 Iceland Ash", use_container_width=True, key="ctrm_ash_v11"):
+if col_nlp1.button("🌋 Iceland Ash", use_container_width=True, key="ctrm_ash_v12"):
     st.session_state["active_disruption"] = "Icelandic Volcanic Ash (North Atlantic Freight Corridor)"
+    st.session_state["custom_scenario_params"] = None
     st.toast("Ingested: Volcanic Ash Cloud Alert!", icon="🌋")
 
-if col_nlp2.button("🌊 El Niño AIS", use_container_width=True, key="ctrm_elnino_v11"):
+if col_nlp2.button("🌊 El Niño AIS", use_container_width=True, key="ctrm_elnino_v12"):
     st.session_state["active_disruption"] = "El Niño Climate Shock (Pacific Ocean Warm Current)"
+    st.session_state["custom_scenario_params"] = None
     st.toast("Ingested: Sea surface anomaly confirmed!", icon="🌊")
 
 disruption_options = [
@@ -702,12 +725,38 @@ selected_event_label = st.sidebar.selectbox(
     "Select Supply Chain Shock:",
     options=disruption_options,
     index=default_idx,
-    key="ctrm_shock_select_v11"
+    key="ctrm_shock_select_v12"
 )
 
-if st.sidebar.button("🚨 Inject Selected Shock to Platform", type="primary", use_container_width=True, key="ctrm_inject_v11"):
+if st.sidebar.button("🚨 Inject Selected Shock to Platform", type="primary", use_container_width=True, key="ctrm_inject_v12"):
     st.session_state["active_disruption"] = selected_event_label
+    st.session_state["custom_scenario_params"] = None
     st.sidebar.success(f"Injected: {selected_event_label}")
+
+# ---------------------------------------------------------------------
+# CUSTOM SCENARIO INJECTION BUILDER & OPTION PRICER
+# ---------------------------------------------------------------------
+with st.sidebar.expander("🛠️ Custom Scenario & Option Pricer", expanded=False):
+    st.caption("Inject user-defined shocks with dynamic derivative option pricing:")
+    c_name = st.text_input("Scenario Name", "Red Sea Geopolitical Surge", key="c_name_v12")
+    c_surge = st.number_input(f"Surge Impact Volume ({term_unit})", value=75000, step=5000, key="c_surge_v12")
+    c_strike = st.number_input("Option Strike Price ($)", value=2250.0, step=25.0, key="c_strike_v12")
+    c_iv = st.slider("Implied Volatility (σ %)", 10, 150, 35, key="c_iv_v12")
+    c_rate = st.number_input("Risk-Free Rate (r %)", value=4.5, step=0.25, key="c_rate_v12")
+    c_days = st.slider("Option Duration (Days)", 7, 365, 60, key="c_days_v12")
+
+    if st.button("🚀 Inject Custom Scenario & Price Derivative", type="primary", use_container_width=True, key="btn_custom_inject_v12"):
+        st.session_state["active_disruption"] = f"Custom Shock: {c_name}"
+        st.session_state["extracted_demand_surge"] = c_surge
+        st.session_state["custom_scenario_params"] = {
+            "name": c_name,
+            "surge": c_surge,
+            "strike": c_strike,
+            "iv": c_iv / 100.0,
+            "rate": c_rate / 100.0,
+            "duration_days": c_days
+        }
+        st.toast(f"Custom Scenario '{c_name}' Injected & Priced!", icon="🚀")
 
 active_label = st.session_state["active_disruption"]
 st.sidebar.info(f"📡 **Active Signal Ingested:** {active_label}")
@@ -716,4 +765,4 @@ st.sidebar.info(f"📡 **Active Signal Ingested:** {active_label}")
 with open("gui_app.py", "w") as f:
     f.write(updated_app_code.strip() + "\n")
 
-print("✅ Full architectural updates applied successfully to gui_app.py!")
+print("✅ Applied custom scenario builder & removed Merchant load balancer!")
