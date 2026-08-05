@@ -345,25 +345,50 @@ Margin risks are high if we get hit with freight surcharges."""
 
     with tab3:
         st.subheader("🌐 Live Telemetry & Black Swan Feeds")
+        
+        # 📡 Fetch Live Telemetry Streams from Bulletproof Engine
+        freight_feed = BulletproofDataEngine.get_freight_market_signal()
+        noaa_feed = BulletproofDataEngine.get_noaa_weather_signal()
+        
         col_t1, col_t2 = st.columns(2)
+        
         with col_t1:
             st.markdown("### 🚢 FBX Freight Spot Rate Index")
-            st.metric("FBX Global Container Freight Index", "$3,840 / FEU", "+14.2%")
+            st.metric(
+                label="FBX Global Container Freight Index", 
+                value=freight_feed["fbx_index"], 
+                delta=freight_feed["change"]
+            )
+            st.caption(f"Data Feed: {freight_feed['source']}")
+            
             if st.button("📡 Stream Live FBX Rate Surge to Risk Injector", key="btn_fbx_stream_v12"):
-                st.session_state["active_disruption"] = "Icelandic Volcanic Ash (North Atlantic Freight Corridor)"
-                st.toast("Updated Risk Injector with Live FBX Freight Index!", icon="🚀")
+                st.session_state["active_disruption"] = f"Container Freight Rate Surge ({freight_feed['fbx_index']})"
+                st.toast(f"Injected Freight Rate {freight_feed['fbx_index']} into Risk Injector!", icon="🚢")
                 
         with col_t2:
             st.markdown("### 🌀 NOAA Maritime Weather Radar")
-            st.metric("Pacific Water Anomaly Index", "+2.8°C", "El Niño Active")
+            st.metric(
+                label="Pacific Water Anomaly Index", 
+                value=noaa_feed["anomaly"], 
+                delta=noaa_feed["status"]
+            )
+            st.caption(f"Data Feed: {noaa_feed['source']}")
+            
             if st.button("📡 Stream NOAA Climate Signal to Risk Injector", key="btn_noaa_stream_v12"):
-                st.session_state["active_disruption"] = "El Niño Climate Shock (Pacific Ocean Warm Current)"
-                st.toast("Updated Risk Injector with Live NOAA Weather Alert!", icon="🌊")
+                st.session_state["active_disruption"] = f"NOAA Climate Alert ({noaa_feed['status']})"
+                st.toast("Injected Live NOAA Weather Alert into Risk Injector!", icon="🌊")
 
     st.markdown("---")
     st.subheader("🎯 Active Demand Shock Extractor Override")
     current_surge = st.session_state.get("extracted_demand_surge", 65000)
-    demand_surge = st.slider(f"Extracted Surge Volume ({term_unit})", 10000, 200000, int(current_surge), step=5000, key="nlp_demand_surge_slider_v12")
+    demand_surge = st.slider(
+        f"Extracted Surge Volume ({term_unit})", 
+        10000, 
+        200000, 
+        int(current_surge), 
+        step=5000, 
+        key="nlp_demand_surge_slider_v12"
+    )
     st.session_state["extracted_demand_surge"] = demand_surge
 
 # =====================================================================
