@@ -546,7 +546,6 @@ elif any(k in selected_module for k in ["Demand/Supply Match", "Batch Processing
 
         df_editable = pd.DataFrame(grid_data)
 
-        # FIXED: Only "Building Block" is disabled so time columns remain editable
         edited_df = st.data_editor(
             df_editable,
             disabled=["Building Block"],
@@ -577,8 +576,14 @@ elif any(k in selected_module for k in ["Demand/Supply Match", "Batch Processing
                 return 'background-color: #ffcdd2; color: #b71c1c; font-weight: bold;'
             return ''
 
+        # Cross-version Pandas Styler handling (Pandas 2.1+ uses .map, older versions use .applymap)
+        try:
+            styled_summary = summary_df.style.map(highlight_gaps, subset=numeric_cols)
+        except AttributeError:
+            styled_summary = summary_df.style.applymap(highlight_gaps, subset=numeric_cols)
+
         st.subheader("📊 Consensus Feasibility & Plant Constraint Analysis")
-        st.dataframe(summary_df.style.applymap(highlight_gaps, subset=numeric_cols), use_container_width=True)
+        st.dataframe(styled_summary, use_container_width=True)
 
         # -------------------------------------------------------------
         # STEP 4: HOOK 2 -> DOWNSTREAM PHYSICAL PROCUREMENT & CONTRACT DESK
