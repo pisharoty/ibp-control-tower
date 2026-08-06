@@ -192,55 +192,6 @@ def get_persona_contracts(persona_type):
             {"Contract ID": "CTR-2026-M3", "Commodity": "Light Sweet Crude Off-Take", "Supplier": "Cushing Tank Farm", "Volume": "1,200,000 Bbls", "Fixed Price": "$76.50 / Bbl", "Status": "Under Review"}
         ]
 # =====================================================================
-# ROUTER 1: EXECUTIVE SOP / IBP CONTROL TOWER
-# =====================================================================
-if any(k in selected_module for k in ["Executive S&OP", "Integrated Business Planning", "IBP", "Daily Trading Balance Sheet"]):
-    st.title("📊 Executive S&OP Control Tower")
-    st.caption(f"Active Persona View: **{persona}**")
-    st.markdown("Real-time financial alignment, financial waterfalls, and trade hedge benefit reconciliation.")
-    
-    surge = st.session_state.get("extracted_demand_surge", 65000)
-    unconstrained_val = 120.0 + (surge * 0.00025)
-    trade_offset = 3.25
-    cogs_drag = -12.4
-    net_ebitda = round(120.0 + (surge * 0.00025) + cogs_drag + trade_offset, 2)
-    
-    col1, col2, col3, col4 = st.columns(4)
-    col1.metric("Annual Operating Plan (AOP)", "$120.0M", "+4.2%")
-    col2.metric("Unconstrained Demand (AOP + Surge)", f"${unconstrained_val:.1f}M", f"+{surge:,} {term_unit}")
-    col3.metric("CTRM Hedge & Trade Benefit", f"+${trade_offset:.2f}M", "Derivative Gain")
-    col4.metric("Net Realized EBITDA", f"${net_ebitda:.2f}M", "+6.4%", delta_color="normal")
-    
-    st.markdown("---")
-    st.subheader("📊 Executive Financial Waterfall (Volume-to-Value Bridge)")
-    st.caption("Reconciling operational demand surge, toller premiums, and financial paper trade offsets into net realized margin.")
-    
-    fig_waterfall = go.Figure(go.Waterfall(
-        name="S&OP Bridge",
-        orientation="v",
-        measure=["relative", "relative", "relative", "relative", "total"],
-        x=["Base AOP Revenue", f"Trade Promo Surge (+{surge:,})", "Raw Material COGS Volatility", "CTRM Derivative Hedge Offset", "Net Realized EBITDA"],
-        textposition="outside",
-        text=[f"$120.0M", f"+${(surge * 0.00025):.2f}M", f"-${abs(cogs_drag):.2f}M", f"+${trade_offset:.2f}M", f"${net_ebitda:.2f}M"],
-        y=[120.0, surge * 0.00025, cogs_drag, trade_offset, 0],
-        connector={"line": {"color": "rgb(63, 63, 63)"}},
-        decreasing={"marker": {"color": "#EF553B"}},
-        increasing={"marker": {"color": "#00CC96"}},
-        totals={"marker": {"color": "#636EFA"}}
-    ))
-    fig_waterfall.update_layout(title="Volume-to-Value S&OP Financial Bridge ($M)", showlegend=False, height=420)
-    st.plotly_chart(fig_waterfall, use_container_width=True)
-
-    st.subheader("📋 Executive Financial Audit Ledger & Variance Decomposition")
-    rec_df = pd.DataFrame({
-        "Financial Vector": ["Base Unconstrained Demand", f"NLP Demand Surge ({surge:,} {term_unit})", "Internal Plant COGS", f"3rd-Party Storage/Toller Premium ({toller_name})", "CTRM Derivative Offset / Hedge Gain"],
-        "Physical Value ($M)": [120.0, round(surge * 0.00025, 2), -82.5, -12.4, 0.0],
-        "Paper Derivative Offset ($M)": [0.0, 0.0, 0.0, 0.0, trade_offset],
-        "Net S&OP Financial Impact ($M)": [120.0, round(surge * 0.00025, 2), -82.5, -12.4, trade_offset],
-        "Audit Trail Reference": ["SAP-AOP-2026-Q3", "NLP-EML-2026-881", "MES-PLANT-LINE1", "PO-CMO-2026-904", "FIX-EXEC-ICE-4811"]
-    })
-    st.dataframe(rec_df, use_container_width=True)
-# =====================================================================
 # ROUTER 2: NLP COMMERCIAL SENSING
 # =====================================================================
 elif any(k in selected_module for k in ["NLP Commercial", "Global Macro"]):
@@ -279,6 +230,9 @@ elif any(k in selected_module for k in ["NLP Commercial", "Global Macro"]):
                 index=3 if "Industrial" in str(persona) else 0,
                 key="nlp_multi_industry_selector_v14"
             )
+            # 🟢 NEW: Propagate selection globally across all platform modules
+            st.session_state["selected_domain"] = selected_domain
+
         with col_sel2:
             st.caption("Active RSS Search Query:")
             search_query = COMMODITY_NLP_QUERIES[selected_domain]
@@ -439,7 +393,6 @@ Margin risks are high if we get hit with freight surcharges."""
         key="nlp_demand_surge_slider_v12"
     )
     st.session_state["extracted_demand_surge"] = demand_surge
-
 # =====================================================================
 # ROUTER 3: DEMAND/SUPPLY MATCH & PLANT LOAD BALANCER (Industrial / FMCG Only)
 # =====================================================================
@@ -700,13 +653,17 @@ elif any(k in selected_module for k in ["CTRM", "Hedging", "Derivatives"]):
 # ROUTER 6: GIS & LOGISTICS CONTROL TOWER
 # =====================================================================
 elif any(k in selected_module for k in ["Global Logistics", "Cold Chain", "Maritime AIS", "GIS"]):
+    
+    # 🟢 Read globally shared commodity domain from NLP Router 2
+    active_domain = st.session_state.get("selected_domain", "🛒 Retail & Omnichannel Goods")
+    
     # Fetch live express parcel telemetry feed (with automatic fallback)
     live_parcel = BulletproofDataEngine.get_parcel_telemetry()
 
     if "FMCG" in persona or "Cold Chain" in selected_module:
         st.title("🌐 Cold Chain & Regional Distribution GIS Tower")
-        st.caption(f"Active Persona View: **{persona}**")
-        st.markdown("Geospatial tracking of cold storage hubs, refrigerated reefer fleets, and real-time SLA temperature excursion telemetry.")
+        st.caption(f"Active Persona View: **{persona}** | Domain Context: **{active_domain}**")
+        st.info(f"🎯 **Sector Domain Active:** Filtering cold storage hubs and reefer SLAs for **{active_domain}**.")
 
         spatial_nodes = pd.DataFrame({
             "Name": ["Midwest Processing Facility", "Chicago Cold Hub", "Atlanta Regional Depot", "Rotterdam Blending Plant"],
@@ -730,9 +687,9 @@ elif any(k in selected_module for k in ["Global Logistics", "Cold Chain", "Marit
 
         with col_prox:
             st.subheader("❄️ Cold Storage Telemetry Summary")
+            st.metric("Sector Context", active_domain)
             st.metric("Active Cold Hubs Monitored", "4 Facilities", "100% Operational")
             st.metric("Mean Warehouse Temp", "-19.8°C", "Nominal")
-            st.metric("SLA Excursion Alerts", "0 Critical", "1 Warning (Atlanta)")
 
         st.markdown("---")
         st.subheader("🌡️ Live Reefer Telemetry & Sensor Stream")
@@ -749,8 +706,8 @@ elif any(k in selected_module for k in ["Global Logistics", "Cold Chain", "Marit
 
     elif "Merchant" in persona or "Maritime" in selected_module:
         st.title("🌐 Global Maritime AIS & Cargo GIS Tower")
-        st.caption(f"Active Persona View: **{persona}**")
-        st.markdown("Geospatial tracking of oil tankers, dry bulk carriers, port queue bottlenecks, and high-value express parcel telemetry.")
+        st.caption(f"Active Persona View: **{persona}** | Domain Context: **{active_domain}**")
+        st.info(f"🎯 **Sector Domain Active:** Tracking maritime AIS vessel queues & chokepoints relevant to **{active_domain}**.")
 
         spatial_nodes = pd.DataFrame({
             "Name": ["Suez Canal Chokepoint", "Rotterdam Tank Depot", "Cushing Storage Vault", "Singapore Anchorage Queue"],
@@ -768,7 +725,7 @@ elif any(k in selected_module for k in ["Global Logistics", "Cold Chain", "Marit
         ais_stream = pd.DataFrame([
             {
                 "Vessel / Express Transport": f"✈️ {live_parcel['carrier']} ({live_parcel['tracking_code']})",
-                "Cargo Type": "High-Tech Semiconductor Wafers",
+                "Cargo Type": f"{active_domain} Consignment",
                 "Destination / Route": f"{live_parcel['origin']} ➔ {live_parcel['destination']}",
                 "AIS / Telemetry Status": live_parcel["status"],
                 "Data Feed Source": live_parcel["source"]
@@ -782,7 +739,7 @@ elif any(k in selected_module for k in ["Global Logistics", "Cold Chain", "Marit
             },
             {
                 "Vessel / Express Transport": "🚢 M/V Atlantic Bullion (IMO 91124)",
-                "Cargo Type": "Physical Rare Earths (25,000 MT)",
+                "Cargo Type": "Physical Cargo Shipment",
                 "Destination / Route": "Baltimore Metal Vault",
                 "AIS / Telemetry Status": "🟡 Anchored / Queue (+3 Days)",
                 "Data Feed Source": "🟢 LIVE AIS"
@@ -792,8 +749,8 @@ elif any(k in selected_module for k in ["Global Logistics", "Cold Chain", "Marit
 
     else:  # Industrial
         st.title("🌐 Global Logistics Network & GIS Control Tower")
-        st.caption(f"Active Persona View: **{persona}**")
-        st.markdown("Geospatial tracking of plants, regional DCs, customer proximity, and live freight telematic streams.")
+        st.caption(f"Active Persona View: **{persona}** | Domain Context: **{active_domain}**")
+        st.info(f"🎯 **Sector Domain Active:** Aligning network node flows for **{active_domain}**.")
 
         spatial_nodes = pd.DataFrame({
             "Name": [plant1_name, plant2_name, toller_name, "Chicago Logistics Hub DC", "Panama Canal Chokepoint"],
@@ -821,7 +778,7 @@ elif any(k in selected_module for k in ["Global Logistics", "Cold Chain", "Marit
                 "Shipment / Tracking": "SHP-2026-901",
                 "Carrier": "Maersk Line",
                 "Origin": plant1_name,
-                "Destination": "Walmart Bentonville Hub",
+                "Destination": "Regional Distribution Hub",
                 "Status / ETA": "🟢 On-Time (ETA 4 hrs)",
                 "Data Source": "🟢 LIVE AIS"
             },
@@ -829,7 +786,7 @@ elif any(k in selected_module for k in ["Global Logistics", "Cold Chain", "Marit
                 "Shipment / Tracking": "SHP-2026-902",
                 "Carrier": "FedEx Supply Chain",
                 "Origin": "Chicago Logistics Hub DC",
-                "Destination": "Target Midwest Depot",
+                "Destination": "Fulfillment Hub",
                 "Status / ETA": "🟢 On-Time (ETA 12 hrs)",
                 "Data Source": "🟢 LIVE TELEMETRY"
             }
