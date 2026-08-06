@@ -445,31 +445,174 @@ Margin risks are high if we get hit with freight surcharges."""
         key="nlp_demand_surge_slider_v12"
     )
     st.session_state["extracted_demand_surge"] = demand_surge
-
 # =====================================================================
 # ROUTER 3: DEMAND/SUPPLY MATCH & PLANT LOAD BALANCER
 # =====================================================================
 elif any(k in selected_module for k in ["Demand/Supply Match", "Batch Processing", "Physical Off-Take"]):
     st.title("⚖️ Demand/Supply Match & Plant Load Balancer")
     st.caption(f"Active Persona View: **{persona}**")
-    st.markdown("Automated capacity optimization, bottleneck detection, and toller re-allocation.")
     
-    surge = st.session_state.get("extracted_demand_surge", 65000)
-    
-    col1, col2, col3 = st.columns(3)
-    col1.metric("Unconstrained Surge Volume", f"{surge:,} {term_unit}")
-    col2.metric(f"Primary Plant ({plant1_name}) Utilization", "98.4%", "+8.2%")
-    col3.metric(f"Secondary Plant ({plant2_name}) Capacity", "84.0%", "Nominal")
-    
-    st.markdown("---")
-    st.subheader("🏭 Plant Load Balancing Strategy Matrix")
-    
-    load_df = pd.DataFrame([
-        {"Facility Node": plant1_name, "Base Capacity": "100,000", "Allocated Volume": f"{100000 + int(surge*0.5):,}", "Status": "🔴 Bottleneck Risk", "Action": "Throttle / Reroute"},
-        {"Facility Node": plant2_name, "Base Capacity": "85,000", "Allocated Volume": f"{85000 + int(surge*0.3):,}", "Status": "🟢 Optimal", "Action": "Absorb Surge"},
-        {"Facility Node": toller_name, "Base Capacity": "50,000", "Allocated Volume": f"{int(surge*0.2):,}", "Status": "🟡 Flex Active", "Action": "Trigger CMO Surcharge"}
+    # -----------------------------------------------------------------
+    # TAB ARCHITECTURE: EXECUTIVE SOLVER VS. DEMAND WORKBENCH
+    # -----------------------------------------------------------------
+    tab_solver, tab_workbench = st.tabs([
+        "📊 Executive Solver & Plant Load", 
+        "🗓️ BAU Engine & Demand Horizon Workbench"
     ])
-    st.dataframe(load_df, use_container_width=True)
+    
+    # =================================================================
+    # TAB 1: EXECUTIVE SOLVER & PLANT LOAD
+    # =================================================================
+    with tab_solver:
+        st.markdown("Automated capacity optimization, bottleneck detection, and toller re-allocation.")
+        
+        surge = st.session_state.get("extracted_demand_surge", 65000)
+        
+        col1, col2, col3 = st.columns(3)
+        col1.metric("Unconstrained Surge Volume", f"{surge:,} {term_unit}")
+        col2.metric(f"Primary Plant ({plant1_name}) Utilization", "98.4%", "+8.2%")
+        col3.metric(f"Secondary Plant ({plant2_name}) Capacity", "84.0%", "Nominal")
+        
+        st.markdown("---")
+        st.subheader("🏭 Plant Load Balancing Strategy Matrix")
+        
+        load_df = pd.DataFrame([
+            {"Facility Node": plant1_name, "Base Capacity": "100,000", "Allocated Volume": f"{100000 + int(surge*0.5):,}", "Status": "🔴 Bottleneck Risk", "Action": "Throttle / Reroute"},
+            {"Facility Node": plant2_name, "Base Capacity": "85,000", "Allocated Volume": f"{85000 + int(surge*0.3):,}", "Status": "🟢 Optimal", "Action": "Absorb Surge"},
+            {"Facility Node": toller_name, "Base Capacity": "50,000", "Allocated Volume": f"{int(surge*0.2):,}", "Status": "🟡 Flex Active", "Action": "Trigger CMO Surcharge"}
+        ])
+        st.dataframe(load_df, use_container_width=True)
+
+    # =================================================================
+    # TAB 2: BAU ENGINE & DEMAND HORIZON WORKBENCH
+    # =================================================================
+    with tab_workbench:
+        st.markdown("### 🗓️ Unconstrained Demand Workbench & Time-Phased Grid")
+        
+        # -------------------------------------------------------------
+        # HOOK 1: CHECK FOR UNSTRUCTURED SIGNALS FROM NLP ROUTER
+        # -------------------------------------------------------------
+        nlp_signal_detected = st.session_state.get("nlp_promo_detected", True)
+        nlp_promo_vol = st.session_state.get("nlp_promo_volume", 40000)
+        nlp_promo_source = st.session_state.get("nlp_promo_source", "Email from Selina Kyle (Walmart KAM)")
+        
+        if nlp_signal_detected:
+            st.info(f"📩 **Unstructured Commercial Signal Auto-Hooked from NLP Router:**\n"
+                    f"*{nlp_promo_source}* — Auto-injected **+{nlp_promo_vol:,} units** promotional uplift into **W38**.")
+
+        # -------------------------------------------------------------
+        # STEP 1: BAU BASELINE GENERATOR CONTROLS
+        # -------------------------------------------------------------
+        st.subheader("⚙️ Step 1: BAU Statistical Baseline Generator")
+        
+        col_yoy, col_seas, col_hist = st.columns([1, 1, 1])
+        with col_yoy:
+            yoy_growth = st.slider("Projected YoY Organic Growth (%)", min_value=-10.0, max_value=20.0, value=5.0, step=0.5) / 100.0
+        with col_seas:
+            seasonal_profile = st.selectbox("Seasonality Curve", ["Summer Surge (Beverages/CPG)", "Flat / Constant", "Q4 Holiday Spike"])
+        with col_hist:
+            base_ly_volume = st.number_input("Prior Year Base Avg (Units)", value=95000, step=5000)
+
+        # Time horizon buckets
+        columns = ["W35 (Aug)", "W36 (Aug)", "W37 (Sep)", "W38 (Sep)", "W39 (Sep)", "W40 (Oct)"]
+
+        # Calculate seasonality indices
+        if seasonal_profile == "Summer Surge (Beverages/CPG)":
+            seasonality_indices = [1.25, 1.20, 1.10, 1.05, 0.95, 0.85]
+        elif seasonal_profile == "Q4 Holiday Spike":
+            seasonality_indices = [0.85, 0.90, 0.95, 1.05, 1.25, 1.35]
+        else:
+            seasonality_indices = [1.0, 1.0, 1.0, 1.0, 1.0, 1.0]
+
+        # Generate BAU Stat Baseline: LY * (1 + YoY) * Seasonality
+        bau_stat_baseline = [int(base_ly_volume * (1 + yoy_growth) * s) for s in seasonality_indices]
+
+        st.markdown("---")
+
+        # -------------------------------------------------------------
+        # STEP 2: EDITABLE FORECAST BUILDING BLOCKS GRID
+        # -------------------------------------------------------------
+        st.subheader("📝 Step 2: Forecast Layer Building Blocks")
+        
+        # Pre-fill promo uplift using the NLP Hook value for W38
+        promo_uplift     = [0, 0, 0, nlp_promo_vol, 15000, 0]
+        shocks           = [0, 10000, 0, 0, 0, 0]
+        plant_capacities = [120000, 120000, 120000, 120000, 120000, 120000]
+
+        grid_data = {
+            "Building Block": ["1. Auto BAU Stat Baseline 🤖", "2. Marketing Promo Uplift (NLP) ✏️", "3. Commercial / Shock Adjustment ✏️"],
+            **{col: [bau_stat_baseline[i], promo_uplift[i], shocks[i]] for i, col in enumerate(columns)}
+        }
+
+        df_editable = pd.DataFrame(grid_data)
+
+        # FIXED: Only "Building Block" is disabled so time columns remain editable
+        edited_df = st.data_editor(
+            df_editable,
+            disabled=["Building Block"],
+            num_rows="fixed",
+            use_container_width=True,
+            key="demand_grid_editor_tab"
+        )
+
+        # -------------------------------------------------------------
+        # STEP 3: CONSENSUS & SUPPLY FEASIBILITY RECALCULATION
+        # -------------------------------------------------------------
+        numeric_cols = columns
+        baseline_vals = edited_df.iloc[0][numeric_cols].values.astype(float)
+        promo_vals    = edited_df.iloc[1][numeric_cols].values.astype(float)
+        shock_vals    = edited_df.iloc[2][numeric_cols].values.astype(float)
+
+        consensus_demand = baseline_vals + promo_vals + shock_vals
+        capacity_arr     = np.array(plant_capacities)
+        supply_gap       = capacity_arr - consensus_demand
+
+        summary_df = pd.DataFrame({
+            "Metric": ["4. Consensus Demand (1+2+3)", "5. Max Plant Committed Supply", "6. Supply Gap / Shortfall"],
+            **{col: [consensus_demand[i], capacity_arr[i], supply_gap[i]] for i, col in enumerate(columns)}
+        })
+
+        def highlight_gaps(val):
+            if isinstance(val, (int, float)) and val < 0:
+                return 'background-color: #ffcdd2; color: #b71c1c; font-weight: bold;'
+            return ''
+
+        st.subheader("📊 Consensus Feasibility & Plant Constraint Analysis")
+        st.dataframe(summary_df.style.applymap(highlight_gaps, subset=numeric_cols), use_container_width=True)
+
+        # -------------------------------------------------------------
+        # STEP 4: HOOK 2 -> DOWNSTREAM PHYSICAL PROCUREMENT & CONTRACT DESK
+        # -------------------------------------------------------------
+        st.markdown("---")
+        st.subheader("📦 Step 3: Downstream Physical Procurement & Purchasing Signals")
+        
+        total_consensus = np.sum(consensus_demand)
+        total_promos = np.sum(promo_vals)
+        
+        # BOM Explosion Calculations (e.g., 0.05 lbs raw material & 1 aluminum can per unit)
+        raw_material_lbs = total_consensus * 0.05
+        promo_raw_mat_lbs = total_promos * 0.05
+        packaging_cans = total_consensus
+
+        p_col1, p_col2, p_col3 = st.columns(3)
+        
+        with p_col1:
+            st.metric("Total Horizon Demand", f"{total_consensus:,.0f} {term_unit}")
+            
+        with p_col2:
+            st.metric("Raw Material Purchase Requisitions (PR)", f"{raw_material_lbs:,.0f} lbs", 
+                      delta=f"+{promo_raw_mat_lbs:,.0f} lbs for Promo")
+            st.caption("🤖 Auto-generated PR sent to SAP S/4HANA Procurement Desk")
+
+        with p_col3:
+            min_gap = np.min(supply_gap)
+            if min_gap < 0:
+                st.error(f"⚠️ Contract Alert: Deficit of {abs(min_gap):,.0f} units in W38. Spot Co-Packing / Toller contract required!")
+            else:
+                st.success("✅ Contract Status: Volume within master contract supplier caps.")
+
+        if st.button("🚀 Commit Demand Plan & Trigger ERP Procurement Requisitions", type="primary"):
+            st.toast("✅ Demand Plan committed! Raw material requisitions created and Contract Desk notified.", icon="📦")
 
 # =====================================================================
 # ROUTER 4: PHYSICAL PROCUREMENT & CONTRACT DESK
