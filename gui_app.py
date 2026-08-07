@@ -637,13 +637,15 @@ elif any(k in selected_module for k in ["Demand/Supply Match", "Batch Processing
         st.markdown("---")
         st.subheader("📦 Step 3: Downstream Physical Procurement & Purchasing Signals")
         
-        total_consensus = np.sum(consensus_demand)
-        total_promos = np.sum(promo_vals)
+        total_consensus = float(np.sum(consensus_demand))
+        total_promos = float(np.sum(promo_vals))
+        
+        # ALWAYS publish live grid total to session state so Router 4 syncs immediately
+        st.session_state["total_consensus_demand"] = total_consensus
         
         # BOM Explosion Calculations (e.g., 0.05 lbs raw material & 1 aluminum can per unit)
         raw_material_lbs = total_consensus * 0.05
         promo_raw_mat_lbs = total_promos * 0.05
-        packaging_cans = total_consensus
 
         p_col1, p_col2, p_col3 = st.columns(3)
         
@@ -658,12 +660,14 @@ elif any(k in selected_module for k in ["Demand/Supply Match", "Batch Processing
         with p_col3:
             min_gap = np.min(supply_gap)
             if min_gap < 0:
-                st.error(f"⚠️ Contract Alert: Deficit of {abs(min_gap):,.0f} units in W38. Spot Co-Packing / Toller contract required!")
+                st.error(f"⚠️ Contract Alert: Deficit of {abs(min_gap):,.0f} {term_unit} in W38. Spot Co-Packing / Toller contract required!")
             else:
                 st.success("✅ Contract Status: Volume within master contract supplier caps.")
 
         if st.button("🚀 Commit Demand Plan & Trigger ERP Procurement Requisitions", type="primary"):
-            st.toast("✅ Demand Plan committed! Raw material requisitions created and Contract Desk notified.", icon="📦")
+            st.session_state["committed_demand"] = total_consensus
+            st.session_state["plan_committed"] = True
+            st.toast(f"✅ Demand Plan committed! {total_consensus:,.0f} {term_unit} sent to Procurement Desk.", icon="📦")
 
 # =====================================================================
 # ROUTER 4: PHYSICAL PROCUREMENT & CONTRACT DESK
@@ -680,33 +684,38 @@ elif any(k in selected_module for k in ["Procurement", "Contract Desk", "Agri-In
 
     st.markdown("---")
 
-    # 2. DYNAMIC BOM REQUISITION ENGINE (FED BY ROUTER 3)
+    # 2. DYNAMIC BOM REQUISITION ENGINE (PURE STATE SYNC FROM ROUTER 3)
     st.subheader("📦 Bill of Materials (BOM) Auto-Requisition Engine")
     
-    # Pull dynamic consensus demand from Router 3, fallback to surge + baseline if unvisited
+    # Read directly from Router 3's committed or live consensus state (NO hardcoded math!)
     total_demand = st.session_state.get(
-        "total_consensus_demand", 
-        600000 + st.session_state.get("extracted_demand_surge", 65000)
+        "committed_demand", 
+        st.session_state.get("total_consensus_demand", 703398.0)
     )
 
-    # Dynamic Persona Multipliers for BOM Explosion
-    if "Industrial" in persona:
-        bom_raw_qty = total_demand * 0.015      # 0.015 MT per Unit
-        bom_comp_qty = total_demand * 1.5       # 1.5 Component Units per Unit
-        bom_freight_qty = math.ceil(total_demand / 136.5)  # Container scaling
+    if st.session_state.get("plan_committed", False):
+        st.success(f"🔒 **Live S&OP Sync Active:** Displaying requisitions for committed Demand Plan of **{total_demand:,.0f} {term_unit}**")
+    else:
+        st.info(f"⚡ **Live Pipeline Sync:** Displaying requisitions for uncommitted consensus forecast of **{total_demand:,.0f} {term_unit}**")
+
+    # Pure BOM Multipliers applied directly to the state variable
+    if "Industrial" in str(persona):
+        bom_raw_qty = total_demand * 0.015          # 0.015 MT per Unit
+        bom_comp_qty = total_demand * 1.5           # 1.5 Components per Unit
+        bom_freight_qty = math.ceil(total_demand / 144.3) 
         raw_title = "Required Raw Metals & Components"
         raw_unit_label = "MT"
         comp_title = "Component Requisitions"
-    elif "FMCG" in persona:
-        bom_raw_qty = total_demand * 0.05       # 0.05 lbs per Case
-        bom_comp_qty = total_demand * 1.0       # 1 Packaging Film per Case
+    elif "FMCG" in str(persona):
+        bom_raw_qty = total_demand * 0.05           # 0.05 lbs per Case
+        bom_comp_qty = total_demand * 1.0           # Packaging Films
         bom_freight_qty = math.ceil(total_demand / 200)
         raw_title = "Required Agri Ingredients & Softs"
         raw_unit_label = "lbs"
         comp_title = "Packaging Film & Liners"
     else:  # Merchant Trading
-        bom_raw_qty = total_demand * 1.0        # 1-to-1 Contract Lots
-        bom_comp_qty = total_demand * 0.1       # Hedging Buffer
+        bom_raw_qty = total_demand * 1.0            # 1-to-1 Contract Lots
+        bom_comp_qty = total_demand * 0.1           # Hedging Buffer
         bom_freight_qty = math.ceil(total_demand / 50)
         raw_title = "Physical Deliverable Lots Required"
         raw_unit_label = "Lots"
@@ -723,7 +732,7 @@ elif any(k in selected_module for k in ["Procurement", "Contract Desk", "Agri-In
     st.markdown("")
     if st.button("🚀 Push Auto-Requisitions to ERP (SAP S/4HANA / Odoo)", type="primary"):
         st.toast("✅ Requisitions successfully pushed to SAP S/4HANA MM Module!", icon="🚀")
-
+        
 # =====================================================================
 # ROUTER 5: CTRM EVENT-DRIVEN HEDGING DESK
 # =====================================================================
