@@ -490,7 +490,7 @@ Margin risks are high if we get hit with freight surcharges."""
             if st.button("📡 Stream NOAA Climate Signal to Risk Injector", key="btn_noaa_stream_v12"):
                 st.session_state["active_disruption"] = f"NOAA Climate Alert ({noaa_feed['status']})"
                 st.toast("Injected Live NOAA Weather Alert into Risk Injector!", icon="🌊")
-                
+
 # =====================================================================
 # ROUTER 3: DEMAND/SUPPLY MATCH & PLANT LOAD BALANCER
 # =====================================================================
@@ -668,29 +668,61 @@ elif any(k in selected_module for k in ["Demand/Supply Match", "Batch Processing
 # =====================================================================
 # ROUTER 4: PHYSICAL PROCUREMENT & CONTRACT DESK
 # =====================================================================
-elif any(k in selected_module for k in ["Physical Procurement", "Agri-Ingredients", "Merchant Storage"]):
-    st.title("📈 Physical Procurement & Contract Desk")
+elif any(k in selected_module for k in ["Procurement", "Contract Desk", "Agri-Ingredients"]):
+    st.title("📈 Physical Procurement & Master Contract Desk")
     st.caption(f"Active Persona View: **{persona}**")
     st.markdown("Active enterprise supplier commitments, physical off-take agreements, and volume requisitions.")
-    
+
+    # 1. DISPLAY ACTIVE SUPPLIER CONTRACTS
     st.subheader("📋 Active Physical Supply Contracts")
     contracts = get_persona_contracts(persona)
     st.dataframe(pd.DataFrame(contracts), use_container_width=True)
-    
+
     st.markdown("---")
+
+    # 2. DYNAMIC BOM REQUISITION ENGINE (FED BY ROUTER 3)
     st.subheader("📦 Bill of Materials (BOM) Auto-Requisition Engine")
     
-    col_b1, col_b2, col_b3 = st.columns(3)
-    b_metals = st.session_state["bom_requisitions"]["metals_mt"]
-    b_semis = st.session_state["bom_requisitions"]["semis_units"]
-    b_freight = st.session_state["bom_requisitions"]["freight_feus"]
-    
-    col_b1.metric(f"Required {term_raw}", f"{b_metals:,} MT")
-    col_b2.metric("Component Requisitions", f"{b_semis:,} Units")
-    col_b3.metric("Freight Slots Reserved", f"{b_freight:,} FEUs")
-    
-    if st.button("🚀 Push Auto-Requisitions to ERP (SAP S/4HANA / Odoo)", type="primary", key="btn_push_erp_v12"):
-        st.toast("Requisitions pushed to ERP Procurement Queue successfully!", icon="✅")
+    # Pull dynamic consensus demand from Router 3, fallback to surge + baseline if unvisited
+    total_demand = st.session_state.get(
+        "total_consensus_demand", 
+        600000 + st.session_state.get("extracted_demand_surge", 65000)
+    )
+
+    # Dynamic Persona Multipliers for BOM Explosion
+    if "Industrial" in persona:
+        bom_raw_qty = total_demand * 0.015      # 0.015 MT per Unit
+        bom_comp_qty = total_demand * 1.5       # 1.5 Component Units per Unit
+        bom_freight_qty = math.ceil(total_demand / 136.5)  # Container scaling
+        raw_title = "Required Raw Metals & Components"
+        raw_unit_label = "MT"
+        comp_title = "Component Requisitions"
+    elif "FMCG" in persona:
+        bom_raw_qty = total_demand * 0.05       # 0.05 lbs per Case
+        bom_comp_qty = total_demand * 1.0       # 1 Packaging Film per Case
+        bom_freight_qty = math.ceil(total_demand / 200)
+        raw_title = "Required Agri Ingredients & Softs"
+        raw_unit_label = "lbs"
+        comp_title = "Packaging Film & Liners"
+    else:  # Merchant Trading
+        bom_raw_qty = total_demand * 1.0        # 1-to-1 Contract Lots
+        bom_comp_qty = total_demand * 0.1       # Hedging Buffer
+        bom_freight_qty = math.ceil(total_demand / 50)
+        raw_title = "Physical Deliverable Lots Required"
+        raw_unit_label = "Lots"
+        comp_title = "Storage Tank Allocations"
+
+    col_bom1, col_bom2, col_bom3 = st.columns(3)
+    with col_bom1:
+        st.metric(raw_title, f"{bom_raw_qty:,.0f} {raw_unit_label}")
+    with col_bom2:
+        st.metric(comp_title, f"{bom_comp_qty:,.0f} Units")
+    with col_bom3:
+        st.metric("Freight Slots Reserved", f"{bom_freight_qty:,} FEUs")
+
+    st.markdown("")
+    if st.button("🚀 Push Auto-Requisitions to ERP (SAP S/4HANA / Odoo)", type="primary"):
+        st.toast("✅ Requisitions successfully pushed to SAP S/4HANA MM Module!", icon="🚀")
 
 # =====================================================================
 # ROUTER 5: CTRM EVENT-DRIVEN HEDGING DESK
