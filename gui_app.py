@@ -440,7 +440,12 @@ Margin risks are high if we get hit with freight surcharges."""
                 extracted_vol = parse_demand_from_text(user_email)
                 sentiment = "POSITIVE (High Intent)" if ("overwhelming" in user_email.lower() or "blew past" in user_email.lower()) else "NEUTRAL"
                 
+                # Full session state sync for downstream S&OP alignment
                 st.session_state["extracted_demand_surge"] = extracted_vol
+                st.session_state["nlp_promo_volume"] = extracted_vol
+                st.session_state["nlp_promo_detected"] = True
+                st.session_state["nlp_promo_source"] = email_preset
+                
                 st.toast(f"Parsed {extracted_vol:,} {term_unit} from Email!", icon="📧")
                 
                 col_e1, col_e2, col_e3 = st.columns(3)
@@ -448,7 +453,7 @@ Margin risks are high if we get hit with freight surcharges."""
                 col_e2.metric("Extracted Demand Surge", f"{extracted_vol:,} {term_unit}")
                 col_e3.metric("NLP Confidence & Sentiment", sentiment)
                 
-                st.success(f"✅ Propagated **{extracted_vol:,} {term_unit}** of demand surge directly to **Physical Procurement Desk**!")
+                st.success(f"✅ Propagated **{extracted_vol:,} {term_unit}** of demand surge directly to **Demand/Supply Match Workbench** & **Executive S&OP Control Tower**!")
             else:
                 st.warning("Please paste email content first.")
 
@@ -485,19 +490,7 @@ Margin risks are high if we get hit with freight surcharges."""
             if st.button("📡 Stream NOAA Climate Signal to Risk Injector", key="btn_noaa_stream_v12"):
                 st.session_state["active_disruption"] = f"NOAA Climate Alert ({noaa_feed['status']})"
                 st.toast("Injected Live NOAA Weather Alert into Risk Injector!", icon="🌊")
-
-    st.markdown("---")
-    st.subheader("🎯 Active Demand Shock Extractor Override")
-    current_surge = st.session_state.get("extracted_demand_surge", 65000)
-    demand_surge = st.slider(
-        f"Extracted Surge Volume ({term_unit})", 
-        10000, 
-        200000, 
-        int(current_surge), 
-        step=5000, 
-        key="nlp_demand_surge_slider_v12"
-    )
-    st.session_state["extracted_demand_surge"] = demand_surge
+                
 # =====================================================================
 # ROUTER 3: DEMAND/SUPPLY MATCH & PLANT LOAD BALANCER
 # =====================================================================
