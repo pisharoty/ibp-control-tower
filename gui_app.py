@@ -237,18 +237,71 @@ if any(k in selected_module for k in ["Executive S&OP", "Integrated Business Pla
     st.caption(f"Active Persona View: **{persona}**")
     st.markdown("Real-time financial alignment, financial waterfalls, and trade hedge benefit reconciliation.")
     
+    # --- PULL LIVE TELEMETRY FROM SESSION STATE ---
     surge = st.session_state.get("extracted_demand_surge", 65000)
+    term_unit = st.session_state.get("term_unit", "Units")
+    nlp_source = st.session_state.get("nlp_promo_source", "Commercial Field Signal")
+    nlp_vol = st.session_state.get("nlp_promo_volume", 40000)
+    
+    # --- DYNAMIC FINANCIAL ENGINE CALCULATIONS ---
     unconstrained_val = 120.0 + (surge * 0.00025)
     trade_offset = 3.25
     cogs_drag = -12.4
     net_ebitda = round(120.0 + (surge * 0.00025) + cogs_drag + trade_offset, 2)
     
+    # -----------------------------------------------------------------
+    # 1. EXECUTIVE KPI METRICS
+    # -----------------------------------------------------------------
     col1, col2, col3, col4 = st.columns(4)
     col1.metric("Annual Operating Plan (AOP)", "$120.0M", "+4.2%")
     col2.metric("Unconstrained Demand (AOP + Surge)", f"${unconstrained_val:.1f}M", f"+{surge:,} {term_unit}")
     col3.metric("CTRM Hedge & Trade Benefit", f"+${trade_offset:.2f}M", "Derivative Gain")
     col4.metric("Net Realized EBITDA", f"${net_ebitda:.2f}M", "+6.4%", delta_color="normal")
+    
+    st.markdown("---")
+    
+    # -----------------------------------------------------------------
+    # 2. LIVE CROSS-DESK TELEMETRY & SIGNAL FEED TICKER
+    # -----------------------------------------------------------------
+    st.subheader("📡 Live Operational Desk Feeds")
+    feed_col1, feed_col2, feed_col3 = st.columns(3)
+    
+    with feed_col1:
+        st.info(f"📩 **NLP Commercial Sensing Desk**\n\nAuto-hooked signal: *{nlp_source}* (+{nlp_vol:,} {term_unit} in W38).")
+        
+    with feed_col2:
+        st.warning("⚠️ **CTRM & Commodity Risk Desk**\n\nUnhedged spot sweetener exposure: 2,000 lbs trading at +6.4% spot premium.")
+        
+    with feed_col3:
+        st.error("🏭 **Demand/Supply Load Balancer**\n\nPrimary Plant at 98.4% capacity. Toller co-pack surcharge active.")
 
+    st.markdown("---")
+    
+    # -----------------------------------------------------------------
+    # 3. FINANCIAL P&L MARGIN WATERFALL & CTRM POSITION SUMMARY
+    # -----------------------------------------------------------------
+    col_wat, col_ctrm = st.columns([1.2, 1])
+    
+    with col_wat:
+        st.subheader("💰 Financial P&L Margin Waterfall Report")
+        waterfall_df = pd.DataFrame([
+            {"P&L Line Item": "1. Base AOP Revenue Target", "Amount ($)": "$120.00M", "Impact": "🎯 Baseline Plan"},
+            {"P&L Line Item": "2. Unconstrained Surge Realization", "Amount ($)": f"+${(surge * 0.00025):,.2f}M", "Impact": "➕ Commercial Upside"},
+            {"P&L Line Item": "3. CTRM Derivative & Hedge Gain", "Amount ($)": f"+${trade_offset:,.2f}M", "Impact": "📈 Risk Protection"},
+            {"P&L Line Item": "4. COGS & Freight Cost Drag", "Amount ($)": f"${cogs_drag:,.2f}M", "Impact": "➖ Supply Operations"},
+            {"P&L Line Item": "5. Projected Net EBITDA", "Amount ($)": f"${net_ebitda:,.2f}M", "Impact": "🟢 Net Bottom-Line"}
+        ])
+        st.dataframe(waterfall_df, use_container_width=True)
+
+    with col_ctrm:
+        st.subheader("📈 CTRM Commodity Hedging Ledger")
+        ctrm_df = pd.DataFrame([
+            {"Raw Material Commodity": "Aluminum Cans (MT)", "Hedged Position": "85%", "Locked Rate": "$2,210/MT", "Spot Exposure": "15% Unhedged ⚠️"},
+            {"Raw Material Commodity": "HFCS Sugar / Liquid Sweetener", "Hedged Position": "92%", "Locked Rate": "$0.38/lb", "Spot Exposure": "8% Unhedged"},
+            {"Raw Material Commodity": "Natural Concentrates", "Hedged Position": "100%", "Locked Rate": "$14.50/gal", "Spot Exposure": "0% Covered"},
+            {"Raw Material Commodity": "Diesel Fuel / Freight", "Hedged Position": "60%", "Locked Rate": "$3.85/gal", "Spot Exposure": "40% Spot Float ⚠️"}
+        ])
+        st.dataframe(ctrm_df, use_container_width=True)
 # =====================================================================
 # ROUTER 2: NLP COMMERCIAL SENSING
 # =====================================================================
