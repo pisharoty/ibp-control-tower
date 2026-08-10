@@ -67,7 +67,7 @@ if "bom_requisitions" not in st.session_state:
 st.set_page_config(page_title="IBP Enterprise Control Tower", layout="wide")
 
 # =====================================================================
-# SIDEBAR: PERSONA SWITCHER, DYNAMIC NAVIGATION & LIVE RISK INJECTOR
+# SIDEBAR: PERSONA SWITCHER, DYNAMIC NAVIGATION & FLIGHT SIMULATOR SANDBOX
 # =====================================================================
 st.sidebar.title("⚡ IBP Control Tower")
 
@@ -89,6 +89,7 @@ if "Industrial" in persona:
         "⚖️ Demand/Supply Match & Plant Load Balancer",
         "📈 Physical Procurement & Contract Desk",
         "🛡️ CTRM Event-Driven Hedging Desk",
+        "🧪 Sandbox Flight Simulator & Stress Lab",
         "🌐 Global Logistics Network & GIS Control Tower",
         "🔌 Integration & Architecture Endpoints"
     ]
@@ -104,6 +105,7 @@ elif "FMCG" in persona:
         "⚖️ Batch Processing & Co-Packer Load Balancer",
         "📈 Agri-Ingredients & Direct Procurement",
         "🛡️ CTRM Softs & Commodity Risk Desk",
+        "🧪 Sandbox Flight Simulator & Stress Lab",
         "🌐 Cold Chain & Regional Distribution GIS Tower",
         "🔌 Integration & Architecture Endpoints"
     ]
@@ -118,6 +120,7 @@ else:  # Merchant Trading
         "🧠 Global Macro & Satellite Market Intelligence",
         "📈 Physical Off-Take & Merchant Storage Desk",
         "🛡️ CTRM Derivatives & Risk Arbitrage Desk",
+        "🧪 Sandbox Flight Simulator & Stress Lab",
         "🌐 Global Maritime AIS & Cargo GIS Tower",
         "🔌 Integration & Architecture Endpoints"
     ]
@@ -136,48 +139,64 @@ selected_module = st.sidebar.radio(
 st.session_state["selected_module"] = selected_module
 
 # ---------------------------------------------------------------------
-# 🚨 DYNAMIC LIVE RISK SCENARIO INJECTOR
+# 🧪 FLIGHT SIMULATOR SANDBOX WIDGET (REPLACES RISK INJECTOR)
 # ---------------------------------------------------------------------
 st.sidebar.markdown("---")
-st.sidebar.subheader("🚨 Risk Scenario Injector")
-st.sidebar.caption("⚡ Auto-Ingest Telemetry Alerts into Platform Engine")
+st.sidebar.subheader("🧪 Flight Simulator (Sandbox)")
+st.sidebar.caption("🔒 Isolated Stress-Test Mode (Disconnected from CTRM & FIX Gateways)")
 
-# Fetch live signals safely
-live_vol = BulletproofDataEngine.get_market_volatility("NVDA")
-live_nlp = BulletproofDataEngine.get_nlp_news_signal("semiconductor shortage")
-live_parcel = BulletproofDataEngine.get_parcel_telemetry()
-
-# Instant Telemetry Shock Action Buttons
-col_sb1, col_sb2 = st.sidebar.columns(2)
-
-with col_sb1:
-    if st.sidebar.button("📈 Live Market Vol", key="btn_inject_vol_v12"):
-        st.session_state["active_disruption"] = f"Financial Market Volatility Surge ({live_vol['symbol']} IV: {live_vol['implied_vol']}%)"
-        st.session_state["implied_volatility_override"] = float(live_vol["implied_vol"])
-        st.toast(f"Injected {live_vol['symbol']} Volatility Shock ({live_vol['implied_vol']}%)!", icon="📈")
-
-with col_sb2:
-    if st.sidebar.button("🧠 Live NLP Shock", key="btn_inject_nlp_v12"):
-        sentiment = live_nlp.get("sentiment", -0.5)
-        shock_vol = int(abs(sentiment) * 100000) if sentiment < 0 else 35000
-        st.session_state["extracted_demand_surge"] = shock_vol
-        st.session_state["active_disruption"] = f"NLP Sentiment Shock: {live_nlp['headline']}"
-        st.toast(f"Injected NLP Demand Surge (+{shock_vol:,} {term_unit})!", icon="🧠")
-
-shock_preset = st.sidebar.selectbox(
-    "Select Supply Chain Shock Preset:",
+simulator_preset = st.sidebar.selectbox(
+    "Select Macro 'What-If' Scenario:",
     [
-        "Standard Market Price Volatility",
-        f"🔴 LIVE NLP: {live_nlp['headline'][:28]}...",
-        f"📈 LIVE IV: {live_vol['symbol']} Volatility ({live_vol['implied_vol']}%)",
-        f"✈️ LIVE TELEMETRY: {live_parcel['carrier']} Delay Risk"
+        "None (Live Production Mode)",
+        "🌊 El Niño Drought & Crop Yield Crash (-30% Supply)",
+        "🚢 Red Sea / Suez Maritime Canal Blockage (+18 Days)",
+        "🌋 Volcanic Ash Cloud Cargo Grounding (+40% Freight)",
+        "⚡ 3-Sigma Market Shock (+50% Spot Volatility Jump)"
     ],
-    key="sb_shock_preset_selector_v12"
+    key="sb_flight_sim_preset_selector_v12"
 )
 
-if st.sidebar.button("🚀 Inject Selected Shock to Platform", type="primary", key="btn_apply_shock_v12"):
-    st.session_state["active_disruption"] = shock_preset
-    st.toast(f"Platform-wide shock injected: {shock_preset}", icon="🚀")
+col_sim1, col_sim2 = st.sidebar.columns(2)
+with col_sim1:
+    if st.button("🧪 Launch Sim", key="btn_run_sim_sandbox_v12"):
+        if simulator_preset == "None (Live Production Mode)":
+            st.session_state["sandbox_active"] = False
+            st.toast("Exited Sandbox Mode. Active on Live Production Pipeline.", icon="🟢")
+        else:
+            st.session_state["sandbox_active"] = True
+            st.session_state["sandbox_scenario"] = simulator_preset
+            if "El Niño" in simulator_preset:
+                st.session_state["sandbox_params"] = {
+                    "volume_multiplier": 1.45, "spot_cost_increase": 0.35, "transit_delay_days": 12, "iv_multiplier": 1.6,
+                    "description": "Severe weather shock reducing agricultural feedstocks and triggering spot price spikes."
+                }
+            elif "Canal Blockage" in simulator_preset:
+                st.session_state["sandbox_params"] = {
+                    "volume_multiplier": 1.15, "spot_cost_increase": 0.25, "transit_delay_days": 18, "iv_multiplier": 1.4,
+                    "description": "Chokepoint transit delay depleting safety stock buffers and inflating container freight rates."
+                }
+            elif "Volcanic" in simulator_preset:
+                st.session_state["sandbox_params"] = {
+                    "volume_multiplier": 1.10, "spot_cost_increase": 0.40, "transit_delay_days": 10, "iv_multiplier": 1.5,
+                    "description": "Air and maritime logistics grounding causing severe freight spot rate surges."
+                }
+            else:
+                st.session_state["sandbox_params"] = {
+                    "volume_multiplier": 1.80, "spot_cost_increase": 0.50, "transit_delay_days": 0, "iv_multiplier": 2.2,
+                    "description": "Extreme financial market jump-diffusion volatility shock on option pricing surfaces."
+                }
+            st.toast(f"Flight Simulator Active: {simulator_preset}", icon="🧪")
+
+with col_sim2:
+    if st.button("🔄 Reset Sim", key="btn_reset_sim_sandbox_v12"):
+        st.session_state["sandbox_active"] = False
+        st.session_state["sandbox_scenario"] = None
+        st.session_state["sandbox_params"] = {
+            "volume_multiplier": 1.0, "spot_cost_increase": 0.0, "transit_delay_days": 0, "iv_multiplier": 1.0,
+            "description": "Baseline Simulation Context"
+        }
+        st.toast("Flight Simulator reset to Baseline.", icon="🔄")
 
 st.sidebar.markdown("---")
 
@@ -960,9 +979,81 @@ elif any(k in selected_module for k in ["Global Logistics", "Cold Chain", "Marit
             }
         ])
         st.dataframe(shipments, use_container_width=True)
+# =====================================================================
+# ROUTER 7: SANDBOX FLIGHT SIMULATOR & STRESS LAB
+# =====================================================================
+elif "Flight Simulator" in selected_module:
+    st.title("🧪 Sandboxed Flight Simulator & Stress Lab")
+    st.caption(f"Active Persona View: **{persona}**")
+    st.markdown("Risk-Free Macro 'What-If' Simulation, Black Swan Stress Testing & Derivative Volatility Surface Impact.")
+
+    is_sandbox = st.session_state.get("sandbox_active", False)
+    sim_params = st.session_state.get("sandbox_params", {
+        "volume_multiplier": 1.0, 
+        "spot_cost_increase": 0.0, 
+        "transit_delay_days": 0, 
+        "iv_multiplier": 1.0, 
+        "description": "Baseline Simulation Context"
+    })
+    raw_surge = st.session_state.get("extracted_demand_surge", 65000)
+    effective_surge = int(raw_surge * sim_params["volume_multiplier"])
+
+    if not is_sandbox:
+        st.info("💡 **Flight Simulator is currently in Baseline Mode.** Select a macro 'What-If' scenario in the sidebar and click **🧪 Launch Sim** to activate stress testing.")
+        
+        st.subheader("📊 Baseline System Load & Parameter Overview")
+        col_b1, col_b2, col_b3 = st.columns(3)
+        col_b1.metric(f"Current Base Demand Surge", f"{raw_surge:,} {term_unit}")
+        col_b2.metric("Market Volatility Multiplier", "1.0x (Standard)")
+        col_b3.metric("Network Transit Delay", "0 Days (Baseline)")
+    else:
+        scenario_name = st.session_state.get("sandbox_scenario", "Active Scenario")
+        st.success(f"🧪 **ACTIVE SIMULATION SCENARIO**: {scenario_name}")
+        st.markdown(f"> *{sim_params.get('description', '')}*")
+        
+        st.markdown("### 📊 Macro Stress Comparison (Baseline vs. Simulated Shock)")
+        
+        base_risk = raw_surge * 150.0
+        sim_risk = effective_surge * 150.0 * (1 + sim_params["spot_cost_increase"])
+        risk_delta_pct = ((sim_risk - base_risk) / base_risk) * 100 if base_risk > 0 else 0.0
+        
+        col_s1, col_s2, col_s3 = st.columns(3)
+        col_s1.metric(f"Baseline Exposure", f"${base_risk:,.2f}")
+        col_s2.metric(f"Simulated Stress Exposure", f"${sim_risk:,.2f}", f"+{risk_delta_pct:.1f}% Delta Risk", delta_color="inverse")
+        col_s3.metric("Simulated Supply Lag", f"+{sim_params['transit_delay_days']} Days Delay", "Critical Transit Impact" if sim_params['transit_delay_days'] > 10 else "Manageable Delay")
+        
+        st.markdown("---")
+        st.subheader("📈 Derivative Option Surface Shock Analysis (Black76 Engine)")
+        
+        base_iv = 0.22
+        sim_iv = base_iv * sim_params["iv_multiplier"]
+        
+        call_base, put_base, delta_base, vega_base = black76_call_put(2200, 2250, 60/365, 0.04, base_iv)
+        call_sim, put_sim, delta_sim, vega_sim = black76_call_put(2200, 2250, 60/365, 0.04, sim_iv)
+        
+        sim_surface_df = pd.DataFrame([
+            {
+                "Option Tenor": "60-Day Asian Collar",
+                "State": "Live Production Baseline",
+                "Implied Volatility (σ)": f"{base_iv*100:.1f}%",
+                "Call Premium ($)": f"${call_base:.2f}",
+                "Delta (Δ)": f"{delta_base:.2f}",
+                "Vega (ν)": f"{vega_base:.2f}"
+            },
+            {
+                "Option Tenor": "60-Day Asian Collar",
+                "State": "🧪 Sandboxed Macro Shock",
+                "Implied Volatility (σ)": f"{sim_iv*100:.1f}%",
+                "Call Premium ($)": f"${call_sim:.2f}",
+                "Delta (Δ)": f"{delta_sim:.2f}",
+                "Vega (ν)": f"{vega_sim:.2f}"
+            }
+        ])
+        st.dataframe(sim_surface_df, use_container_width=True, hide_index=True)
+        st.warning("🔒 **Isolation Guarantee**: All transactions in Sandbox Mode are completely disconnected from live FIX gateways and ERP ledger commits.")
 
 # =====================================================================
-# ROUTER 7: INTEGRATION & ARCHITECTURE ENDPOINTS
+# ROUTER 8: INTEGRATION & ARCHITECTURE ENDPOINTS
 # =====================================================================
 elif "Integration" in selected_module:
     st.title("🔌 Integration & Architecture Endpoints")
@@ -985,6 +1076,8 @@ elif "Integration" in selected_module:
     st.json({
         "active_disruption": st.session_state.get("active_disruption"),
         "extracted_demand_surge": st.session_state.get("extracted_demand_surge"),
+        "sandbox_active": st.session_state.get("sandbox_active", False),
+        "sandbox_scenario": st.session_state.get("sandbox_scenario"),
         "platform_persona": persona,
         "selected_module": selected_module
     })
