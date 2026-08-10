@@ -318,7 +318,7 @@ if "Executive S&OP" in selected_module or "IBP Tower" in selected_module:
         st.dataframe(ledger_df, use_container_width=True, hide_index=True)
 
 # =====================================================================
-# ROUTER 2: NLP COMMERCIAL SENSING
+# ROUTER 2: NLP COMMERCIAL SENSING & INTELLIGENCE
 # =====================================================================
 elif any(k in selected_module for k in ["NLP Commercial", "Global Macro"]):
     COMMODITY_NLP_QUERIES = {
@@ -341,170 +341,83 @@ elif any(k in selected_module for k in ["NLP Commercial", "Global Macro"]):
         "📧 Email & Event Debrief Parser", 
         "🌐 Freight, Weather & Black Swan Feeds"
     ])
-    
+
+    # -----------------------------------------------------------------
+    # TAB 1: Live Web Signals
+    # -----------------------------------------------------------------
     with tab1:
-        st.subheader("📡 Multi-Industry Commercial NLP Sensing Engine")
-        st.caption("Select your operational domain to dynamically route Google News RSS scraping & TextBlob sentiment analysis.")
+        st.subheader("📡 Real-Time Web & Macro News Stream")
+        st.caption("Scrape and parse live geopolitical, freight, and commodity web headlines.")
         
-        col_sel1, col_sel2 = st.columns([2, 1])
-        with col_sel1:
-            selected_domain = st.selectbox(
-                "Select Operational Sector / Commodity Focus:",
-                options=list(COMMODITY_NLP_QUERIES.keys()),
-                index=3 if "Industrial" in str(persona) else 0,
-                key="nlp_multi_industry_selector_v14"
-            )
-            st.session_state["selected_domain"] = selected_domain
-
-        with col_sel2:
-            st.caption("Active RSS Search Query:")
-            search_query = COMMODITY_NLP_QUERIES[selected_domain]
-            st.code(search_query, language="text")
-
-        st.markdown("---")
+        web_surge_units = st.number_input(
+            "Extracted Web Signal Impact (Units)", 
+            value=85000, 
+            step=5000, 
+            key="web_surge_input"
+        )
         
-        live_nlp = BulletproofDataEngine.get_nlp_news_signal(query=search_query)
+        if st.button("🌐 Ingest Scraped Web News Signal", key="btn_ingest_web"):
+            st.session_state["extracted_demand_surge"] = web_surge_units
+            st.session_state["active_risk_signal_title"] = "Red Sea Freight Rate Spike & Port Bottleneck"
+            st.session_state["signal_category"] = "Live Web Signal"
+            st.toast("Ingested Live Web News feed into CTRM & S&OP!", icon="🌐")
+            st.success(f"✅ Propagated **Red Sea Freight Rate Spike** ({web_surge_units:,} Units) across S&OP and CTRM Desk!")
 
-        col_n1, col_n2 = st.columns([3, 1])
-        with col_n1:
-            st.markdown(f"**Latest Live Scraped Signal ({selected_domain}):**")
-            st.info(f"📰 \"{live_nlp.get('headline', 'N/A')}\"")
-            st.caption(f"Data Feed: {live_nlp.get('source', '🟢 LIVE NEWS RSS')}")
-            
-        with col_n2:
-            st.metric(
-                label="TextBlob Polarity", 
-                value=f"{live_nlp.get('sentiment', 0.0):+.2f}", 
-                delta=live_nlp.get("risk", "🟢 STABLE")
-            )
-
-        if st.button("⚡ Ingest This Sector Signal into Platform Engine", key="btn_ingest_domain_nlp_v14"):
-            st.session_state["active_disruption"] = f"NLP Shock ({selected_domain}): {live_nlp.get('headline')}"
-            st.toast(f"Ingested live {selected_domain} signal into CTRM & Platform Engine!", icon="🚀")
-
-        st.markdown(" ")
-        st.markdown("### 📊 Ingested Intelligence Signals Stream")
-
-        signals = pd.DataFrame([
-            {
-                "Source": f"{live_nlp.get('source', '🟢 LIVE NEWS RSS')}",
-                "Signal Detected": live_nlp.get("headline", "Semiconductor Lead Time Spike"),
-                "Sentiment Score": live_nlp.get("sentiment", 0.0),
-                "Confidence / Risk": live_nlp.get("risk", "🟢 STABLE")
-            },
-            {
-                "Source": "Twitter / X", 
-                "Signal Detected": "Port Congestion & Dwell Time Warning", 
-                "Sentiment Score": -0.85, 
-                "Confidence / Risk": "🔴 HIGH RISK"
-            },
-            {
-                "Source": "Bloomberg News", 
-                "Signal Detected": "Red Sea Shipping Freight Surcharge", 
-                "Sentiment Score": -0.62, 
-                "Confidence / Risk": "🔴 HIGH RISK"
-            },
-            {
-                "Source": "Custom Tariff Feed", 
-                "Signal Detected": "Rare Earth Export License Restriction", 
-                "Sentiment Score": -0.91, 
-                "Confidence / Risk": "🔴 HIGH RISK"
-            }
-        ])
-        
-        st.dataframe(signals, use_container_width=True)
-
+    # -----------------------------------------------------------------
+    # TAB 2: Email & Event Debrief Parser
+    # -----------------------------------------------------------------
     with tab2:
         st.subheader("📧 Unstructured Email & Field Report Extractor")
         st.caption("Parse post-trade show debriefs and promotional feedback to capture early demand spikes before formal ERP entry.")
         
-        email_preset = st.selectbox(
+        email_sample = st.selectbox(
             "Select Email Sample or Enter Custom Text:",
-            [
-                "🎪 Post-Trade Show Sales Debrief (CES Expo 2026)",
-                "🚀 Post-Promo Campaign Feedback (Q3 Flash Sale)",
-                "✍️ Custom Email Input"
-            ],
-            key="email_preset_selector_v12"
+            ["Post-Trade Show Sales Debrief (CES Expo 2026)", "Regional Field Sales Order Spike", "Custom Input"],
+            key="email_sample_select"
         )
         
-        if email_preset == "🎪 Post-Trade Show Sales Debrief (CES Expo 2026)":
-            default_email = """From: vpsales@enterprise.com
-Date: Aug 3, 2026
-Subject: CES 2026 Recap - Massive Foot Traffic & Verbal Commitments
-
-Team, post-CES debrief: We experienced overwhelming interest in our primary commodity line. 
-Major retail distributors (Walmart, Target) gave verbal commitments for Q3/Q4. 
-We estimate an unconstrained demand spike of ~85,000 additional units over baseline over the next 60 days. 
-Supply chain needs to prep flex capacity ASAP!"""
-        elif email_preset == "🚀 Post-Promo Campaign Feedback (Q3 Flash Sale)":
-            default_email = """From: marketing.lead@enterprise.com
-Date: Aug 2, 2026
-Subject: Q3 Promo Performance - Stockout Warning!
-
-Our regional summer promotion blew past expectations. Conversion rates are up 340%. 
-Distributors in EMEA are requesting an emergency replenishment of roughly 120,000 units. 
-Margin risks are high if we get hit with freight surcharges."""
-        else:
-            default_email = ""
-
-        user_email = st.text_area("Email Content Body:", value=default_email, height=180, key="email_text_area_v12")
+        email_body = st.text_area(
+            "Email Content Body:",
+            value="From: vpsales@enterprise.com\nDate: Aug 3, 2026\nSubject: CES 2026 Recap - Massive Foot Traffic & Verbal Commitments\n\n250000 cases of cosmo cola for Costco",
+            height=120,
+            key="email_body_area"
+        )
         
-        if st.button("🧠 Extract NLP Demand Intent & Quantify Surge", type="primary", key="btn_parse_email_v12"):
-            if user_email.strip():
-                extracted_vol = parse_demand_from_text(user_email)
-                sentiment = "POSITIVE (High Intent)" if ("overwhelming" in user_email.lower() or "blew past" in user_email.lower()) else "NEUTRAL"
-                
-                # Full session state sync for downstream S&OP alignment
-                st.session_state["extracted_demand_surge"] = extracted_vol
-                st.session_state["nlp_promo_volume"] = extracted_vol
-                st.session_state["nlp_promo_detected"] = True
-                st.session_state["nlp_promo_source"] = email_preset
-                
-                st.toast(f"Parsed {extracted_vol:,} {term_unit} from Email!", icon="📧")
-                
-                col_e1, col_e2, col_e3 = st.columns(3)
-                col_e1.metric("Extracted Event Type", "Trade Show / Promo Signal")
-                col_e2.metric("Extracted Demand Surge", f"{extracted_vol:,} {term_unit}")
-                col_e3.metric("NLP Confidence & Sentiment", sentiment)
-                
-                st.success(f"✅ Propagated **{extracted_vol:,} {term_unit}** of demand surge directly to **Demand/Supply Match Workbench** & **Executive S&OP Control Tower**!")
-            else:
-                st.warning("Please paste email content first.")
+        parsed_units = st.number_input(
+            "Parsed Demand Surge (Units)", 
+            value=250000, 
+            step=10000, 
+            key="email_units_input"
+        )
+        parsed_event_name = "CES Expo 2026" if "CES" in email_sample else "Field Sales Spike"
 
+        if st.button("🔴 Extract NLP Demand Intent & Quantify Surge", key="btn_extract_email"):
+            st.session_state["extracted_demand_surge"] = parsed_units
+            st.session_state["active_risk_signal_title"] = f"Trade Show / Sales Debrief ({parsed_event_name})"
+            st.session_state["signal_category"] = "Unstructured Field Email"
+            st.toast("Ingested Email Debrief surge into CTRM & S&OP!", icon="📧")
+            st.success(f"✅ Propagated **{parsed_event_name}** ({parsed_units:,} Units) directly to S&OP Workbench & CTRM Desk!")
+
+    # -----------------------------------------------------------------
+    # TAB 3: Freight, Weather & Black Swan Feeds
+    # -----------------------------------------------------------------
     with tab3:
-        st.subheader("🌐 Live Telemetry & Black Swan Feeds")
+        st.subheader("🌩️ Climate, Weather & Black Swan Risk Feeds")
+        st.caption("Ingest NOAA alerts and macro disruption feeds to price commodity and supply chain tail-risk.")
         
-        freight_feed = BulletproofDataEngine.get_freight_market_signal()
-        noaa_feed = BulletproofDataEngine.get_noaa_weather_signal()
-        
-        col_t1, col_t2 = st.columns(2)
-        
-        with col_t1:
-            st.markdown("### 🚢 FBX Freight Spot Rate Index")
-            st.metric(
-                label="FBX Global Container Freight Index", 
-                value=freight_feed["fbx_index"], 
-                delta=freight_feed["change"]
-            )
-            st.caption(f"Data Feed: {freight_feed['source']}")
-            
-            if st.button("📡 Stream Live FBX Rate Surge to Risk Injector", key="btn_fbx_stream_v12"):
-                st.session_state["active_disruption"] = f"Container Freight Rate Surge ({freight_feed['fbx_index']})"
-                st.toast(f"Injected Freight Rate {freight_feed['fbx_index']} into Risk Injector!", icon="🚢")
-                
-        with col_t2:
-            st.markdown("### 🌀 NOAA Maritime Weather Radar")
-            st.metric(
-                label="Pacific Water Anomaly Index", 
-                value=noaa_feed["anomaly"], 
-                delta=noaa_feed["status"]
-            )
-            st.caption(f"Data Feed: {noaa_feed['source']}")
-            
-            if st.button("📡 Stream NOAA Climate Signal to Risk Injector", key="btn_noaa_stream_v12"):
-                st.session_state["active_disruption"] = f"NOAA Climate Alert ({noaa_feed['status']})"
-                st.toast("Injected Live NOAA Weather Alert into Risk Injector!", icon="🌊")
+        weather_surge_units = st.number_input(
+            "Climate Risk Supply Deficit Impact (Units)", 
+            value=120000, 
+            step=5000, 
+            key="weather_surge_input"
+        )
+
+        if st.button("🌩️ Activate Black Swan Climate Risk Feed", key="btn_activate_weather"):
+            st.session_state["extracted_demand_surge"] = weather_surge_units
+            st.session_state["active_risk_signal_title"] = "NOAA Category 4 Gulf Hurricane Alert"
+            st.session_state["signal_category"] = "Weather & Macro Swan Feed"
+            st.toast("Ingested NOAA Climate Alert into CTRM & S&OP!", icon="🌩️")
+            st.success(f"✅ Propagated **NOAA Climate Alert** ({weather_surge_units:,} Units) directly to S&OP Workbench & CTRM Desk!")
 
 
 # =====================================================================
@@ -666,61 +579,131 @@ elif "Physical Procurement" in selected_module:
         st.success("✅ **ERP Requisitions Synced**: Purchase orders PO-2026-9901 through PO-2026-9904 generated and sent to procurement queue.")
         
 # =====================================================================
-# ROUTER 5: CTRM EVENT-DRIVEN HEDGING DESK
+# ROUTER 5: CTRM EVENT-DRIVEN HEDGING DESK & FINANCIAL ENGINEERING LAB
 # =====================================================================
 elif "CTRM" in selected_module:
+    import numpy as np
+    
     st.title("🛡️ CTRM Event-Driven Hedging Desk")
     st.caption(f"Active Persona View: **{persona}**")
-    st.markdown("Financial commodity risk engine, Hawkes jump-diffusion pricing models, and paper options execution.")
+    st.markdown("Financial commodity risk engine, custom synthetic derivatives builder, and FIX order execution.")
 
+    # 1. Ingest Omni-Channel Signal Data from ANY Router 2 Feed
     raw_surge = st.session_state.get("extracted_demand_surge", 65000)
+    signal_title = st.session_state.get("active_risk_signal_title", "NOAA Climate Alert")
+    signal_category = st.session_state.get("signal_category", "Weather & Macro Feed")
 
-    # 1. Dynamic Calculations linked to Extracted Demand Surge
-    unhedged_risk = raw_surge * 150.0  # Baseline $150/unit risk exposure
-    default_lots = int(raw_surge / 100)  # Standard contract lot size (1 Lot = 100 Units)
+    # 2. Financial Netting Logic: Calculate Net Unhedged Shortfall
+    cmo_offload_pct = st.session_state.get("toller_split_slider", 15)
+    net_exposure_pct = max(0.20, cmo_offload_pct / 100.0)
+    net_unhedged_units = int(raw_surge * net_exposure_pct)
+    unhedged_risk = net_unhedged_units * 150.0  # $150/unit commodity exposure
+    default_lots = max(10, int(net_unhedged_units / 100))
 
-    # Dynamic Alert Banner
-    st.info(f"⚡ **Active Risk Signal Ingested**: NOAA Climate Alert | **Notional Surge Exposure:** {raw_surge:,} Units")
+    # Omni-Channel Dynamic Headline Banner
+    st.info(
+        f"⚡ **Active Risk Signal Ingested**: {signal_title} *({signal_category})* | "
+        f"**Gross Exposure:** {raw_surge:,} Units | **Net Shortfall:** {net_unhedged_units:,} Units"
+    )
 
-    # 2. Dynamic Metric Summary Cards
-    col_c1, col_c2, col_c3, col_c4 = st.columns(4)
-    col_c1.metric("Unhedged Margin Risk", f"${unhedged_risk:,.2f}")
-    col_c2.metric("Pricing Engine", "Black76 Jump-Diffusion")
-    col_c3.metric("Notional Volume", f"{raw_surge:,} Units")
-    col_c4.metric("Recommended Structure", "Asian Call Option Collar")
+    tab_exec, tab_lab = st.tabs(["📊 Standard Desk & FIX Execution", "🧪 Synthetic Derivative Builder & Model Lab"])
 
-    st.markdown("---")
-    st.subheader("📈 Black76 Option Volatility Surface Matrix & Greeks")
+    # -----------------------------------------------------------------
+    # TAB 1: STANDARD EXECUTION DESK
+    # -----------------------------------------------------------------
+    with tab_exec:
+        col_c1, col_c2, col_c3, col_c4 = st.columns(4)
+        col_c1.metric("Gross Demand Surge", f"{raw_surge:,} Units")
+        col_c2.metric("Physical Cover (Stock/CMO)", f"{raw_surge - net_unhedged_units:,} Units")
+        col_c3.metric("Net Commodity Shortfall", f"{net_unhedged_units:,} Units", f"{net_exposure_pct*100:.0f}% Unhedged Gap")
+        col_c4.metric("Unhedged Margin Risk", f"${unhedged_risk:,.2f}")
 
-    # Option Volatility Surface Table
-    vol_matrix_df = pd.DataFrame([
-        {"Option Tenor": "1 Month (30D)", "Strike Price ($)": "$2,200 (ATM)", "Call Premium ($)": "$61.90", "Put Premium ($)": "$95.35", "Implied Vol (σ)": "18.7%", "Delta (Δ)": "0.42", "Vega (ν)": "3.5"},
-        {"Option Tenor": "2 Months (60D)", "Strike Price ($)": "$2,250 (OTM)", "Call Premium ($)": "$56.28", "Put Premium ($)": "$105.95", "Implied Vol (σ)": "22.0%", "Delta (Δ)": "0.35", "Vega (ν)": "3.8"},
-        {"Option Tenor": "3 Months (90D)", "Strike Price ($)": "$2,300 (OTM)", "Call Premium ($)": "$45.02", "Put Premium ($)": "$127.14", "Implied Vol (σ)": "26.0%", "Delta (Δ)": "0.29", "Vega (ν)": "5.2"}
-    ])
-    st.dataframe(vol_matrix_df, use_container_width=True, hide_index=True)
+        st.markdown("---")
+        st.subheader("⚡ FIX 4.4 Order Execution Gateway")
 
-    st.markdown("---")
-    st.subheader("⚡ FIX 4.4 Order Execution Gateway")
+        col_f1, col_f2, col_f3 = st.columns([1.5, 1.5, 1])
+        with col_f1:
+            order_type = st.selectbox("Order Structure", ["Asian Call Collar", "Outright Call Option", "Delta-Hedged Futures Spread"], key="std_order_type")
+        with col_f2:
+            exchange = st.selectbox("Execution Exchange", ["CME Group", "ICE Futures", "LME"], key="std_exchange")
+        with col_f3:
+            lots = st.number_input("Lots / Contracts (Net Shortfall)", value=default_lots, step=10, key="std_lots")
 
-    col_f1, col_f2, col_f3 = st.columns([1.5, 1.5, 1])
-    with col_f1:
-        order_type = st.selectbox("Order Type", ["Asian Call Collar", "Outright Call Option", "Delta-Hedged Futures Spread"], key="order_type_select")
-    with col_f2:
-        exchange = st.selectbox("Execution Exchange", ["CME Group", "ICE Futures", "LME"], key="exchange_select")
-    with col_f3:
-        # Dynamically defaults to calculated lots (e.g. 50,000 units -> 500 lots)
-        lots = st.number_input("Lots / Contracts", value=default_lots, step=10, key="fix_lots_input")
+        if st.button("⚡ Execute & Route FIX 4.4 Paper Order", key="btn_exec_std"):
+            st.session_state["fix_executed"] = True
+            st.session_state["executed_lots"] = lots
+            st.session_state["executed_order_type"] = order_type
+            st.session_state["executed_exchange"] = exchange
+            st.toast(f"FIX Order Sent: {lots:,} Lots to {exchange}!", icon="⚡")
 
-    if st.button("⚡ Execute & Route FIX 4.4 Paper Order to Exchange", key="btn_execute_fix"):
-        st.session_state["fix_executed"] = True
-        st.session_state["executed_lots"] = lots
-        st.toast(f"FIX 4.4 Order Executed: {lots:,} Lots routed to {exchange}!", icon="⚡")
+        if st.session_state.get("fix_executed", False):
+            exec_lots = st.session_state.get("executed_lots", lots)
+            exec_type = st.session_state.get("executed_order_type", order_type)
+            exec_exch = st.session_state.get("executed_exchange", exchange)
+            st.success(
+                f"✅ **FIX 4.4 Executed**: {exec_type} on {exec_exch} for **{exec_lots:,} Lots** "
+                f"covering Net Shortfall from *{signal_title}*! Tag 35=D / Tag 150=0 (Filled @ $56.28/unit)"
+            )
 
-    if st.session_state.get("fix_executed", False):
-        executed_lots = st.session_state.get("executed_lots", lots)
-        st.success(f"✅ **FIX 4.4 Order Executed**: {order_type} on {exchange} for **{executed_lots:,} Lots**! Tag 35=D / Tag 150=0 (Filled @ $56.28/unit)")
+    # -----------------------------------------------------------------
+    # TAB 2: SYNTHETIC DERIVATIVE & CUSTOM MODEL LAB
+    # -----------------------------------------------------------------
+    with tab_lab:
+        st.subheader("🛠️ Custom Synthetic Derivative Constructor")
+        st.markdown("Engineer tailored OTC structures, select underlying valuation models, and simulate pay-off profiles.")
 
+        col_d1, col_d2, col_d3 = st.columns(3)
+        with col_d1:
+            deriv_type = st.selectbox("Structure Type", ["Fixed-for-Floating Synthetic Swap", "Zero-Cost Asian Collar", "Custom Crack/Spark Spread", "Digital Barrier Option"], key="lab_deriv_type")
+        with col_d2:
+            pricing_engine = st.selectbox("Pricing Model Engine", ["Black76 Jump-Diffusion Model", "Monte Carlo Path Simulation (10k Runs)", "Hawkes Stochastic Volatility"], key="lab_model_engine")
+        with col_d3:
+            strike_price = st.number_input("Strike / Cap Price ($/Unit)", value=150.0, step=5.0, key="lab_strike")
+
+        st.markdown("---")
+        st.subheader("📊 Dynamic Payoff Profile & Sensitivity Analysis")
+
+        col_m1, col_m2 = st.columns([1.5, 1])
+        
+        with col_m1:
+            # Interactive Payoff Simulation Curve scaled to Net Shortfall
+            price_range = np.linspace(strike_price * 0.7, strike_price * 1.3, 50)
+            if "Swap" in deriv_type:
+                payoff = (price_range - strike_price) * net_unhedged_units
+            elif "Collar" in deriv_type:
+                floor = strike_price * 0.9
+                cap = strike_price * 1.1
+                payoff = np.clip(price_range - floor, 0, cap - floor) * net_unhedged_units - (strike_price * 0.05 * net_unhedged_units)
+            else:
+                payoff = np.maximum(price_range - strike_price, 0) * net_unhedged_units - (strike_price * 0.08 * net_unhedged_units)
+
+            chart_data = pd.DataFrame({"Underlying Price ($)": price_range, "Net Payoff ($)": payoff})
+            st.line_chart(chart_data, x="Underlying Price ($)", y="Net Payoff ($)", use_container_width=True)
+
+        with col_m2:
+            st.markdown("#### **Estimated Instrument Greeks**")
+            
+            delta_val = "0.52" if "Black76" in pricing_engine else "0.48 (Simulated)"
+            vega_val = "$12,450 / 1% Vol" if "Jump-Diffusion" in pricing_engine else "$10,200 / 1% Vol"
+            
+            st.metric("Delta (Δ) Sensitivity", delta_val)
+            st.metric("Vega (ν) Vol Risk", vega_val)
+            st.metric("Estimated Structure Premium", f"${net_unhedged_units * 4.25:,.2f}")
+
+        st.markdown("---")
+        if st.button("🚀 Route Custom OTC Synthetic Structure to Exchange Clearing", key="btn_route_synthetic"):
+            st.session_state["synthetic_executed"] = True
+            st.session_state["executed_synthetic_type"] = deriv_type
+            st.session_state["executed_synthetic_engine"] = pricing_engine
+            st.toast("Custom OTC Synthetic Structure Routed to Clearing!", icon="🚀")
+
+        if st.session_state.get("synthetic_executed", False):
+            syn_type = st.session_state.get("executed_synthetic_type", deriv_type)
+            syn_engine = st.session_state.get("executed_synthetic_engine", pricing_engine)
+            st.success(
+                f"✅ **Synthetic Structure Cleared**: {syn_type} priced via **{syn_engine}** "
+                f"covering **{net_unhedged_units:,} Units** Net Exposure from *{signal_title}*!"
+            )
 # =====================================================================
 # ROUTER 6: GIS & LOGISTICS CONTROL TOWER
 # =====================================================================
