@@ -523,14 +523,7 @@ elif "Demand/Supply" in selected_module:
         st.subheader("⚙️ Multi-Plant Load Balancer & Optimization Solver")
         st.markdown("Optimize production allocation across internal plants and 3rd-party co-packers under capacity constraints.")
 
-        col_s1, col_s2, col_s3 = st.columns(3)
-        col_s1.metric(f"{plant1_name} Load", "98.4%", "+3.2% vs Nominal Cap")
-        col_s2.metric(f"{plant2_name} Load", "87.1%", "Optimal Operating Band")
-        col_s3.metric(f"{toller_name} Load", "45.0%", "⚡ Co-Packer Surcharge Active")
-
-        st.markdown("---")
-        st.subheader("🎛️ Plant Constraint & Co-Packer Offload Controls")
-        
+        # 1. Controls defined first so metrics can read live slider values
         col_p1, col_p2 = st.columns(2)
         with col_p1:
             plant1_cap = st.slider(f"Max Capacity - {plant1_name} (Units/Wk)", 100000, 150000, 120000, step=5000, key="plant1_cap_slider")
@@ -539,6 +532,31 @@ elif "Demand/Supply" in selected_module:
             toller_split = st.slider(f"Over-Capacity Offload to {toller_name} (%)", 0, 50, 15, step=5, key="toller_split_slider")
             copacker_margin_drag = toller_split * 0.12
             st.caption(f"Estimated Co-Packer Margin Surcharge Drag: **-${copacker_margin_drag:.2f}M**")
+
+        st.markdown("---")
+
+        # 2. Dynamic Metric Calculations
+        internal_share = 1.0 - (toller_split / 100.0)
+        allocated_to_plant1 = raw_surge * internal_share
+        
+        # Calculate load percentage: nominal baseline (80%) + surge load
+        p1_load_pct = 80.0 + ((allocated_to_plant1 / plant1_cap) * 20.0)
+        cmo_load_pct = float(toller_split)
+
+        col_s1, col_s2, col_s3 = st.columns(3)
+        col_s1.metric(
+            f"{plant1_name} Load", 
+            f"{p1_load_pct:.1f}%", 
+            f"{'+' if p1_load_pct > 100 else ''}{p1_load_pct - 100:.1f}% vs Nominal Cap"
+        )
+        col_s2.metric(f"{plant2_name} Load", "87.1%", "Optimal Operating Band")
+        col_s3.metric(
+            f"{toller_name} Load", 
+            f"{cmo_load_pct:.1f}%", 
+            "⚡ Co-Packer Surcharge Active" if cmo_load_pct > 0 else "Nominal"
+        )
+
+        st.markdown("<br>", unsafe_allow_html=True)
 
         if st.button("⚡ Run Mixed-Integer Linear Program (MILP) Solver", key="btn_run_milp_solver"):
             st.session_state["milp_solved"] = True
@@ -656,60 +674,52 @@ elif "CTRM" in selected_module:
     st.markdown("Financial commodity risk engine, Hawkes jump-diffusion pricing models, and paper options execution.")
 
     raw_surge = st.session_state.get("extracted_demand_surge", 65000)
-    is_sandbox = st.session_state.get("sandbox_active", False)
-    sim_params = st.session_state.get("sandbox_params", {"spot_cost_increase": 0.0, "iv_multiplier": 1.0})
-    
-    # Sandbox-adjusted exposure
-    unhedged_risk = raw_surge * 150.0 * (1 + sim_params["spot_cost_increase"])
 
-    st.info(f"⚡ **Active Risk Signal Ingested**: NOAA Climate Alert | Notional Surge Exposure: **{raw_surge:,} {term_unit}**")
+    # 1. Dynamic Calculations linked to Extracted Demand Surge
+    unhedged_risk = raw_surge * 150.0  # Baseline $150/unit risk exposure
+    default_lots = int(raw_surge / 100)  # Standard contract lot size (1 Lot = 100 Units)
 
+    # Dynamic Alert Banner
+    st.info(f"⚡ **Active Risk Signal Ingested**: NOAA Climate Alert | **Notional Surge Exposure:** {raw_surge:,} Units")
+
+    # 2. Dynamic Metric Summary Cards
     col_c1, col_c2, col_c3, col_c4 = st.columns(4)
     col_c1.metric("Unhedged Margin Risk", f"${unhedged_risk:,.2f}")
     col_c2.metric("Pricing Engine", "Black76 Jump-Diffusion")
-    col_c3.metric("Notional Volume", f"{raw_surge:,} {term_unit}")
+    col_c3.metric("Notional Volume", f"{raw_surge:,} Units")
     col_c4.metric("Recommended Structure", "Asian Call Option Collar")
 
     st.markdown("---")
     st.subheader("📈 Black76 Option Volatility Surface Matrix & Greeks")
 
-    base_iv = 0.22 * sim_params["iv_multiplier"]
-    call_p, put_p, delta, vega = black76_call_put(2200, 2250, 60/365, 0.04, base_iv)
-
-    surface_df = pd.DataFrame([
-        {"Option Tenor": "1 Month (30D)", "Strike Price ($)": "$2,200 (ATM)", "Call Premium ($)": f"${call_p*1.1:.2f}", "Put Premium ($)": f"${put_p*0.9:.2f}", "Implied Vol (σ)": f"{base_iv*85:.1f}%", "Delta (Δ)": f"{delta:.2f}", "Vega (ν)": f"{vega:.1f}"},
-        {"Option Tenor": "2 Months (60D)", "Strike Price ($)": "$2,250 (OTM)", "Call Premium ($)": f"${call_p:.2f}", "Put Premium ($)": f"${put_p:.2f}", "Implied Vol (σ)": f"{base_iv*100:.1f}%", "Delta (Δ)": f"{delta*0.85:.2f}", "Vega (ν)": f"{vega*1.1:.1f}"},
-        {"Option Tenor": "3 Months (90D)", "Strike Price ($)": "$2,300 (OTM)", "Call Premium ($)": f"${call_p*0.8:.2f}", "Put Premium ($)": f"${put_p*1.2:.2f}", "Implied Vol (σ)": f"{base_iv*118:.1f}%", "Delta (Δ)": f"{delta*0.70:.2f}", "Vega (ν)": f"{vega*1.5:.1f}"}
+    # Option Volatility Surface Table
+    vol_matrix_df = pd.DataFrame([
+        {"Option Tenor": "1 Month (30D)", "Strike Price ($)": "$2,200 (ATM)", "Call Premium ($)": "$61.90", "Put Premium ($)": "$95.35", "Implied Vol (σ)": "18.7%", "Delta (Δ)": "0.42", "Vega (ν)": "3.5"},
+        {"Option Tenor": "2 Months (60D)", "Strike Price ($)": "$2,250 (OTM)", "Call Premium ($)": "$56.28", "Put Premium ($)": "$105.95", "Implied Vol (σ)": "22.0%", "Delta (Δ)": "0.35", "Vega (ν)": "3.8"},
+        {"Option Tenor": "3 Months (90D)", "Strike Price ($)": "$2,300 (OTM)", "Call Premium ($)": "$45.02", "Put Premium ($)": "$127.14", "Implied Vol (σ)": "26.0%", "Delta (Δ)": "0.29", "Vega (ν)": "5.2"}
     ])
-    st.dataframe(surface_df, use_container_width=True, hide_index=True)
+    st.dataframe(vol_matrix_df, use_container_width=True, hide_index=True)
 
     st.markdown("---")
     st.subheader("⚡ FIX 4.4 Order Execution Gateway")
 
-    col_f1, col_f2, col_f3 = st.columns(3)
+    col_f1, col_f2, col_f3 = st.columns([1.5, 1.5, 1])
     with col_f1:
-        st.selectbox("Order Type", ["Asian Call Collar", "Outright Futures Long", "Delta-Hedged Straddle"], key="fix_order_type")
+        order_type = st.selectbox("Order Type", ["Asian Call Collar", "Outright Call Option", "Delta-Hedged Futures Spread"], key="order_type_select")
     with col_f2:
-        st.selectbox("Execution Exchange", ["CME Group", "LME London", "ICE Futures"], key="fix_exchange")
+        exchange = st.selectbox("Execution Exchange", ["CME Group", "ICE Futures", "LME"], key="exchange_select")
     with col_f3:
-        st.number_input("Lots / Contracts", value=650, step=50, key="fix_lots")
+        # Dynamically defaults to calculated lots (e.g. 50,000 units -> 500 lots)
+        lots = st.number_input("Lots / Contracts", value=default_lots, step=10, key="fix_lots_input")
 
-    if st.button("🚀 Execute & Route FIX 4.4 Paper Order to Exchange", key="btn_exec_fix_order"):
-        st.session_state["fix_order_executed"] = True
-        st.session_state["fix_executed_lots"] = st.session_state.get("fix_lots", 650)
-        st.session_state["fix_executed_price"] = call_p
-        st.toast("FIX 4.4 Order Sent & Filled! Executive S&OP ledger updated.", icon="✅")
+    if st.button("⚡ Execute & Route FIX 4.4 Paper Order to Exchange", key="btn_execute_fix"):
+        st.session_state["fix_executed"] = True
+        st.session_state["executed_lots"] = lots
+        st.toast(f"FIX 4.4 Order Executed: {lots:,} Lots routed to {exchange}!", icon="⚡")
 
-    if st.session_state.get("fix_order_executed", False):
-        st.success(f"✅ **FIX 4.4 Order Executed**: Asian Call Collar on {st.session_state.get('fix_exchange', 'CME Group')} for {st.session_state.get('fix_executed_lots', 650)} Lots! Tag 35=D / Tag 150=0 (Filled @ ${st.session_state.get('fix_executed_price', 38.20):.2f}/unit)")
-        st.json({
-            "FIX_Tag_35": "D (New Order Single)",
-            "FIX_Tag_11_ClOrdID": "ORD-CTRM-2026-2001",
-            "FIX_Tag_55_Symbol": "AL-CME-202603",
-            "FIX_Tag_38_OrderQty": st.session_state.get("fix_executed_lots", 650),
-            "FIX_Tag_44_Price": round(st.session_state.get("fix_executed_price", 38.20), 2),
-            "Execution_Status": "FILLED_AND_HOOKED_TO_SOP_LEDGER"
-        })
+    if st.session_state.get("fix_executed", False):
+        executed_lots = st.session_state.get("executed_lots", lots)
+        st.success(f"✅ **FIX 4.4 Order Executed**: {order_type} on {exchange} for **{executed_lots:,} Lots**! Tag 35=D / Tag 150=0 (Filled @ $56.28/unit)")
 
 # =====================================================================
 # ROUTER 6: GIS & LOGISTICS CONTROL TOWER
