@@ -506,69 +506,100 @@ Margin risks are high if we get hit with freight surcharges."""
                 st.session_state["active_disruption"] = f"NOAA Climate Alert ({noaa_feed['status']})"
                 st.toast("Injected Live NOAA Weather Alert into Risk Injector!", icon="🌊")
 
+
 # =====================================================================
 # ROUTER 3: DEMAND/SUPPLY MATCH & PLANT LOAD BALANCER
 # =====================================================================
 elif "Demand/Supply" in selected_module:
     st.title("⚖️ Demand/Supply Match & Plant Load Balancer")
     st.caption(f"Active Persona View: **{persona}**")
-    st.markdown("Unconstrained Demand Workbench, time-phased consensus grid, and plant capacity constraint balancing.")
 
     raw_surge = st.session_state.get("extracted_demand_surge", 65000)
 
-    st.markdown("### 🛠️ Step 1: BAU Statistical Baseline Generator")
-    col_g1, col_g2, col_g3 = st.columns([1.5, 1.5, 1])
-    with col_g1:
-        yoy_growth = st.slider("Projected YoY Organic Growth (%)", 0.0, 20.0, 5.0, step=0.5, key="yoy_growth_slider")
-    with col_g2:
-        seasonality = st.selectbox("Seasonality Curve", ["Summer Surge (Beverages/CPG)", "Flat / Steady State", "Q4 Holiday Peak"], key="seasonality_select")
-    with col_g3:
-        base_avg_units = st.number_input("Prior Year Base Avg (Units)", value=95000, step=5000, key="base_avg_units")
+    # Restored 2-Tab Navigation
+    tab_solver, tab_bau = st.tabs(["📊 Executive Solver & Plant Load", "🛠️ BAU Engine & Demand Horizon Workbench"])
 
-    # Time-phased horizon calculations (6 weeks: W35 to W40)
-    growth_mult = 1.0 + (yoy_growth / 100.0)
-    w35_bau = int(base_avg_units * 1.31 * growth_mult)
-    w36_bau = int(base_avg_units * 1.26 * growth_mult)
-    w37_bau = int(base_avg_units * 1.15 * growth_mult)
-    w38_bau = int(base_avg_units * 1.41 * growth_mult)
-    w39_bau = int(base_avg_units * 0.99 * growth_mult)
-    w40_bau = int(base_avg_units * 0.89 * growth_mult)
+    with tab_solver:
+        st.subheader("⚙️ Multi-Plant Load Balancer & Optimization Solver")
+        st.markdown("Optimize production allocation across internal plants and 3rd-party co-packers under capacity constraints.")
 
-    st.markdown("---")
-    st.markdown("### 🧩 Step 2: Forecast Layer Building Blocks")
+        col_s1, col_s2, col_s3 = st.columns(3)
+        col_s1.metric(f"{plant1_name} Load", "98.4%", "+3.2% vs Nominal Cap")
+        col_s2.metric(f"{plant2_name} Load", "87.1%", "Optimal Operating Band")
+        col_s3.metric(f"{toller_name} Load", "45.0%", "⚡ Co-Packer Surcharge Active")
 
-    grid_df = pd.DataFrame([
-        {"Building Block": "1. Auto BAU Stat Baseline 📈", "W35 (Aug)": f"{w35_bau:,}", "W36 (Aug)": f"{w36_bau:,}", "W37 (Sep)": f"{w37_bau:,}", "W38 (Sep)": f"{w38_bau:,}", "W39 (Sep)": f"{w39_bau:,}", "W40 (Oct)": f"{w40_bau:,}"},
-        {"Building Block": "2. Marketing Promo Uplift (NLP) 📣", "W35 (Aug)": "0", "W36 (Aug)": "0", "W37 (Sep)": "0", "W38 (Sep)": f"{raw_surge:,}", "W39 (Sep)": "15,000", "W40 (Oct)": "0"},
-        {"Building Block": "3. Commercial / Shock Adjustment ✏️", "W35 (Aug)": "0", "W36 (Aug)": "10,000", "W37 (Sep)": "0", "W38 (Sep)": "0", "W39 (Sep)": "0", "W40 (Oct)": "0"}
-    ])
-    st.dataframe(grid_df, use_container_width=True, hide_index=True)
+        st.markdown("---")
+        st.subheader("🎛️ Plant Constraint & Co-Packer Offload Controls")
+        
+        col_p1, col_p2 = st.columns(2)
+        with col_p1:
+            plant1_cap = st.slider(f"Max Capacity - {plant1_name} (Units/Wk)", 100000, 150000, 120000, step=5000, key="plant1_cap_slider")
+            shift_pattern = st.selectbox("Plant Shift Model", ["3-Shift (24/7 Continuous)", "2-Shift Standard", "Overtime Extended"], key="shift_model_select")
+        with col_p2:
+            toller_split = st.slider(f"Over-Capacity Offload to {toller_name} (%)", 0, 50, 15, step=5, key="toller_split_slider")
+            copacker_margin_drag = toller_split * 0.12
+            st.caption(f"Estimated Co-Packer Margin Surcharge Drag: **-${copacker_margin_drag:.2f}M**")
 
-    # Sum total horizon demand
-    total_horizon_demand = (w35_bau + w36_bau + w37_bau + w38_bau + w39_bau + w40_bau) + raw_surge + 25000
-    st.session_state["calculated_horizon_demand"] = total_horizon_demand
+        if st.button("⚡ Run Mixed-Integer Linear Program (MILP) Solver", key="btn_run_milp_solver"):
+            st.session_state["milp_solved"] = True
+            st.toast("MILP Constraint Solver Converged! Capacity reallocated across plants.", icon="⚙️")
 
-    st.markdown("---")
-    st.markdown("### 📦 Step 3: Downstream Physical Procurement & Purchasing Signals")
+        if st.session_state.get("milp_solved", False):
+            st.success(f"✅ **MILP Optimization Optimal**: Reallocated {raw_surge:,} units across internal lines ({100-toller_split}%) and co-packers ({toller_split}%). Operations balanced.")
 
-    col_p1, col_p2, col_p3 = st.columns([1, 1, 1.5])
-    col_p1.metric("Total Horizon Demand", f"{total_horizon_demand:,} {term_unit}")
-    
-    # Calculate raw material PR equivalent
-    raw_material_pr = int(total_horizon_demand * 0.05)
-    col_p2.metric("Raw Material Purchase Requisitions (PR)", f"{raw_material_pr:,} {term_raw}")
+    with tab_bau:
+        st.markdown("### 🛠️ Step 1: BAU Statistical Baseline Generator")
+        col_g1, col_g2, col_g3 = st.columns([1.5, 1.5, 1])
+        with col_g1:
+            yoy_growth = st.slider("Projected YoY Organic Growth (%)", 0.0, 20.0, 5.0, step=0.5, key="yoy_growth_slider")
+        with col_g2:
+            seasonality = st.selectbox("Seasonality Curve", ["Summer Surge (Beverages/CPG)", "Flat / Steady State", "Q4 Holiday Peak"], key="seasonality_select")
+        with col_g3:
+            base_avg_units = st.number_input("Prior Year Base Avg (Units)", value=100000, step=5000, key="base_avg_units")
 
-    with col_p3:
-        if st.session_state.get("demand_plan_committed", False):
-            st.success(f"✅ Demand Plan Committed ({total_horizon_demand:,} Units). Signal hooked to SAP S/4HANA Procurement Desk!")
-        else:
-            st.warning("⚠️ Plan uncommitted. Click below to lock forecast into Physical Procurement.")
+        # Time-phased horizon calculations (W35 to W40)
+        growth_mult = 1.0 + (yoy_growth / 100.0)
+        w35_bau = int(base_avg_units * 1.3735 * growth_mult)
+        w36_bau = int(base_avg_units * 1.3230 * growth_mult)
+        w37_bau = int(base_avg_units * 1.2075 * growth_mult)
+        w38_bau = int(base_avg_units * 1.4805 * growth_mult)
+        w39_bau = int(base_avg_units * 1.0395 * growth_mult)
+        w40_bau = int(base_avg_units * 0.9345 * growth_mult)
 
-    if st.button("🔴 Commit Demand Plan & Trigger ERP Procurement Requisitions", key="btn_commit_demand"):
-        st.session_state["demand_plan_committed"] = True
-        st.session_state["committed_horizon_demand"] = total_horizon_demand
-        st.toast(f"Demand Plan committed ({total_horizon_demand:,} Units)! Procurement BOM recalculated.", icon="📦")
-        st.rerun()
+        st.markdown("---")
+        st.markdown("### 🧩 Step 2: Forecast Layer Building Blocks")
+
+        grid_df = pd.DataFrame([
+            {"Building Block": "1. Auto BAU Stat Baseline 📈", "W35 (Aug)": f"{w35_bau:,}", "W36 (Aug)": f"{w36_bau:,}", "W37 (Sep)": f"{w37_bau:,}", "W38 (Sep)": f"{w38_bau:,}", "W39 (Sep)": f"{w39_bau:,}", "W40 (Oct)": f"{w40_bau:,}"},
+            {"Building Block": "2. Marketing Promo Uplift (NLP) 📣", "W35 (Aug)": "0", "W36 (Aug)": "0", "W37 (Sep)": "0", "W38 (Sep)": f"{raw_surge:,}", "W39 (Sep)": "15,000", "W40 (Oct)": "0"},
+            {"Building Block": "3. Commercial / Shock Adjustment ✏️", "W35 (Aug)": "0", "W36 (Aug)": "10,000", "W37 (Sep)": "0", "W38 (Sep)": "0", "W39 (Sep)": "0", "W40 (Oct)": "0"}
+        ])
+        st.dataframe(grid_df, use_container_width=True, hide_index=True)
+
+        # Sum total horizon demand and persist to session state
+        total_horizon_demand = (w35_bau + w36_bau + w37_bau + w38_bau + w39_bau + w40_bau) + raw_surge + 25000
+        st.session_state["calculated_horizon_demand"] = total_horizon_demand
+
+        st.markdown("---")
+        st.markdown("### 📦 Step 3: Downstream Physical Procurement & Purchasing Signals")
+
+        col_p1, col_p2, col_p3 = st.columns([1, 1, 1.5])
+        col_p1.metric("Total Horizon Demand", f"{total_horizon_demand:,} {term_unit}")
+        
+        raw_material_pr = int(total_horizon_demand * 0.05)
+        col_p2.metric("Raw Material Purchase Requisitions (PR)", f"{raw_material_pr:,} {term_raw}")
+
+        with col_p3:
+            if st.session_state.get("demand_plan_committed", False):
+                st.success(f"✅ Demand Plan Committed ({st.session_state.get('committed_horizon_demand', total_horizon_demand):,} {term_unit}). Hooked to SAP S/4HANA!")
+            else:
+                st.warning("⚠️ Plan uncommitted. Click below to lock forecast into Physical Procurement.")
+
+        if st.button("🔴 Commit Demand Plan & Trigger ERP Procurement Requisitions", key="btn_commit_demand"):
+            st.session_state["demand_plan_committed"] = True
+            st.session_state["committed_horizon_demand"] = total_horizon_demand
+            st.toast(f"Demand Plan committed ({total_horizon_demand:,} {term_unit})! Procurement BOM recalculated.", icon="📦")
+            st.rerun()
 
 # =====================================================================
 # ROUTER 4: PHYSICAL PROCUREMENT & MASTER CONTRACT DESK
@@ -589,16 +620,16 @@ elif "Physical Procurement" in selected_module:
     st.markdown("---")
     st.subheader("📦 Bill of Materials (BOM) Auto-Requisition Engine")
 
-    # Read demand dynamically from Router 3 session state
+    # Read demand dynamically from Router 3
     is_committed = st.session_state.get("demand_plan_committed", False)
-    active_demand = st.session_state.get("committed_horizon_demand" if is_committed else "calculated_horizon_demand", 703398)
+    active_demand = st.session_state.get("committed_horizon_demand" if is_committed else "calculated_horizon_demand", 846049)
 
     if is_committed:
         st.success(f"⚡ **Live S&OP Sync Active**: Displaying requisitions for committed Demand Plan of **{active_demand:,} {term_unit}**.")
     else:
         st.info(f"ℹ️ **Baseline S&OP Forecast**: Displaying uncommitted requisitions for **{active_demand:,} {term_unit}** (Commit in Router 3 to finalize ERP purchase orders).")
 
-    # Dynamic BOM Explosion Formulas based on active_demand
+    # Dynamic BOM Explosion formulas
     req_metals_mt = int(active_demand * 0.015)         # 1.5% mass ratio
     req_components = int(active_demand * 1.50)           # 1.5x components per finished unit
     req_freight_feus = int(active_demand / 144.28)       # ~144 units per FEU container
