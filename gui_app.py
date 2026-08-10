@@ -247,80 +247,76 @@ def get_persona_contracts(persona_type):
             {"Contract ID": "CTR-2026-M2", "Commodity": "Rare Earth Elements (Neodymium)", "Supplier": "Rotterdam Metal Depot", "Volume": "1,200 MT", "Fixed Price": "$115,000 / MT", "Status": "Active"},
             {"Contract ID": "CTR-2026-M3", "Commodity": "Light Sweet Crude Off-Take", "Supplier": "Cushing Tank Farm", "Volume": "1,200,000 Bbls", "Fixed Price": "$76.50 / Bbl", "Status": "Under Review"}
         ]
-
 # =====================================================================
-# ROUTER 1: EXECUTIVE SOP / IBP CONTROL TOWER
+# ROUTER 1: EXECUTIVE S&OP CONTROL TOWER
 # =====================================================================
-if any(k in selected_module for k in ["Executive S&OP", "Integrated Business Planning", "IBP", "Daily Trading Balance Sheet"]):
+elif "Executive S&OP" in selected_module or "IBP Tower" in selected_module:
     st.title("📊 Executive S&OP Control Tower")
     st.caption(f"Active Persona View: **{persona}**")
     st.markdown("Real-time financial alignment, financial waterfalls, and trade hedge benefit reconciliation.")
-    
-    # --- PULL LIVE TELEMETRY FROM SESSION STATE ---
-    surge = st.session_state.get("extracted_demand_surge", 65000)
-    term_unit = st.session_state.get("term_unit", "Units")
-    nlp_source = st.session_state.get("nlp_promo_source", "Commercial Field Signal")
-    nlp_vol = st.session_state.get("nlp_promo_volume", 40000)
-    
-    # --- DYNAMIC FINANCIAL ENGINE CALCULATIONS ---
-    unconstrained_val = 120.0 + (surge * 0.00025)
-    trade_offset = 3.25
-    cogs_drag = -12.4
-    net_ebitda = round(120.0 + (surge * 0.00025) + cogs_drag + trade_offset, 2)
-    
-    # -----------------------------------------------------------------
-    # 1. EXECUTIVE KPI METRICS
-    # -----------------------------------------------------------------
-    col1, col2, col3, col4 = st.columns(4)
-    col1.metric("Annual Operating Plan (AOP)", "$120.0M", "+4.2%")
-    col2.metric("Unconstrained Demand (AOP + Surge)", f"${unconstrained_val:.1f}M", f"+{surge:,} {term_unit}")
-    col3.metric("CTRM Hedge & Trade Benefit", f"+${trade_offset:.2f}M", "Derivative Gain")
-    col4.metric("Net Realized EBITDA", f"${net_ebitda:.2f}M", "+6.4%", delta_color="normal")
-    
+
+    # Dynamic inputs from CTRM & Sandbox
+    is_executed = st.session_state.get("fix_order_executed", False)
+    is_sandbox = st.session_state.get("sandbox_active", False)
+    sim_params = st.session_state.get("sandbox_params", {"spot_cost_increase": 0.0})
+    raw_surge = st.session_state.get("extracted_demand_surge", 65000)
+
+    # Dynamic Financial Calculations
+    base_aop = 120.00  # $120.0M
+    surge_revenue = (raw_surge / 65000.0) * 16.20  # $16.20M
+
+    if is_executed:
+        ctrm_hedge_benefit = 4.82  # Realized gain from executed FIX Asian Call Collar
+        hedge_badge = "🟢 FIX Order Realized Gain"
+        hedge_pct = "100% Fully Hedged"
+    else:
+        ctrm_hedge_benefit = 3.25  # Unexecuted paper model gain
+        hedge_badge = "⚠️ Pending FIX Execution"
+        hedge_pct = "85% Hedged (15% Float)"
+
+    base_cogs_freight = 12.40 * (1.0 + sim_params.get("spot_cost_increase", 0.0))
+    net_ebitda = base_aop + surge_revenue + ctrm_hedge_benefit - base_cogs_freight
+
+    # Top Metric Strip
+    col_m1, col_m2, col_m3, col_m4 = st.columns(4)
+    col_m1.metric("Annual Operating Plan (AOP)", f"${base_aop:.1f}M", "+4.2% YoY")
+    col_m2.metric("Unconstrained Demand (AOP + Surge)", f"${base_aop + surge_revenue:.1f}M", f"+{raw_surge:,} {term_unit}")
+    col_m3.metric("CTRM Hedge & Trade Benefit", f"+${ctrm_hedge_benefit:.2f}M", hedge_badge)
+    col_m4.metric("Net Realized EBITDA", f"${net_ebitda:.2f}M", f"{'+' if net_ebitda >= 127.10 else ''}{net_ebitda - 120.0:.2f}M vs AOP")
+
     st.markdown("---")
-    
-    # -----------------------------------------------------------------
-    # 2. LIVE CROSS-DESK TELEMETRY & SIGNAL FEED TICKER
-    # -----------------------------------------------------------------
     st.subheader("📡 Live Operational Desk Feeds")
-    feed_col1, feed_col2, feed_col3 = st.columns(3)
-    
-    with feed_col1:
-        st.info(f"📩 **NLP Commercial Sensing Desk**\n\nAuto-hooked signal: *{nlp_source}* (+{nlp_vol:,} {term_unit} in W38).")
-        
-    with feed_col2:
-        st.warning("⚠️ **CTRM & Commodity Risk Desk**\n\nUnhedged spot sweetener exposure: 2,000 lbs trading at +6.4% spot premium.")
-        
-    with feed_col3:
-        st.error("🏭 **Demand/Supply Load Balancer**\n\nPrimary Plant at 98.4% capacity. Toller co-pack surcharge active.")
+    col_d1, col_d2, col_d3 = st.columns(3)
+    col_d1.info(f"🧠 **NLP Commercial Sensing**: Auto-hooked signal (+{raw_surge:,} {term_unit}).")
+    if is_executed:
+        col_d2.success(f"🛡️ **CTRM Desk**: FIX 4.4 Order Executed! Derivative gain unlocked (+${ctrm_hedge_benefit:.2f}M).")
+    else:
+        col_d2.warning(f"🛡️ **CTRM Desk**: Unhedged spot exposure pending FIX order execution.")
+    col_d3.error(f"⚖️ **Demand/Supply Load Balancer**: Plant load operating near capacity limits.")
 
     st.markdown("---")
-    
-    # -----------------------------------------------------------------
-    # 3. FINANCIAL P&L MARGIN WATERFALL & CTRM POSITION SUMMARY
-    # -----------------------------------------------------------------
-    col_wat, col_ctrm = st.columns([1.2, 1])
-    
-    with col_wat:
-        st.subheader("💰 Financial P&L Margin Waterfall Report")
-        waterfall_df = pd.DataFrame([
-            {"P&L Line Item": "1. Base AOP Revenue Target", "Amount ($)": "$120.00M", "Impact": "🎯 Baseline Plan"},
-            {"P&L Line Item": "2. Unconstrained Surge Realization", "Amount ($)": f"+${(surge * 0.00025):,.2f}M", "Impact": "➕ Commercial Upside"},
-            {"P&L Line Item": "3. CTRM Derivative & Hedge Gain", "Amount ($)": f"+${trade_offset:,.2f}M", "Impact": "📈 Risk Protection"},
-            {"P&L Line Item": "4. COGS & Freight Cost Drag", "Amount ($)": f"${cogs_drag:,.2f}M", "Impact": "➖ Supply Operations"},
-            {"P&L Line Item": "5. Projected Net EBITDA", "Amount ($)": f"${net_ebitda:,.2f}M", "Impact": "🟢 Net Bottom-Line"}
-        ])
-        st.dataframe(waterfall_df, use_container_width=True)
+    col_w1, col_w2 = st.columns([1.2, 1])
 
-    with col_ctrm:
-        st.subheader("📈 CTRM Commodity Hedging Ledger")
-        ctrm_df = pd.DataFrame([
-            {"Raw Material Commodity": "Aluminum Cans (MT)", "Hedged Position": "85%", "Locked Rate": "$2,210/MT", "Spot Exposure": "15% Unhedged ⚠️"},
-            {"Raw Material Commodity": "HFCS Sugar / Liquid Sweetener", "Hedged Position": "92%", "Locked Rate": "$0.38/lb", "Spot Exposure": "8% Unhedged"},
-            {"Raw Material Commodity": "Natural Concentrates", "Hedged Position": "100%", "Locked Rate": "$14.50/gal", "Spot Exposure": "0% Covered"},
-            {"Raw Material Commodity": "Diesel Fuel / Freight", "Hedged Position": "60%", "Locked Rate": "$3.85/gal", "Spot Exposure": "40% Spot Float ⚠️"}
+    with col_w1:
+        st.subheader("💵 Financial P&L Margin Waterfall Report")
+        pnl_df = pd.DataFrame([
+            {"P&L Line Item": "1. Base AOP Revenue Target", "Amount ($)": f"${base_aop:.2f}M", "Impact": "🎯 Baseline Plan"},
+            {"P&L Line Item": "2. Unconstrained Surge Realization", "Amount ($)": f"+${surge_revenue:.2f}M", "Impact": "➕ Commercial Upside"},
+            {"P&L Line Item": "3. CTRM Derivative & Hedge Gain", "Amount ($)": f"+${ctrm_hedge_benefit:.2f}M", "Impact": "🛡️ Risk Protection (FIX Active)" if is_executed else "⚠️ Unexecuted Target"},
+            {"P&L Line Item": "4. COGS & Freight Cost Drag", "Amount ($)": f"-${base_cogs_freight:.2f}M", "Impact": "🚨 Stress Shock Drag" if is_sandbox else "➖ Supply Operations"},
+            {"P&L Line Item": "5. Projected Net EBITDA", "Amount ($)": f"${net_ebitda:.2f}M", "Impact": "🟢 Net Bottom-Line"}
         ])
-        st.dataframe(ctrm_df, use_container_width=True)
+        st.dataframe(pnl_df, use_container_width=True, hide_index=True)
+
+    with col_w2:
+        st.subheader("📈 CTRM Commodity Hedging Ledger")
+        ledger_df = pd.DataFrame([
+            {"Raw Material Commodity": term_raw, "Hedged Position": hedge_pct, "Locked Rate": "$2,210 / MT", "Spot Exposure": "0% Covered" if is_executed else "15% Unhedged ⚠️"},
+            {"Raw Material Commodity": "Freight Futures (FBX)", "Hedged Position": "90%", "Locked Rate": "$1,450 / FEU", "Spot Exposure": "10% Unhedged ⚠️"},
+            {"Raw Material Commodity": "Power & Energy Hedges", "Hedged Position": "100%", "Locked Rate": "$64.50 / MWh", "Spot Exposure": "0% Covered"}
+        ])
+        st.dataframe(ledger_df, use_container_width=True, hide_index=True)
+
 # =====================================================================
 # ROUTER 2: NLP COMMERCIAL SENSING
 # =====================================================================
@@ -513,331 +509,175 @@ Margin risks are high if we get hit with freight surcharges."""
 # =====================================================================
 # ROUTER 3: DEMAND/SUPPLY MATCH & PLANT LOAD BALANCER
 # =====================================================================
-elif any(k in selected_module for k in ["Demand/Supply Match", "Batch Processing", "Physical Off-Take"]):
+elif "Demand/Supply" in selected_module:
     st.title("⚖️ Demand/Supply Match & Plant Load Balancer")
     st.caption(f"Active Persona View: **{persona}**")
-    
-    # -----------------------------------------------------------------
-    # TAB ARCHITECTURE: EXECUTIVE SOLVER VS. DEMAND WORKBENCH
-    # -----------------------------------------------------------------
-    tab_solver, tab_workbench = st.tabs([
-        "📊 Executive Solver & Plant Load", 
-        "🗓️ BAU Engine & Demand Horizon Workbench"
+    st.markdown("Unconstrained Demand Workbench, time-phased consensus grid, and plant capacity constraint balancing.")
+
+    raw_surge = st.session_state.get("extracted_demand_surge", 65000)
+
+    st.markdown("### 🛠️ Step 1: BAU Statistical Baseline Generator")
+    col_g1, col_g2, col_g3 = st.columns([1.5, 1.5, 1])
+    with col_g1:
+        yoy_growth = st.slider("Projected YoY Organic Growth (%)", 0.0, 20.0, 5.0, step=0.5, key="yoy_growth_slider")
+    with col_g2:
+        seasonality = st.selectbox("Seasonality Curve", ["Summer Surge (Beverages/CPG)", "Flat / Steady State", "Q4 Holiday Peak"], key="seasonality_select")
+    with col_g3:
+        base_avg_units = st.number_input("Prior Year Base Avg (Units)", value=95000, step=5000, key="base_avg_units")
+
+    # Time-phased horizon calculations (6 weeks: W35 to W40)
+    growth_mult = 1.0 + (yoy_growth / 100.0)
+    w35_bau = int(base_avg_units * 1.31 * growth_mult)
+    w36_bau = int(base_avg_units * 1.26 * growth_mult)
+    w37_bau = int(base_avg_units * 1.15 * growth_mult)
+    w38_bau = int(base_avg_units * 1.41 * growth_mult)
+    w39_bau = int(base_avg_units * 0.99 * growth_mult)
+    w40_bau = int(base_avg_units * 0.89 * growth_mult)
+
+    st.markdown("---")
+    st.markdown("### 🧩 Step 2: Forecast Layer Building Blocks")
+
+    grid_df = pd.DataFrame([
+        {"Building Block": "1. Auto BAU Stat Baseline 📈", "W35 (Aug)": f"{w35_bau:,}", "W36 (Aug)": f"{w36_bau:,}", "W37 (Sep)": f"{w37_bau:,}", "W38 (Sep)": f"{w38_bau:,}", "W39 (Sep)": f"{w39_bau:,}", "W40 (Oct)": f"{w40_bau:,}"},
+        {"Building Block": "2. Marketing Promo Uplift (NLP) 📣", "W35 (Aug)": "0", "W36 (Aug)": "0", "W37 (Sep)": "0", "W38 (Sep)": f"{raw_surge:,}", "W39 (Sep)": "15,000", "W40 (Oct)": "0"},
+        {"Building Block": "3. Commercial / Shock Adjustment ✏️", "W35 (Aug)": "0", "W36 (Aug)": "10,000", "W37 (Sep)": "0", "W38 (Sep)": "0", "W39 (Sep)": "0", "W40 (Oct)": "0"}
     ])
+    st.dataframe(grid_df, use_container_width=True, hide_index=True)
+
+    # Sum total horizon demand
+    total_horizon_demand = (w35_bau + w36_bau + w37_bau + w38_bau + w39_bau + w40_bau) + raw_surge + 25000
+    st.session_state["calculated_horizon_demand"] = total_horizon_demand
+
+    st.markdown("---")
+    st.markdown("### 📦 Step 3: Downstream Physical Procurement & Purchasing Signals")
+
+    col_p1, col_p2, col_p3 = st.columns([1, 1, 1.5])
+    col_p1.metric("Total Horizon Demand", f"{total_horizon_demand:,} {term_unit}")
     
-    # =================================================================
-    # TAB 1: EXECUTIVE SOLVER & PLANT LOAD
-    # =================================================================
-    with tab_solver:
-        st.markdown("Automated capacity optimization, bottleneck detection, and toller re-allocation.")
-        
-        surge = st.session_state.get("extracted_demand_surge", 65000)
-        
-        col1, col2, col3 = st.columns(3)
-        col1.metric("Unconstrained Surge Volume", f"{surge:,} {term_unit}")
-        col2.metric(f"Primary Plant ({plant1_name}) Utilization", "98.4%", "+8.2%")
-        col3.metric(f"Secondary Plant ({plant2_name}) Capacity", "84.0%", "Nominal")
-        
-        st.markdown("---")
-        st.subheader("🏭 Plant Load Balancing Strategy Matrix")
-        
-        load_df = pd.DataFrame([
-            {"Facility Node": plant1_name, "Base Capacity": "100,000", "Allocated Volume": f"{100000 + int(surge*0.5):,}", "Status": "🔴 Bottleneck Risk", "Action": "Throttle / Reroute"},
-            {"Facility Node": plant2_name, "Base Capacity": "85,000", "Allocated Volume": f"{85000 + int(surge*0.3):,}", "Status": "🟢 Optimal", "Action": "Absorb Surge"},
-            {"Facility Node": toller_name, "Base Capacity": "50,000", "Allocated Volume": f"{int(surge*0.2):,}", "Status": "🟡 Flex Active", "Action": "Trigger CMO Surcharge"}
-        ])
-        st.dataframe(load_df, use_container_width=True)
+    # Calculate raw material PR equivalent
+    raw_material_pr = int(total_horizon_demand * 0.05)
+    col_p2.metric("Raw Material Purchase Requisitions (PR)", f"{raw_material_pr:,} {term_raw}")
 
-    # =================================================================
-    # TAB 2: BAU ENGINE & DEMAND HORIZON WORKBENCH
-    # =================================================================
-    with tab_workbench:
-        st.markdown("### 🗓️ Unconstrained Demand Workbench & Time-Phased Grid")
-        
-        # -------------------------------------------------------------
-        # HOOK 1: CHECK FOR UNSTRUCTURED SIGNALS FROM NLP ROUTER
-        # -------------------------------------------------------------
-        nlp_signal_detected = st.session_state.get("nlp_promo_detected", True)
-        nlp_promo_vol = st.session_state.get("nlp_promo_volume", 40000)
-        nlp_promo_source = st.session_state.get("nlp_promo_source", "Email from Selina Kyle (Walmart KAM)")
-        
-        if nlp_signal_detected:
-            st.info(f"📩 **Unstructured Commercial Signal Auto-Hooked from NLP Router:**\n"
-                    f"*{nlp_promo_source}* — Auto-injected **+{nlp_promo_vol:,} units** promotional uplift into **W38**.")
-
-        # -------------------------------------------------------------
-        # STEP 1: BAU BASELINE GENERATOR CONTROLS
-        # -------------------------------------------------------------
-        st.subheader("⚙️ Step 1: BAU Statistical Baseline Generator")
-        
-        col_yoy, col_seas, col_hist = st.columns([1, 1, 1])
-        with col_yoy:
-            yoy_growth = st.slider("Projected YoY Organic Growth (%)", min_value=-10.0, max_value=20.0, value=5.0, step=0.5) / 100.0
-        with col_seas:
-            seasonal_profile = st.selectbox("Seasonality Curve", ["Summer Surge (Beverages/CPG)", "Flat / Constant", "Q4 Holiday Spike"])
-        with col_hist:
-            base_ly_volume = st.number_input("Prior Year Base Avg (Units)", value=95000, step=5000)
-
-        # Time horizon buckets
-        columns = ["W35 (Aug)", "W36 (Aug)", "W37 (Sep)", "W38 (Sep)", "W39 (Sep)", "W40 (Oct)"]
-
-        # Calculate seasonality indices
-        if seasonal_profile == "Summer Surge (Beverages/CPG)":
-            seasonality_indices = [1.25, 1.20, 1.10, 1.05, 0.95, 0.85]
-        elif seasonal_profile == "Q4 Holiday Spike":
-            seasonality_indices = [0.85, 0.90, 0.95, 1.05, 1.25, 1.35]
+    with col_p3:
+        if st.session_state.get("demand_plan_committed", False):
+            st.success(f"✅ Demand Plan Committed ({total_horizon_demand:,} Units). Signal hooked to SAP S/4HANA Procurement Desk!")
         else:
-            seasonality_indices = [1.0, 1.0, 1.0, 1.0, 1.0, 1.0]
+            st.warning("⚠️ Plan uncommitted. Click below to lock forecast into Physical Procurement.")
 
-        # Generate BAU Stat Baseline: LY * (1 + YoY) * Seasonality
-        bau_stat_baseline = [int(base_ly_volume * (1 + yoy_growth) * s) for s in seasonality_indices]
-
-        st.markdown("---")
-
-        # -------------------------------------------------------------
-        # STEP 2: EDITABLE FORECAST BUILDING BLOCKS GRID
-        # -------------------------------------------------------------
-        st.subheader("📝 Step 2: Forecast Layer Building Blocks")
-        
-        # Pre-fill promo uplift using the NLP Hook value for W38
-        promo_uplift     = [0, 0, 0, nlp_promo_vol, 15000, 0]
-        shocks           = [0, 10000, 0, 0, 0, 0]
-        plant_capacities = [120000, 120000, 120000, 120000, 120000, 120000]
-
-        grid_data = {
-            "Building Block": ["1. Auto BAU Stat Baseline 🤖", "2. Marketing Promo Uplift (NLP) ✏️", "3. Commercial / Shock Adjustment ✏️"],
-            **{col: [bau_stat_baseline[i], promo_uplift[i], shocks[i]] for i, col in enumerate(columns)}
-        }
-
-        df_editable = pd.DataFrame(grid_data)
-
-        edited_df = st.data_editor(
-            df_editable,
-            disabled=["Building Block"],
-            num_rows="fixed",
-            use_container_width=True,
-            key="demand_grid_editor_tab"
-        )
-
-        # -------------------------------------------------------------
-        # STEP 3: CONSENSUS & SUPPLY FEASIBILITY RECALCULATION
-        # -------------------------------------------------------------
-        numeric_cols = columns
-        baseline_vals = edited_df.iloc[0][numeric_cols].values.astype(float)
-        promo_vals    = edited_df.iloc[1][numeric_cols].values.astype(float)
-        shock_vals    = edited_df.iloc[2][numeric_cols].values.astype(float)
-
-        consensus_demand = baseline_vals + promo_vals + shock_vals
-        capacity_arr     = np.array(plant_capacities)
-        supply_gap       = capacity_arr - consensus_demand
-
-        summary_df = pd.DataFrame({
-            "Metric": ["4. Consensus Demand (1+2+3)", "5. Max Plant Committed Supply", "6. Supply Gap / Shortfall"],
-            **{col: [consensus_demand[i], capacity_arr[i], supply_gap[i]] for i, col in enumerate(columns)}
-        })
-
-        def highlight_gaps(val):
-            if isinstance(val, (int, float)) and val < 0:
-                return 'background-color: #ffcdd2; color: #b71c1c; font-weight: bold;'
-            return ''
-
-        # Cross-version Pandas Styler handling (Pandas 2.1+ uses .map, older versions use .applymap)
-        try:
-            styled_summary = summary_df.style.map(highlight_gaps, subset=numeric_cols)
-        except AttributeError:
-            styled_summary = summary_df.style.applymap(highlight_gaps, subset=numeric_cols)
-
-        st.subheader("📊 Consensus Feasibility & Plant Constraint Analysis")
-        st.dataframe(styled_summary, use_container_width=True)
-
-        # -------------------------------------------------------------
-        # STEP 4: HOOK 2 -> DOWNSTREAM PHYSICAL PROCUREMENT & CONTRACT DESK
-        # -------------------------------------------------------------
-        st.markdown("---")
-        st.subheader("📦 Step 3: Downstream Physical Procurement & Purchasing Signals")
-        
-        total_consensus = float(np.sum(consensus_demand))
-        total_promos = float(np.sum(promo_vals))
-        
-        # ALWAYS publish live grid total to session state so Router 4 syncs immediately
-        st.session_state["total_consensus_demand"] = total_consensus
-        
-        # BOM Explosion Calculations (e.g., 0.05 lbs raw material & 1 aluminum can per unit)
-        raw_material_lbs = total_consensus * 0.05
-        promo_raw_mat_lbs = total_promos * 0.05
-
-        p_col1, p_col2, p_col3 = st.columns(3)
-        
-        with p_col1:
-            st.metric("Total Horizon Demand", f"{total_consensus:,.0f} {term_unit}")
-            
-        with p_col2:
-            st.metric("Raw Material Purchase Requisitions (PR)", f"{raw_material_lbs:,.0f} lbs", 
-                      delta=f"+{promo_raw_mat_lbs:,.0f} lbs for Promo")
-            st.caption("🤖 Auto-generated PR sent to SAP S/4HANA Procurement Desk")
-
-        with p_col3:
-            min_gap = np.min(supply_gap)
-            if min_gap < 0:
-                st.error(f"⚠️ Contract Alert: Deficit of {abs(min_gap):,.0f} {term_unit} in W38. Spot Co-Packing / Toller contract required!")
-            else:
-                st.success("✅ Contract Status: Volume within master contract supplier caps.")
-
-        if st.button("🚀 Commit Demand Plan & Trigger ERP Procurement Requisitions", type="primary"):
-            st.session_state["committed_demand"] = total_consensus
-            st.session_state["plan_committed"] = True
-            st.toast(f"✅ Demand Plan committed! {total_consensus:,.0f} {term_unit} sent to Procurement Desk.", icon="📦")
+    if st.button("🔴 Commit Demand Plan & Trigger ERP Procurement Requisitions", key="btn_commit_demand"):
+        st.session_state["demand_plan_committed"] = True
+        st.session_state["committed_horizon_demand"] = total_horizon_demand
+        st.toast(f"Demand Plan committed ({total_horizon_demand:,} Units)! Procurement BOM recalculated.", icon="📦")
+        st.rerun()
 
 # =====================================================================
-# ROUTER 4: PHYSICAL PROCUREMENT & CONTRACT DESK
+# ROUTER 4: PHYSICAL PROCUREMENT & MASTER CONTRACT DESK
 # =====================================================================
-elif any(k in selected_module for k in ["Procurement", "Contract Desk", "Agri-Ingredients"]):
-    st.title("📈 Physical Procurement & Master Contract Desk")
+elif "Physical Procurement" in selected_module:
+    st.title("📄 Physical Procurement & Master Contract Desk")
     st.caption(f"Active Persona View: **{persona}**")
     st.markdown("Active enterprise supplier commitments, physical off-take agreements, and volume requisitions.")
 
-    # 1. DISPLAY ACTIVE SUPPLIER CONTRACTS
     st.subheader("📋 Active Physical Supply Contracts")
-    contracts = get_persona_contracts(persona)
-    st.dataframe(pd.DataFrame(contracts), use_container_width=True)
+    contracts_df = pd.DataFrame([
+        {"Contract ID": "CTR-2026-A1", "Commodity": term_raw, "Supplier": "Rio Tinto", "Volume": f"15,000 {term_raw}", "Fixed Price": "$2,200 / MT", "Status": "Active"},
+        {"Contract ID": "CTR-2026-B4", "Commodity": "Freight Futures (FBX)", "Supplier": "Maersk Line", "Volume": "2,500 FEU", "Fixed Price": "$1,450 / FEU", "Status": "Under Review"},
+        {"Contract ID": "CTR-2026-C9", "Commodity": "Semiconductor Wafers / Components", "Supplier": "TSMC", "Volume": "100,000 Wafers", "Fixed Price": "$450 / Wafer", "Status": "Executing"}
+    ])
+    st.dataframe(contracts_df, use_container_width=True, hide_index=True)
 
     st.markdown("---")
-
-    # 2. DYNAMIC BOM REQUISITION ENGINE (PURE STATE SYNC FROM ROUTER 3)
     st.subheader("📦 Bill of Materials (BOM) Auto-Requisition Engine")
-    
-    # Read directly from Router 3's committed or live consensus state (NO hardcoded math!)
-    total_demand = st.session_state.get(
-        "committed_demand", 
-        st.session_state.get("total_consensus_demand", 703398.0)
-    )
 
-    if st.session_state.get("plan_committed", False):
-        st.success(f"🔒 **Live S&OP Sync Active:** Displaying requisitions for committed Demand Plan of **{total_demand:,.0f} {term_unit}**")
+    # Read demand dynamically from Router 3 session state
+    is_committed = st.session_state.get("demand_plan_committed", False)
+    active_demand = st.session_state.get("committed_horizon_demand" if is_committed else "calculated_horizon_demand", 703398)
+
+    if is_committed:
+        st.success(f"⚡ **Live S&OP Sync Active**: Displaying requisitions for committed Demand Plan of **{active_demand:,} {term_unit}**.")
     else:
-        st.info(f"⚡ **Live Pipeline Sync:** Displaying requisitions for uncommitted consensus forecast of **{total_demand:,.0f} {term_unit}**")
+        st.info(f"ℹ️ **Baseline S&OP Forecast**: Displaying uncommitted requisitions for **{active_demand:,} {term_unit}** (Commit in Router 3 to finalize ERP purchase orders).")
 
-    # Pure BOM Multipliers applied directly to the state variable
-    if "Industrial" in str(persona):
-        bom_raw_qty = total_demand * 0.015          # 0.015 MT per Unit
-        bom_comp_qty = total_demand * 1.5           # 1.5 Components per Unit
-        bom_freight_qty = math.ceil(total_demand / 144.3) 
-        raw_title = "Required Raw Metals & Components"
-        raw_unit_label = "MT"
-        comp_title = "Component Requisitions"
-    elif "FMCG" in str(persona):
-        bom_raw_qty = total_demand * 0.05           # 0.05 lbs per Case
-        bom_comp_qty = total_demand * 1.0           # Packaging Films
-        bom_freight_qty = math.ceil(total_demand / 200)
-        raw_title = "Required Agri Ingredients & Softs"
-        raw_unit_label = "lbs"
-        comp_title = "Packaging Film & Liners"
-    else:  # Merchant Trading
-        bom_raw_qty = total_demand * 1.0            # 1-to-1 Contract Lots
-        bom_comp_qty = total_demand * 0.1           # Hedging Buffer
-        bom_freight_qty = math.ceil(total_demand / 50)
-        raw_title = "Physical Deliverable Lots Required"
-        raw_unit_label = "Lots"
-        comp_title = "Storage Tank Allocations"
+    # Dynamic BOM Explosion Formulas based on active_demand
+    req_metals_mt = int(active_demand * 0.015)         # 1.5% mass ratio
+    req_components = int(active_demand * 1.50)           # 1.5x components per finished unit
+    req_freight_feus = int(active_demand / 144.28)       # ~144 units per FEU container
 
-    col_bom1, col_bom2, col_bom3 = st.columns(3)
-    with col_bom1:
-        st.metric(raw_title, f"{bom_raw_qty:,.0f} {raw_unit_label}")
-    with col_bom2:
-        st.metric(comp_title, f"{bom_comp_qty:,.0f} Units")
-    with col_bom3:
-        st.metric("Freight Slots Reserved", f"{bom_freight_qty:,} FEUs")
+    col_b1, col_b2, col_b3 = st.columns(3)
+    col_b1.metric("Required Raw Metals & Components", f"{req_metals_mt:,} {term_raw}")
+    col_b2.metric("Component Requisitions", f"{req_components:,} Units")
+    col_b3.metric("Freight Slots Reserved", f"{req_freight_feus:,} FEUs")
 
-    st.markdown("")
-    if st.button("🚀 Push Auto-Requisitions to ERP (SAP S/4HANA / Odoo)", type="primary"):
-        st.toast("✅ Requisitions successfully pushed to SAP S/4HANA MM Module!", icon="🚀")
+    st.markdown("<br>", unsafe_allow_html=True)
+    if st.button("📌 Push Auto-Requisitions to ERP (SAP S/4HANA / Odoo)", key="btn_push_erp"):
+        st.session_state["erp_requisitions_pushed"] = True
+        st.toast(f"Pushed {req_components:,} component requisitions directly to SAP S/4HANA!", icon="🚀")
+
+    if st.session_state.get("erp_requisitions_pushed", False):
+        st.success("✅ **ERP Requisitions Synced**: Purchase orders PO-2026-9901 through PO-2026-9904 generated and sent to procurement queue.")
         
 # =====================================================================
 # ROUTER 5: CTRM EVENT-DRIVEN HEDGING DESK
 # =====================================================================
-elif any(k in selected_module for k in ["CTRM", "Hedging", "Derivatives"]):
+elif "CTRM" in selected_module:
     st.title("🛡️ CTRM Event-Driven Hedging Desk")
     st.caption(f"Active Persona View: **{persona}**")
     st.markdown("Financial commodity risk engine, Hawkes jump-diffusion pricing models, and paper options execution.")
-    
-    surge = st.session_state.get("extracted_demand_surge", 65000)
-    active_label = st.session_state.get("active_disruption", "Standard Market Price Volatility")
-    custom_params = st.session_state.get("custom_scenario_params")
-    
-    st.info(f"📡 **Active Risk Signal Ingested**: {active_label} | **Notional Surge Exposure**: {surge:,} {term_unit}")
 
-    if custom_params:
-        S = 2200.0
-        K = custom_params["strike"]
-        T = custom_params["duration_days"] / 365.0
-        r = custom_params["rate"]
-        sigma = custom_params["iv"]
-        
-        c_price, p_price, delta_c, vega_c = black76_call_put(S, K, T, r, sigma)
-        
-        st.success(f"⚡ **Custom Option Priced Live**: Call Premium: **${c_price:.2f}** | Put Premium: **${p_price:.2f}** | Delta (Δ): **{delta_c:.2f}** | Vega (ν): **{vega_c:.2f}**")
+    raw_surge = st.session_state.get("extracted_demand_surge", 65000)
+    is_sandbox = st.session_state.get("sandbox_active", False)
+    sim_params = st.session_state.get("sandbox_params", {"spot_cost_increase": 0.0, "iv_multiplier": 1.0})
     
-    col_a, col_b, col_c, col_d = st.columns(4)
-    col_a.metric("Unhedged Margin Risk", f"${(surge * 150.0):,.2f}")
-    col_b.metric("Pricing Engine", "Black76 Jump-Diffusion")
-    col_c.metric("Notional Volume", f"{surge:,} {term_unit}")
-    col_d.metric("Recommended Structure", "Asian Call Option Collar")
+    # Sandbox-adjusted exposure
+    unhedged_risk = raw_surge * 150.0 * (1 + sim_params["spot_cost_increase"])
+
+    st.info(f"⚡ **Active Risk Signal Ingested**: NOAA Climate Alert | Notional Surge Exposure: **{raw_surge:,} {term_unit}**")
+
+    col_c1, col_c2, col_c3, col_c4 = st.columns(4)
+    col_c1.metric("Unhedged Margin Risk", f"${unhedged_risk:,.2f}")
+    col_c2.metric("Pricing Engine", "Black76 Jump-Diffusion")
+    col_c3.metric("Notional Volume", f"{raw_surge:,} {term_unit}")
+    col_c4.metric("Recommended Structure", "Asian Call Option Collar")
 
     st.markdown("---")
-    st.subheader("📊 Black76 Option Volatility Surface Matrix & Greeks")
-    st.caption("Pricing European and Asian options across strike prices, tenors, and implied volatility curves:")
+    st.subheader("📈 Black76 Option Volatility Surface Matrix & Greeks")
 
-    if custom_params:
-        S_spot = 2200.0
-        r = custom_params["rate"]
-        sigma = custom_params["iv"]
-        
-        surface_rows = []
-        for days, label in [(30, "1 Month (30D)"), (60, "2 Months (60D)"), (90, "3 Months (90D)"), (180, "6 Months (180D)")]:
-            T = days / 365.0
-            K = custom_params["strike"]
-            cp, pp, d_val, v_val = black76_call_put(S_spot, K, T, r, sigma)
-            surface_rows.append({
-                "Option Tenor": label,
-                "Strike Price ($)": f"${K:,.0f}",
-                "Call Premium ($)": f"${cp:.2f}",
-                "Put Premium ($)": f"${pp:.2f}",
-                "Implied Vol (σ)": f"{sigma*100:.1f}%",
-                "Delta (Δ)": round(d_val, 2),
-                "Vega (ν)": round(v_val, 2)
-            })
-        st.dataframe(pd.DataFrame(surface_rows), use_container_width=True)
-    else:
-        vol_surface = pd.DataFrame({
-            "Option Tenor": ["1 Month (30D)", "2 Months (60D)", "3 Months (90D)", "6 Months (180D)"],
-            "Strike Price ($)": ["$2,200 (ATM)", "$2,250 (OTM)", "$2,300 (OTM)", "$2,400 (DOTM)"],
-            "Call Premium ($)": ["$42.50", "$38.20", "$31.10", "$22.40"],
-            "Put Premium ($)": ["$41.10", "$49.50", "$58.00", "$74.20"],
-            "Implied Vol (σ)": ["18.5%", "22.4%", "26.1%", "31.0%"],
-            "Delta (Δ)": [0.52, 0.44, 0.38, 0.27],
-            "Gamma (Γ)": [0.012, 0.010, 0.008, 0.005],
-            "Vega (ν)": [14.2, 18.5, 22.1, 28.4]
-        })
-        st.dataframe(vol_surface, use_container_width=True)
+    base_iv = 0.22 * sim_params["iv_multiplier"]
+    call_p, put_p, delta, vega = black76_call_put(2200, 2250, 60/365, 0.04, base_iv)
+
+    surface_df = pd.DataFrame([
+        {"Option Tenor": "1 Month (30D)", "Strike Price ($)": "$2,200 (ATM)", "Call Premium ($)": f"${call_p*1.1:.2f}", "Put Premium ($)": f"${put_p*0.9:.2f}", "Implied Vol (σ)": f"{base_iv*85:.1f}%", "Delta (Δ)": f"{delta:.2f}", "Vega (ν)": f"{vega:.1f}"},
+        {"Option Tenor": "2 Months (60D)", "Strike Price ($)": "$2,250 (OTM)", "Call Premium ($)": f"${call_p:.2f}", "Put Premium ($)": f"${put_p:.2f}", "Implied Vol (σ)": f"{base_iv*100:.1f}%", "Delta (Δ)": f"{delta*0.85:.2f}", "Vega (ν)": f"{vega*1.1:.1f}"},
+        {"Option Tenor": "3 Months (90D)", "Strike Price ($)": "$2,300 (OTM)", "Call Premium ($)": f"${call_p*0.8:.2f}", "Put Premium ($)": f"${put_p*1.2:.2f}", "Implied Vol (σ)": f"{base_iv*118:.1f}%", "Delta (Δ)": f"{delta*0.70:.2f}", "Vega (ν)": f"{vega*1.5:.1f}"}
+    ])
+    st.dataframe(surface_df, use_container_width=True, hide_index=True)
 
     st.markdown("---")
     st.subheader("⚡ FIX 4.4 Order Execution Gateway")
-    col_f1, col_f2, col_f3 = st.columns(3)
-    order_type = col_f1.selectbox("Order Type", ["Asian Call Collar", "Outright Call Option", "Put Option Hedge", "Futures Calendar Spread"])
-    exchange = col_f2.selectbox("Execution Exchange", ["CME Group", "ICE Futures Europe", "London Metal Exchange (LME)"])
-    lots = col_f3.number_input("Lots / Contracts", value=int(surge / 100))
 
-    if st.button("⚡ Execute & Route FIX 4.4 Paper Order to Exchange", type="primary", key="btn_fix_exec_v12"):
-        st.balloons()
-        st.success(f"✅ FIX 4.4 Order Executed: {order_type} on **{exchange}** for **{lots:,} Lots**! Tag 35=D / Tag 150=0 (Filled @ $38.20/unit)")
+    col_f1, col_f2, col_f3 = st.columns(3)
+    with col_f1:
+        st.selectbox("Order Type", ["Asian Call Collar", "Outright Futures Long", "Delta-Hedged Straddle"], key="fix_order_type")
+    with col_f2:
+        st.selectbox("Execution Exchange", ["CME Group", "LME London", "ICE Futures"], key="fix_exchange")
+    with col_f3:
+        st.number_input("Lots / Contracts", value=650, step=50, key="fix_lots")
+
+    if st.button("🚀 Execute & Route FIX 4.4 Paper Order to Exchange", key="btn_exec_fix_order"):
+        st.session_state["fix_order_executed"] = True
+        st.session_state["fix_executed_lots"] = st.session_state.get("fix_lots", 650)
+        st.session_state["fix_executed_price"] = call_p
+        st.toast("FIX 4.4 Order Sent & Filled! Executive S&OP ledger updated.", icon="✅")
+
+    if st.session_state.get("fix_order_executed", False):
+        st.success(f"✅ **FIX 4.4 Order Executed**: Asian Call Collar on {st.session_state.get('fix_exchange', 'CME Group')} for {st.session_state.get('fix_executed_lots', 650)} Lots! Tag 35=D / Tag 150=0 (Filled @ ${st.session_state.get('fix_executed_price', 38.20):.2f}/unit)")
         st.json({
             "FIX_Tag_35": "D (New Order Single)",
-            "FIX_Tag_11_ClOrdID": f"ORD-CTRM-2026-{np.random.randint(1000, 9999)}",
-            "FIX_Tag_55_Symbol": "AL-CME-2026Q3",
-            "FIX_Tag_38_OrderQty": lots,
-            "FIX_Tag_44_Price": 38.20,
-            "FIX_Tag_150_ExecType": "0 (New/Filled)",
-            "Hedge_Margin_Protected_USD": round(surge * 38.20, 2)
+            "FIX_Tag_11_ClOrdID": "ORD-CTRM-2026-2001",
+            "FIX_Tag_55_Symbol": "AL-CME-202603",
+            "FIX_Tag_38_OrderQty": st.session_state.get("fix_executed_lots", 650),
+            "FIX_Tag_44_Price": round(st.session_state.get("fix_executed_price", 38.20), 2),
+            "Execution_Status": "FILLED_AND_HOOKED_TO_SOP_LEDGER"
         })
 
 # =====================================================================
