@@ -318,24 +318,13 @@ if "Executive S&OP" in selected_module or "IBP Tower" in selected_module:
         st.dataframe(ledger_df, use_container_width=True, hide_index=True)
 
 # =====================================================================
-# ROUTER 2: NLP COMMERCIAL SENSING & INTELLIGENCE
+# ROUTER 2: NLP COMMERCIAL SENSING & FIELD INTELLIGENCE (RESTORED & LINKED)
 # =====================================================================
-elif any(k in selected_module for k in ["NLP Commercial", "Global Macro"]):
-    COMMODITY_NLP_QUERIES = {
-        "🛒 Retail & Omnichannel Goods": "retail inventory port dwell consumer demand logistics bottleneck",
-        "🌾 Food, Beverage & Agriculture": "food supply chain refrigerated freight crop yield shortage drought",
-        "🧼 FMCG, CPG & Household Goods": "CPG packaging material cost palm oil pulp paper supply chain",
-        "🔬 Semiconductors & High-Tech": "semiconductor wafer fab shortage supply chain disruption",
-        "🚗 Automotive & Mobility OEM": "automotive supply chain parts shortage logistics delay EV battery",
-        "🏗️ Steel, Ferrous & Heavy Metals": "steel prices iron ore scrap metal supply chain bottleneck",
-        "🛢️ Energy, Chemicals & Feedstocks": "crude oil chemical feedstock plastic resin supply chain",
-        "💊 Pharma, MedTech & Healthcare": "pharmaceutical cold chain API active ingredient supply shortage"
-    }
-
+elif "NLP Commercial Sensing" in selected_module:
     st.title("🧠 NLP Commercial Sensing & Intelligence")
     st.caption(f"Active Persona View: **{persona}**")
-    st.markdown("Ingest unstructured signals from news feeds, social media, **post-trade show emails**, and **marketing promo debriefs**.")
-    
+    st.markdown("Ingest unstructured signals from news feeds, social media, post-trade show emails, and GIS weather/freight telemetry.")
+
     tab1, tab2, tab3 = st.tabs([
         "📡 Live Web Signals", 
         "📧 Email & Event Debrief Parser", 
@@ -343,82 +332,140 @@ elif any(k in selected_module for k in ["NLP Commercial", "Global Macro"]):
     ])
 
     # -----------------------------------------------------------------
-    # TAB 1: Live Web Signals
+    # TAB 1: LIVE WEB SIGNALS
     # -----------------------------------------------------------------
     with tab1:
         st.subheader("📡 Real-Time Web & Macro News Stream")
-        st.caption("Scrape and parse live geopolitical, freight, and commodity web headlines.")
-        
-        web_surge_units = st.number_input(
-            "Extracted Web Signal Impact (Units)", 
-            value=85000, 
-            step=5000, 
-            key="web_surge_input"
-        )
-        
-        if st.button("🌐 Ingest Scraped Web News Signal", key="btn_ingest_web"):
-            st.session_state["extracted_demand_surge"] = web_surge_units
-            st.session_state["active_risk_signal_title"] = "Red Sea Freight Rate Spike & Port Bottleneck"
-            st.session_state["signal_category"] = "Live Web Signal"
-            st.toast("Ingested Live Web News feed into CTRM & S&OP!", icon="🌐")
-            st.success(f"✅ Propagated **Red Sea Freight Rate Spike** ({web_surge_units:,} Units) across S&OP and CTRM Desk!")
+        st.markdown("Scrape and parse live geopolitical, freight, and commodity web headlines.")
+
+        col_w1, col_w2 = st.columns([2, 1])
+        with col_w1:
+            web_feed_source = st.selectbox(
+                "Select Live Data Feed Provider:",
+                [
+                    "Bloomberg Terminal RSS Feed (Macro & Commodities)",
+                    "Reuters Supply Chain Monitor",
+                    "Freightos Baltic Index (FBX) Real-Time Alert",
+                    "Custom Web Scraper Pipeline"
+                ],
+                key="nlp_web_feed_source"
+            )
+            
+            selected_headline = st.selectbox(
+                "Select Scraped Headline Signal:",
+                [
+                    "Red Sea Freight Rate Spike (+45% Container Index) [Impact: 85,000 Units]",
+                    "European Industrial Energy Surcharge Notice [Impact: 45,000 Units]",
+                    "East Coast Port Labor Negotiations Disruption [Impact: 110,000 Units]"
+                ],
+                key="nlp_web_headline_select"
+            )
+
+        with col_w2:
+            # Dynamic default unit pre-fill based on headline choice
+            default_val = 85000
+            if "European" in selected_headline:
+                default_val = 45000
+            elif "East Coast" in selected_headline:
+                default_val = 110000
+
+            web_impact = st.number_input(
+                "Extracted Web Signal Impact (Units)", 
+                value=default_val, 
+                step=5000, 
+                key="web_signal_units"
+            )
+
+        if st.button("📡 Ingest Scraped Web News Signal", key="btn_ingest_web"):
+            headline_title = selected_headline.split("[")[0].strip()
+            st.session_state["extracted_demand_surge"] = web_impact
+            st.session_state["active_risk_signal_title"] = f"Web Signal: {headline_title}"
+            st.session_state["signal_category"] = f"Live Web Stream ({web_feed_source.split(' ')[0]})"
+            st.toast(f"Ingested '{headline_title}' ({web_impact:,} Units)", icon="📡")
+            st.success(f"✅ Propagated **{headline_title}** ({web_impact:,} Units) across S&OP and CTRM Desk!")
 
     # -----------------------------------------------------------------
-    # TAB 2: Email & Event Debrief Parser
+    # TAB 2: EMAIL & EVENT DEBRIEF PARSER
     # -----------------------------------------------------------------
     with tab2:
-        st.subheader("📧 Unstructured Email & Field Report Extractor")
-        st.caption("Parse post-trade show debriefs and promotional feedback to capture early demand spikes before formal ERP entry.")
-        
-        email_sample = st.selectbox(
-            "Select Email Sample or Enter Custom Text:",
-            ["Post-Trade Show Sales Debrief (CES Expo 2026)", "Regional Field Sales Order Spike", "Custom Input"],
-            key="email_sample_select"
-        )
-        
-        email_body = st.text_area(
-            "Email Content Body:",
-            value="From: vpsales@enterprise.com\nDate: Aug 3, 2026\nSubject: CES 2026 Recap - Massive Foot Traffic & Verbal Commitments\n\n250000 cases of cosmo cola for Costco",
-            height=120,
-            key="email_body_area"
-        )
-        
-        parsed_units = st.number_input(
-            "Parsed Demand Surge (Units)", 
-            value=250000, 
-            step=10000, 
-            key="email_units_input"
-        )
-        parsed_event_name = "CES Expo 2026" if "CES" in email_sample else "Field Sales Spike"
+        st.subheader("📧 Unstructured Email & Sales Debrief Parser")
+        st.markdown("Extract commercial surge signals from raw unstructured rep text.")
 
-        if st.button("🔴 Extract NLP Demand Intent & Quantify Surge", key="btn_extract_email"):
-            st.session_state["extracted_demand_surge"] = parsed_units
-            st.session_state["active_risk_signal_title"] = f"Trade Show / Sales Debrief ({parsed_event_name})"
-            st.session_state["signal_category"] = "Unstructured Field Email"
-            st.toast("Ingested Email Debrief surge into CTRM & S&OP!", icon="📧")
-            st.success(f"✅ Propagated **{parsed_event_name}** ({parsed_units:,} Units) directly to S&OP Workbench & CTRM Desk!")
+        email_selection = st.selectbox(
+            "Select Ingested Field Communication / Debrief:",
+            [
+                "Trade Show / Sales Debrief (CES Expo 2026) - 250,000 Units Uplift",
+                "Q3 Distributor Stocking Order Email - 150,000 Units Uplift",
+                "OEM Emergency Spares Requisition - 75,000 Units Uplift"
+            ],
+            key="email_debrief_select"
+        )
+
+        default_email_val = 250000
+        if "Distributor" in email_selection:
+            default_email_val = 150000
+        elif "OEM" in email_selection:
+            default_email_val = 75000
+
+        col_e1, col_e2 = st.columns([2, 1])
+        with col_e1:
+            st.text_area(
+                "Parsed Raw Text Preview:",
+                value=f"Parsed from inbox: Rep indicates major commercial surge following {email_selection}. Demand spike expected to hit W38.",
+                height=100,
+                disabled=True
+            )
+        with col_e2:
+            email_impact = st.number_input("Parsed Demand Surge (Units)", value=default_email_val, step=10000, key="email_units")
+
+        if st.button("📧 Parse & Ingest Selected Email Debrief", key="btn_ingest_email"):
+            email_title = email_selection.split("-")[0].strip()
+            st.session_state["extracted_demand_surge"] = email_impact
+            st.session_state["active_risk_signal_title"] = f"Email Debrief: {email_title}"
+            st.session_state["signal_category"] = "Field Sales Debrief"
+            st.toast(f"Parsed {email_title} ({email_impact:,} Units)", icon="📧")
+            st.success(f"✅ Propagated **{email_title}** ({email_impact:,} Units) directly to S&OP Horizon & CTRM Desk!")
 
     # -----------------------------------------------------------------
-    # TAB 3: Freight, Weather & Black Swan Feeds
+    # TAB 3: FREIGHT, WEATHER & BLACK SWAN FEEDS
     # -----------------------------------------------------------------
     with tab3:
-        st.subheader("🌩️ Climate, Weather & Black Swan Risk Feeds")
-        st.caption("Ingest NOAA alerts and macro disruption feeds to price commodity and supply chain tail-risk.")
-        
-        weather_surge_units = st.number_input(
-            "Climate Risk Supply Deficit Impact (Units)", 
-            value=120000, 
-            step=5000, 
-            key="weather_surge_input"
-        )
+        st.subheader("⛈️ Climate, Weather & Black Swan Risk Feeds")
+        st.markdown("Ingest NOAA alerts, GIS spatial telemetry, and macro disruption feeds to price commodity and supply chain tail-risk.")
 
-        if st.button("🌩️ Activate Black Swan Climate Risk Feed", key="btn_activate_weather"):
-            st.session_state["extracted_demand_surge"] = weather_surge_units
-            st.session_state["active_risk_signal_title"] = "NOAA Category 4 Gulf Hurricane Alert"
-            st.session_state["signal_category"] = "Weather & Macro Swan Feed"
-            st.toast("Ingested NOAA Climate Alert into CTRM & S&OP!", icon="🌩️")
-            st.success(f"✅ Propagated **NOAA Climate Alert** ({weather_surge_units:,} Units) directly to S&OP Workbench & CTRM Desk!")
+        col_b1, col_b2 = st.columns([2, 1])
+        with col_b1:
+            weather_alert = st.selectbox(
+                "Select NOAA / GIS Telemetry Alert:",
+                [
+                    "NOAA Category 4 Gulf Coast Hurricane Warning (Houston Port Closure) [Impact: 120,000 Units]",
+                    "Panama Canal Drought & Slot Auction Spike [Impact: 60,000 Units]",
+                    "Midwest Inland Rail Freeze & Bottleneck [Impact: 25,000 Units]"
+                ],
+                key="nlp_weather_alert_select"
+            )
 
+        with col_b2:
+            default_weather_val = 120000
+            if "Panama" in weather_alert:
+                default_weather_val = 60000
+            elif "Midwest" in weather_alert:
+                default_weather_val = 25000
+
+            weather_impact = st.number_input(
+                "Climate Risk Supply Deficit Impact (Units)", 
+                value=default_weather_val, 
+                step=5000, 
+                key="weather_signal_units"
+            )
+
+        if st.button("⛈️ Activate Black Swan Climate Risk Feed", key="btn_ingest_weather"):
+            alert_title = weather_alert.split("[")[0].strip()
+            st.session_state["extracted_demand_surge"] = weather_impact
+            st.session_state["active_risk_signal_title"] = f"GIS/NOAA Alert: {alert_title}"
+            st.session_state["signal_category"] = "Climate & GIS Telemetry"
+            st.toast(f"Activated {alert_title} ({weather_impact:,} Units)", icon="⛈️")
+            st.success(f"✅ Propagated **{alert_title}** ({weather_impact:,} Units) directly to S&OP Workbench & CTRM Desk!")
 
 # =====================================================================
 # ROUTER 3: DEMAND/SUPPLY MATCH & PLANT LOAD BALANCER
@@ -705,144 +752,56 @@ elif "CTRM" in selected_module:
                 f"covering **{net_unhedged_units:,} Units** Net Exposure from *{signal_title}*!"
             )
 # =====================================================================
-# ROUTER 6: GIS & LOGISTICS CONTROL TOWER
+# ROUTER 6: GLOBAL LOGISTICS NETWORK & GIS CONTROL TOWER
 # =====================================================================
-elif any(k in selected_module for k in ["Global Logistics", "Cold Chain", "Maritime AIS", "GIS"]):
-    active_domain = st.session_state.get("selected_domain", "🛒 Retail & Omnichannel Goods")
-    live_parcel = BulletproofDataEngine.get_parcel_telemetry()
+elif "Global Logistics" in selected_module:
+    st.title("🌐 Global Logistics Network & GIS Control Tower")
+    st.caption(f"Active Persona View: **{persona}**")
+    st.markdown("Real-time maritime telemetry, port dwell tracking, container route optimization, and physical re-routing.")
 
-    if "FMCG" in persona or "Cold Chain" in selected_module:
-        st.title("🌐 Cold Chain & Regional Distribution GIS Tower")
-        st.caption(f"Active Persona View: **{persona}** | Domain Context: **{active_domain}**")
-        st.info(f"🎯 **Sector Domain Active:** Filtering cold storage hubs and reefer SLAs for **{active_domain}**.")
+    # 1. Pull dynamic FEU load generated in Router 4
+    committed_feus = st.session_state.get("feus_required", 7261)
+    active_signal = st.session_state.get("active_risk_signal_title", "Baseline Operations")
 
-        spatial_nodes = pd.DataFrame({
-            "Name": ["Midwest Processing Facility", "Chicago Cold Hub", "Atlanta Regional Depot", "Rotterdam Blending Plant"],
-            "lat": [41.8781, 41.9000, 33.7490, 51.9244],
-            "lon": [-87.6298, -87.6500, -84.3880, 4.4777],
-            "Category": ["Processing Plant", "Cold Storage Hub", "Regional DC", "Blending Facility"],
-            "Temp Setpoint": ["-20.0°C", "-18.0°C", "-20.0°C", "-22.0°C"],
-            "Size": [25, 20, 20, 22]
-        })
+    col_g1, col_g2, col_g3 = st.columns(3)
+    col_g1.metric("Active Freight Allocation", f"{committed_feus:,} FEUs")
+    col_g2.metric("Chokepoint Alert Level", "HIGH (Gulf Ports)", "Dwell Time +4.2 Days")
+    col_g3.metric("Current Active Signal", active_signal)
 
-        col_map, col_prox = st.columns([2, 1])
-        with col_map:
-            st.subheader("🗺️ Cold Storage GIS Spatial Map")
-            fig_map = px.scatter_mapbox(
-                spatial_nodes, lat="lat", lon="lon", hover_name="Name",
-                hover_data=["Category", "Temp Setpoint"], color="Category",
-                size="Size", zoom=2, height=450
-            )
-            fig_map.update_layout(mapbox_style="open-street-map", margin={"r":0,"t":0,"l":0,"b":0})
-            st.plotly_chart(fig_map, use_container_width=True)
+    st.markdown("---")
+    st.subheader("🗺️ Spatial Maritime & Warehouse Node Network")
 
-        with col_prox:
-            st.subheader("❄️ Cold Storage Telemetry Summary")
-            st.metric("Sector Context", active_domain)
-            st.metric("Active Cold Hubs Monitored", "4 Facilities", "100% Operational")
-            st.metric("Mean Warehouse Temp", "-19.8°C", "Nominal")
+    # Interactive Route Selection
+    selected_lane = st.selectbox(
+        "Select Active Transit Corridor to Stress-Test / Re-Route:",
+        [
+            "Transpacific Lane (Shanghai → Long Beach) - Status: CLEAR",
+            "US Gulf Coast Lane (Rotterdam → Houston) - Status: RED (NOAA Hurricane Risk)",
+            "Suez / Red Sea Lane (Singapore → Rotterdam) - Status: AMBER (Bottleneck Delay)"
+        ],
+        key="gis_lane_select"
+    )
 
-        st.markdown("---")
-        st.subheader("🌡️ Live Reefer Telemetry & Sensor Stream")
-        telemetry = pd.DataFrame({
-            "Reefer ID": ["REEFER-901", "REEFER-902", "REEFER-903", "REEFER-904"],
-            "Carrier / Fleet": ["Lineage Logistics", "Americold Fleet", "DHL Cold Chain", "Kuehne+Nagel Cool"],
-            "Cargo Description": ["Frozen Fruit Concentrate", "Dairy / Cheese Batches", "Pharma Ingredients", "Frozen Bakery Products"],
-            "Set Temp (°C)": [-20.0, -18.0, -20.0, -22.0],
-            "Actual Temp (°C)": [-19.8, -17.9, -16.8, -22.1],
-            "Humidity (%)": ["88%", "85%", "92%", "84%"],
-            "SLA Excursion Status": ["🟢 Temp Nominal", "🟢 Temp Nominal", "🔴 EXCURSION (+3.2°C Spike)", "🟢 Temp Nominal"]
-        })
-        st.dataframe(telemetry, use_container_width=True)
+    col_actions1, col_actions2 = st.columns(2)
 
-    elif "Merchant" in persona or "Maritime" in selected_module:
-        st.title("🌐 Global Maritime AIS & Cargo GIS Tower")
-        st.caption(f"Active Persona View: **{persona}** | Domain Context: **{active_domain}**")
-        st.info(f"🎯 **Sector Domain Active:** Tracking maritime AIS vessel queues & chokepoints relevant to **{active_domain}**.")
+    with col_actions1:
+        if st.button("📡 Inject Selected Lane Bottleneck into NLP & CTRM Desk", key="btn_gis_inject"):
+            st.session_state["extracted_demand_surge"] = 110000
+            st.session_state["active_risk_signal_title"] = f"GIS Alert: {selected_lane.split('-')[0].strip()}"
+            st.session_state["signal_category"] = "GIS Spatial Telemetry"
+            st.toast("GIS Logistics Disruption Pushed to NLP Sensing & CTRM Desk!", icon="🌐")
+            st.success("✅ Lane bottleneck injected into S&OP Load Balancer & Commodity Hedging Desk!")
 
-        spatial_nodes = pd.DataFrame({
-            "Name": ["Suez Canal Chokepoint", "Rotterdam Tank Depot", "Cushing Storage Vault", "Singapore Anchorage Queue"],
-            "lat": [29.9753, 51.9244, 35.9856, 1.3521],
-            "lon": [32.5599, 4.4777, -96.7678, 103.8198],
-            "Category": ["Maritime Chokepoint", "Tank Farm Storage", "Storage Depot", "Anchorage Queue"],
-            "Size": [25, 22, 22, 25]
-        })
+    with col_actions2:
+        if st.button("🔀 Execute Dynamic Volume Re-Routing to Secondary Plant", key="btn_gis_reroute"):
+            st.session_state["gis_rerouted"] = True
+            st.toast(f"Re-routed {int(committed_feus * 0.35):,} FEUs away from congested port!", icon="🔀")
 
-        fig_map = px.scatter_mapbox(spatial_nodes, lat="lat", lon="lon", hover_name="Name", color="Category", size="Size", zoom=1, height=450)
-        fig_map.update_layout(mapbox_style="open-street-map", margin={"r":0,"t":0,"l":0,"b":0})
-        st.plotly_chart(fig_map, use_container_width=True)
-
-        st.subheader("🚢 Live AIS Vessel & Express Cargo Stream")
-        ais_stream = pd.DataFrame([
-            {
-                "Vessel / Express Transport": f"✈️ {live_parcel['carrier']} ({live_parcel['tracking_code']})",
-                "Cargo Type": f"{active_domain} Consignment",
-                "Destination / Route": f"{live_parcel['origin']} ➔ {live_parcel['destination']}",
-                "AIS / Telemetry Status": live_parcel["status"],
-                "Data Feed Source": live_parcel["source"]
-            },
-            {
-                "Vessel / Express Transport": "🚢 M/T Nordic Trader (IMO 98213)",
-                "Cargo Type": "Light Sweet Crude (1.2M Bbls)",
-                "Destination / Route": "Rotterdam Depot",
-                "AIS / Telemetry Status": "🟢 In Transit (14.2 knots)",
-                "Data Feed Source": "🟢 LIVE AIS"
-            },
-            {
-                "Vessel / Express Transport": "🚢 M/V Atlantic Bullion (IMO 91124)",
-                "Cargo Type": "Physical Cargo Shipment",
-                "Destination / Route": "Baltimore Metal Vault",
-                "AIS / Telemetry Status": "🟡 Anchored / Queue (+3 Days)",
-                "Data Feed Source": "🟢 LIVE AIS"
-            }
-        ])
-        st.dataframe(ais_stream, use_container_width=True)
-
-    else:  # Industrial
-        st.title("🌐 Global Logistics Network & GIS Control Tower")
-        st.caption(f"Active Persona View: **{persona}** | Domain Context: **{active_domain}**")
-        st.info(f"🎯 **Sector Domain Active:** Aligning network node flows for **{active_domain}**.")
-
-        spatial_nodes = pd.DataFrame({
-            "Name": [plant1_name, plant2_name, toller_name, "Chicago Logistics Hub DC", "Panama Canal Chokepoint"],
-            "lat": [42.3314, 48.1351, 32.7767, 41.8781, 9.0800],
-            "lon": [-83.0458, 11.5820, -96.7970, -87.6298, -79.6800],
-            "Category": ["Manufacturing Plant", "Manufacturing Plant", "3rd-Party CMO", "Warehouse DC", "Maritime Chokepoint"],
-            "Size": [22, 22, 16, 18, 25]
-        })
-
-        fig_map = px.scatter_mapbox(spatial_nodes, lat="lat", lon="lon", hover_name="Name", color="Category", size="Size", zoom=1, height=450)
-        fig_map.update_layout(mapbox_style="open-street-map", margin={"r":0,"t":0,"l":0,"b":0})
-        st.plotly_chart(fig_map, use_container_width=True)
-
-        st.subheader("🚢 Real-Time Freight & Shipment Telemetry Stream")
-        shipments = pd.DataFrame([
-            {
-                "Shipment / Tracking": live_parcel["tracking_code"],
-                "Carrier": f"✈️ {live_parcel['carrier']}",
-                "Origin": live_parcel["origin"],
-                "Destination": live_parcel["destination"],
-                "Status / ETA": live_parcel["status"],
-                "Data Source": live_parcel["source"]
-            },
-            {
-                "Shipment / Tracking": "SHP-2026-901",
-                "Carrier": "Maersk Line",
-                "Origin": plant1_name,
-                "Destination": "Regional Distribution Hub",
-                "Status / ETA": "🟢 On-Time (ETA 4 hrs)",
-                "Data Source": "🟢 LIVE AIS"
-            },
-            {
-                "Shipment / Tracking": "SHP-2026-902",
-                "Carrier": "FedEx Supply Chain",
-                "Origin": "Chicago Logistics Hub DC",
-                "Destination": "Fulfillment Hub",
-                "Status / ETA": "🟢 On-Time (ETA 12 hrs)",
-                "Data Source": "🟢 LIVE TELEMETRY"
-            }
-        ])
-        st.dataframe(shipments, use_container_width=True)
+    if st.session_state.get("gis_rerouted", False):
+        st.info(
+            f"🔄 **Physical Shift Executed:** Diverted **{int(committed_feus * 0.35):,} FEUs** (35% of horizon load) "
+            "from Gulf Coast / Plant A to Inland Hub / Plant B to maintain OTIF customer SLAs."
+        )
 # =====================================================================
 # ROUTER 7: SANDBOX FLIGHT SIMULATOR & STRESS LAB
 # =====================================================================
