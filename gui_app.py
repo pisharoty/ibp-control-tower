@@ -316,9 +316,8 @@ if "Executive S&OP" in selected_module or "IBP Tower" in selected_module:
             {"Raw Material Commodity": "Power & Energy Hedges", "Hedged Position": "100%", "Locked Rate": "$64.50 / MWh", "Spot Exposure": "0% Covered"}
         ])
         st.dataframe(ledger_df, use_container_width=True, hide_index=True)
-
 # =====================================================================
-# ROUTER 2: NLP COMMERCIAL SENSING & FIELD INTELLIGENCE (RESTORED & LINKED)
+# ROUTER 2: NLP COMMERCIAL SENSING & FIELD INTELLIGENCE (AI-DRIVEN)
 # =====================================================================
 elif "NLP Commercial Sensing" in selected_module:
     st.title("🧠 NLP Commercial Sensing & Intelligence")
@@ -332,57 +331,94 @@ elif "NLP Commercial Sensing" in selected_module:
     ])
 
     # -----------------------------------------------------------------
-    # TAB 1: LIVE WEB SIGNALS
+    # TAB 1: LIVE WEB SIGNALS & AI NEWS SCRAPER
     # -----------------------------------------------------------------
     with tab1:
         st.subheader("📡 Real-Time Web & Macro News Stream")
-        st.markdown("Scrape and parse live geopolitical, freight, and commodity web headlines.")
+        st.markdown("Scrape and parse live geopolitical, commodity, and industry news using AI domain indexing.")
+
+        # Data structure for domain-specific AI news feeds
+        NEWS_DOMAINS = {
+            "⚡ Essential Semiconductors & High-Tech Hardware": [
+                "TSMC Packaging Bottleneck Delays Advanced ASIC Deliveries [Impact: 175,000 Units]",
+                "Asahi Kasei Resin Shortage Hits Chip Substrate Supply Chain [Impact: 110,000 Units]",
+                "Critical Neon Gas Export Restrictions Target European Fabs [Impact: 140,000 Units]"
+            ],
+            "🛢️ Energy, Power & Petrochemicals": [
+                "European Natural Gas Spike (+32%) Triggers Smelter Surcharge [Impact: 85,000 Units]",
+                "Gulf Coast Refinery Outage Restricts Polymer Feedstock [Impact: 95,000 Units]",
+                "Crude Oil Benchmark Breaches $95/bbl Increasing Freight Matrix [Impact: 50,000 Units]"
+            ],
+            "🍊 Agricultural Commodities & Cold-Chain (Orange Juice, Crop)": [
+                "Brazil & Florida Citrus Greening Deficit Drives Concentrated OJ Spikes [Impact: 120,000 Units]",
+                "Midwest Cold-Storage Trucking Freeze Disrupts Produce Routes [Impact: 45,000 Units]",
+                "Panama Canal Auction Rates Hit $3M for Refrigerated Transit Slots [Impact: 70,000 Units]"
+            ],
+            "🚢 Maritime Freight, Ports & Logistics": [
+                "Red Sea Vessel Diversions Drive +45% FBX Container Index Surge [Impact: 130,000 Units]",
+                "US East Coast Port Labor Negotiations Risk Q4 Stocking [Impact: 210,000 Units]",
+                "Singapore Transshipment Dwell Time Peaks at 4.8 Days [Impact: 80,000 Units]"
+            ]
+        }
 
         col_w1, col_w2 = st.columns([2, 1])
+        
         with col_w1:
             web_feed_source = st.selectbox(
                 "Select Live Data Feed Provider:",
                 [
                     "Bloomberg Terminal RSS Feed (Macro & Commodities)",
-                    "Reuters Supply Chain Monitor",
+                    "Reuters Supply Chain & Commodities Monitor",
                     "Freightos Baltic Index (FBX) Real-Time Alert",
-                    "Custom Web Scraper Pipeline"
+                    "Custom Web Scraper Pipeline (NLP Crawler)"
                 ],
                 key="nlp_web_feed_source"
             )
-            
+
+            # Domain Target Selector
+            selected_domain = st.selectbox(
+                "Select Commodity / Industry Sector Focus:",
+                list(NEWS_DOMAINS.keys()),
+                key="nlp_sector_focus"
+            )
+
+            # Headlines dynamically update based on selected domain
+            available_headlines = NEWS_DOMAINS[selected_domain]
             selected_headline = st.selectbox(
-                "Select Scraped Headline Signal:",
-                [
-                    "Red Sea Freight Rate Spike (+45% Container Index) [Impact: 85,000 Units]",
-                    "European Industrial Energy Surcharge Notice [Impact: 45,000 Units]",
-                    "East Coast Port Labor Negotiations Disruption [Impact: 110,000 Units]"
-                ],
+                "Select AI-Scraped Headline Signal:",
+                available_headlines,
                 key="nlp_web_headline_select"
             )
 
+            # Optional AI Search Query Simulation
+            search_query = st.text_input(
+                "🔍 Live AI Scraper Keyword Filter (Optional):", 
+                value=selected_domain.split(" ")[1] if " " in selected_domain else "Commodity Risk",
+                key="nlp_search_query_input"
+            )
+
         with col_w2:
-            # Dynamic default unit pre-fill based on headline choice
-            default_val = 85000
-            if "European" in selected_headline:
-                default_val = 45000
-            elif "East Coast" in selected_headline:
-                default_val = 110000
+            # Dynamically parse estimated units from chosen headline text
+            import re
+            match = re.search(r'\[Impact:\s*([\d,]+)\s*Units\]', selected_headline)
+            extracted_default = int(match.group(1).replace(',', '')) if match else 85000
 
             web_impact = st.number_input(
-                "Extracted Web Signal Impact (Units)", 
-                value=default_val, 
+                "Extracted Signal Demand/Supply Impact (Units)", 
+                value=extracted_default, 
                 step=5000, 
                 key="web_signal_units"
             )
 
-        if st.button("📡 Ingest Scraped Web News Signal", key="btn_ingest_web"):
-            headline_title = selected_headline.split("[")[0].strip()
+        if st.button("📡 Ingest Scraped Domain News Signal", key="btn_ingest_web"):
+            headline_clean = selected_headline.split("[")[0].strip()
+            domain_label = selected_domain.split(" ")[1] if len(selected_domain.split(" ")) > 1 else "Macro"
+            
             st.session_state["extracted_demand_surge"] = web_impact
-            st.session_state["active_risk_signal_title"] = f"Web Signal: {headline_title}"
-            st.session_state["signal_category"] = f"Live Web Stream ({web_feed_source.split(' ')[0]})"
-            st.toast(f"Ingested '{headline_title}' ({web_impact:,} Units)", icon="📡")
-            st.success(f"✅ Propagated **{headline_title}** ({web_impact:,} Units) across S&OP and CTRM Desk!")
+            st.session_state["active_risk_signal_title"] = f"[{domain_label}] {headline_clean}"
+            st.session_state["signal_category"] = f"Live Web ({web_feed_source.split(' ')[0]})"
+            st.toast(f"Ingested '{headline_clean}' ({web_impact:,} Units)", icon="📡")
+            st.success(f"✅ Propagated **[{domain_label}] {headline_clean}** ({web_impact:,} Units) across S&OP and CTRM Desk!")
 
     # -----------------------------------------------------------------
     # TAB 2: EMAIL & EVENT DEBRIEF PARSER
@@ -466,10 +502,6 @@ elif "NLP Commercial Sensing" in selected_module:
             st.session_state["signal_category"] = "Climate & GIS Telemetry"
             st.toast(f"Activated {alert_title} ({weather_impact:,} Units)", icon="⛈️")
             st.success(f"✅ Propagated **{alert_title}** ({weather_impact:,} Units) directly to S&OP Workbench & CTRM Desk!")
-
-# =====================================================================
-# ROUTER 3: DEMAND/SUPPLY MATCH & PLANT LOAD BALANCER
-# =====================================================================
 elif "Demand/Supply" in selected_module:
     st.title("⚖️ Demand/Supply Match & Plant Load Balancer")
     st.caption(f"Active Persona View: **{persona}**")
