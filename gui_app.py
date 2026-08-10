@@ -250,7 +250,7 @@ def get_persona_contracts(persona_type):
 # =====================================================================
 # ROUTER 1: EXECUTIVE S&OP CONTROL TOWER
 # =====================================================================
-elif "Executive S&OP" in selected_module or "IBP Tower" in selected_module:
+if "Executive S&OP" in selected_module or "IBP Tower" in selected_module:
     st.title("📊 Executive S&OP Control Tower")
     st.caption(f"Active Persona View: **{persona}**")
     st.markdown("Real-time financial alignment, financial waterfalls, and trade hedge benefit reconciliation.")
