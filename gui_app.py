@@ -5,6 +5,8 @@ import plotly.express as px
 import plotly.graph_objects as go
 import re
 import math
+import requests
+import xml.etree.ElementTree as ET
 from scipy.stats import norm
 
 # =====================================================================
@@ -199,10 +201,33 @@ with col_sim2:
         st.toast("Flight Simulator reset to Baseline.", icon="🔄")
 
 st.sidebar.markdown("---")
-
 # =====================================================================
 # HELPER FUNCTIONS
 # =====================================================================
+def fetch_live_or_fallback(feed_url, fallback_headlines, timeout_sec=1.5):
+    """
+    Attempts to fetch live RSS headlines with a strict circuit-breaker timeout.
+    Falls back gracefully to pre-built synthetic signals if latency exceeds threshold.
+    """
+    if not feed_url:
+        return fallback_headlines, False
+
+    try:
+        response = requests.get(feed_url, timeout=timeout_sec)
+        if response.status_code == 200:
+            root = ET.fromstring(response.content)
+            live_items = []
+            for item in root.findall('.//item')[:3]:
+                title = item.find('title').text if item.find('title') is not None else "Live News Event"
+                live_items.append(f"🟢 [LIVE] {title} [Impact: 90,000 Units]")
+            if live_items:
+                return live_items, True
+    except Exception:
+        pass  # Silently catch timeouts, rate limits, or network errors
+    
+    return fallback_headlines, False
+
+
 def parse_demand_from_text(text):
     patterns = [
         r'(?:spike|surge|demand|units|cases|batches)\s*(?:of|by)?\s*~?\s*(\d+[\d,]*)',
@@ -216,6 +241,7 @@ def parse_demand_from_text(text):
                 return int(val_str)
     return 65000
 
+
 def black76_call_put(S, K, T, r, sigma):
     if T <= 0 or sigma <= 0:
         return 0.0, 0.0, 0.0, 0.0
@@ -227,6 +253,7 @@ def black76_call_put(S, K, T, r, sigma):
     delta_call = math.exp(-r * T) * norm.cdf(d1)
     vega = S * math.exp(-r * T) * norm.pdf(d1) * math.sqrt(T) / 100.0
     return call, put, delta_call, vega
+
 
 def get_persona_contracts(persona_type):
     if "Industrial" in persona_type:
@@ -317,7 +344,7 @@ if "Executive S&OP" in selected_module or "IBP Tower" in selected_module:
         ])
         st.dataframe(ledger_df, use_container_width=True, hide_index=True)
 # =====================================================================
-# ROUTER 2: NLP COMMERCIAL SENSING & FIELD INTELLIGENCE (AI-DRIVEN)
+# ROUTER 2: NLP COMMERCIAL SENSING & FIELD INTELLIGENCE (HYBRID LIVE)
 # =====================================================================
 elif "NLP Commercial Sensing" in selected_module:
     st.title("🧠 NLP Commercial Sensing & Intelligence")
@@ -337,7 +364,6 @@ elif "NLP Commercial Sensing" in selected_module:
         st.subheader("📡 Real-Time Web & Macro News Stream")
         st.markdown("Scrape and parse live geopolitical, commodity, and industry news using AI domain indexing.")
 
-        # Data structure for domain-specific AI news feeds
         NEWS_DOMAINS = {
             "⚡ Essential Semiconductors & High-Tech Hardware": [
                 "TSMC Packaging Bottleneck Delays Advanced ASIC Deliveries [Impact: 175,000 Units]",
@@ -361,36 +387,45 @@ elif "NLP Commercial Sensing" in selected_module:
             ]
         }
 
+        FEED_ENDPOINTS = {
+            "Bloomberg Terminal RSS Feed (Macro & Commodities)": "https://feeds.bloomberg.com/markets/news.rss",
+            "Reuters Supply Chain & Commodities Monitor": "https://www.reutersagency.com/feed/?best-topics=commodities&post_type=best",
+            "Freightos Baltic Index (FBX) Real-Time Alert": "https://www.shippingwatch.com/rss",
+            "Custom Web Scraper Pipeline (NLP Crawler)": ""
+        }
+
         col_w1, col_w2 = st.columns([2, 1])
         
         with col_w1:
             web_feed_source = st.selectbox(
                 "Select Live Data Feed Provider:",
-                [
-                    "Bloomberg Terminal RSS Feed (Macro & Commodities)",
-                    "Reuters Supply Chain & Commodities Monitor",
-                    "Freightos Baltic Index (FBX) Real-Time Alert",
-                    "Custom Web Scraper Pipeline (NLP Crawler)"
-                ],
+                list(FEED_ENDPOINTS.keys()),
                 key="nlp_web_feed_source"
             )
 
-            # Domain Target Selector
             selected_domain = st.selectbox(
                 "Select Commodity / Industry Sector Focus:",
                 list(NEWS_DOMAINS.keys()),
                 key="nlp_sector_focus"
             )
 
-            # Headlines dynamically update based on selected domain
-            available_headlines = NEWS_DOMAINS[selected_domain]
+            # Circuit-Breaker Live Fetch Call
+            fallback_list = NEWS_DOMAINS[selected_domain]
+            feed_url = FEED_ENDPOINTS.get(web_feed_source, "")
+            active_headlines, is_live = fetch_live_or_fallback(feed_url, fallback_list, timeout_sec=1.2)
+
+            # Status Indicator Badge
+            if is_live:
+                st.caption("🟢 **Status:** Connected to Live RSS API Gateway (Latency: < 1.2s)")
+            else:
+                st.caption("🛡️ **Status:** High-Speed Enterprise Synthetic Fallback Active")
+
             selected_headline = st.selectbox(
                 "Select AI-Scraped Headline Signal:",
-                available_headlines,
+                active_headlines,
                 key="nlp_web_headline_select"
             )
 
-            # Optional AI Search Query Simulation
             search_query = st.text_input(
                 "🔍 Live AI Scraper Keyword Filter (Optional):", 
                 value=selected_domain.split(" ")[1] if " " in selected_domain else "Commodity Risk",
@@ -398,8 +433,6 @@ elif "NLP Commercial Sensing" in selected_module:
             )
 
         with col_w2:
-            # Dynamically parse estimated units from chosen headline text
-            import re
             match = re.search(r'\[Impact:\s*([\d,]+)\s*Units\]', selected_headline)
             extracted_default = int(match.group(1).replace(',', '')) if match else 85000
 
@@ -416,52 +449,123 @@ elif "NLP Commercial Sensing" in selected_module:
             
             st.session_state["extracted_demand_surge"] = web_impact
             st.session_state["active_risk_signal_title"] = f"[{domain_label}] {headline_clean}"
-            st.session_state["signal_category"] = f"Live Web ({web_feed_source.split(' ')[0]})"
+            st.session_state["signal_category"] = f"Live Web ({'Live Stream' if is_live else 'Cached Fallback'})"
             st.toast(f"Ingested '{headline_clean}' ({web_impact:,} Units)", icon="📡")
             st.success(f"✅ Propagated **[{domain_label}] {headline_clean}** ({web_impact:,} Units) across S&OP and CTRM Desk!")
 
     # -----------------------------------------------------------------
-    # TAB 2: EMAIL & EVENT DEBRIEF PARSER
+    # TAB 2: EMAIL & EVENT DEBRIEF PARSER (PRESETS & CUSTOM)
     # -----------------------------------------------------------------
     with tab2:
         st.subheader("📧 Unstructured Email & Sales Debrief Parser")
-        st.markdown("Extract commercial surge signals from raw unstructured rep text.")
+        st.markdown("Extract commercial surge signals from raw unstructured rep text or custom communications.")
 
-        email_selection = st.selectbox(
-            "Select Ingested Field Communication / Debrief:",
-            [
-                "Trade Show / Sales Debrief (CES Expo 2026) - 250,000 Units Uplift",
-                "Q3 Distributor Stocking Order Email - 150,000 Units Uplift",
-                "OEM Emergency Spares Requisition - 75,000 Units Uplift"
-            ],
-            key="email_debrief_select"
+        input_mode = st.radio(
+            "Select Debrief Input Mode:",
+            ["📋 Select Preset Communication", "✍️ Paste Custom Email / Debrief"],
+            horizontal=True,
+            key="email_input_mode"
         )
 
-        default_email_val = 250000
-        if "Distributor" in email_selection:
-            default_email_val = 150000
-        elif "OEM" in email_selection:
-            default_email_val = 75000
+        if input_mode == "📋 Select Preset Communication":
+            email_selection = st.selectbox(
+                "Select Ingested Field Communication / Debrief:",
+                [
+                    "Trade Show / Sales Debrief (CES Expo 2026) - 250,000 Units Uplift",
+                    "Q3 Distributor Stocking Order Email - 150,000 Units Uplift",
+                    "OEM Emergency Spares Requisition - 75,000 Units Uplift"
+                ],
+                key="email_debrief_select"
+            )
+
+            default_email_val = 250000
+            if "Distributor" in email_selection:
+                default_email_val = 150000
+            elif "OEM" in email_selection:
+                default_email_val = 75000
+
+            email_text_preview = f"Parsed from inbox: Rep indicates major commercial surge following {email_selection}. Demand spike expected to hit W38."
+            email_title_parsed = email_selection.split("-")[0].strip()
+
+        else:
+            custom_email_text = st.text_area(
+                "Paste Unstructured Email / Sales Rep Notes:",
+                value="From: regional_sales_vp@enterprise.com\nSubject: URGENT: Q3 Automotive OEM Order Expansion\n\nTeam, following our executive review, Key Customer Apex Motors is requesting an immediate supply ramp of 180,000 additional units for Q3 to cover their assembly line expansion in W38.",
+                height=140,
+                key="custom_email_text_area"
+            )
+            
+            units_found = re.findall(r'([\d,]+)\s*(?:additional\s*)?units', custom_email_text, re.IGNORECASE)
+            extracted_custom_val = int(units_found[0].replace(',', '')) if units_found else 180000
+
+            default_email_val = extracted_custom_val
+            email_text_preview = custom_email_text
+            email_title_parsed = "Custom Rep Email Signal"
 
         col_e1, col_e2 = st.columns([2, 1])
         with col_e1:
             st.text_area(
                 "Parsed Raw Text Preview:",
-                value=f"Parsed from inbox: Rep indicates major commercial surge following {email_selection}. Demand spike expected to hit W38.",
+                value=email_text_preview,
                 height=100,
-                disabled=True
+                disabled=True,
+                key="email_preview_disabled"
             )
         with col_e2:
-            email_impact = st.number_input("Parsed Demand Surge (Units)", value=default_email_val, step=10000, key="email_units")
+            email_impact = st.number_input(
+                "Parsed Demand Surge Impact (Units)", 
+                value=default_email_val, 
+                step=10000, 
+                key="email_units"
+            )
 
         if st.button("📧 Parse & Ingest Selected Email Debrief", key="btn_ingest_email"):
-            email_title = email_selection.split("-")[0].strip()
             st.session_state["extracted_demand_surge"] = email_impact
-            st.session_state["active_risk_signal_title"] = f"Email Debrief: {email_title}"
+            st.session_state["active_risk_signal_title"] = f"Email Debrief: {email_title_parsed}"
             st.session_state["signal_category"] = "Field Sales Debrief"
-            st.toast(f"Parsed {email_title} ({email_impact:,} Units)", icon="📧")
-            st.success(f"✅ Propagated **{email_title}** ({email_impact:,} Units) directly to S&OP Horizon & CTRM Desk!")
+            st.toast(f"Parsed {email_title_parsed} ({email_impact:,} Units)", icon="📧")
+            st.success(f"✅ Propagated **{email_title_parsed}** ({email_impact:,} Units) directly to S&OP Horizon & CTRM Desk!")
 
+    # -----------------------------------------------------------------
+    # TAB 3: FREIGHT, WEATHER & BLACK SWAN FEEDS
+    # -----------------------------------------------------------------
+    with tab3:
+        st.subheader("⛈️ Climate, Weather & Black Swan Risk Feeds")
+        st.markdown("Ingest NOAA alerts, GIS spatial telemetry, and macro disruption feeds to price commodity and supply chain tail-risk.")
+
+        col_b1, col_b2 = st.columns([2, 1])
+        with col_b1:
+            weather_alert = st.selectbox(
+                "Select NOAA / GIS Telemetry Alert:",
+                [
+                    "NOAA Category 4 Gulf Coast Hurricane Warning (Houston Port Closure) [Impact: 120,000 Units]",
+                    "Panama Canal Drought & Slot Auction Spike [Impact: 60,000 Units]",
+                    "Midwest Inland Rail Freeze & Bottleneck [Impact: 25,000 Units]"
+                ],
+                key="nlp_weather_alert_select"
+            )
+
+        with col_b2:
+            default_weather_val = 120000
+            if "Panama" in weather_alert:
+                default_weather_val = 60000
+            elif "Midwest" in weather_alert:
+                default_weather_val = 25000
+
+            weather_impact = st.number_input(
+                "Climate Risk Supply Deficit Impact (Units)", 
+                value=default_weather_val, 
+                step=5000, 
+                key="weather_signal_units"
+            )
+
+        if st.button("⛈️ Activate Black Swan Climate Risk Feed", key="btn_ingest_weather"):
+            alert_title = weather_alert.split("[")[0].strip()
+            st.session_state["extracted_demand_surge"] = weather_impact
+            st.session_state["active_risk_signal_title"] = f"GIS/NOAA Alert: {alert_title}"
+            st.session_state["signal_category"] = "Climate & GIS Telemetry"
+            st.toast(f"Activated {alert_title} ({weather_impact:,} Units)", icon="⛈️")
+            st.success(f"✅ Propagated **{alert_title}** ({weather_impact:,} Units) directly to S&OP Workbench & CTRM Desk!")
     # -----------------------------------------------------------------
     # TAB 3: FREIGHT, WEATHER & BLACK SWAN FEEDS
     # -----------------------------------------------------------------
