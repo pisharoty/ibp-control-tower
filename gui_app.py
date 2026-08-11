@@ -205,6 +205,107 @@ st.sidebar.markdown("---")
 # =====================================================================
 # HELPER FUNCTIONS
 # =====================================================================
+
+def render_demand_supply_match(persona, term_unit="Units", plant1_name="Detroit Main Assembly", plant2_name="Munich Component Line", toller_name="3rd-Party CMO"):
+    st.title(f"⚖️ Demand/Supply Match & Plant Load Balancer")
+    st.caption(f"Active Persona View: **{persona}**")
+    st.markdown("Reconcile commercial demand signals against manufacturing footprint capacity, toller allocations, and plant loading constraints.")
+
+    raw_surge = st.session_state.get("extracted_demand_surge", 65000)
+    base_forecast = 781049
+    total_horizon_demand = base_forecast + raw_surge
+    st.session_state["calculated_horizon_demand"] = total_horizon_demand
+
+    # KPI Top Row
+    col_s1, col_s2, col_s3 = st.columns(3)
+    col_s1.metric("Baseline S&OP Forecast", f"{base_forecast:,} {term_unit}")
+    col_s2.metric("Commercial Surge (NLP Signal)", f"+{raw_surge:,} {term_unit}", "Signal Ingested")
+    col_s3.metric("Total Unconstrained Horizon Demand", f"{total_horizon_demand:,} {term_unit}")
+
+    st.markdown("---")
+
+    # TABS STRUCTURE RESTORED HERE
+    tab_bau, tab_allocation = st.tabs([
+        "📊 Business-As-Usual (BAU) Schedule", 
+        "🏭 Multi-Facility Plant Load Allocation"
+    ])
+
+    # --- TAB 1: BAU SCHEDULE ---
+    with tab_bau:
+        st.subheader("📋 BAU Master Production Schedule & Baseline Loading")
+        st.caption("Unconstrained demand allocation based on default primary plant assignments before what-if rebalancing.")
+        
+        bau_data = pd.DataFrame({
+            "Facility / Line": [plant1_name, plant2_name, toller_name],
+            "BAU Target Utilization": ["85%", "80%", "15%"],
+            "Base Capacity": [f"500,000 {term_unit}", f"350,000 {term_unit}", f"335,000 {term_unit}"],
+            "BAU Allocated Demand": [
+                f"{int(500000 * 0.85):,} {term_unit}", 
+                f"{int(350000 * 0.80):,} {term_unit}", 
+                f"{int(total_horizon_demand * 0.15):,} {term_unit}"
+            ],
+            "Operational Status": ["✅ Normal", "✅ Normal", "✅ Within Quota"]
+        })
+        
+        st.dataframe(bau_data, use_container_width=True)
+        st.info(f"💡 **BAU Baseline Summary:** Primary facilities operating within standard shift guidelines.")
+
+    # --- TAB 2: MULTI-FACILITY LOAD BALANCER ---
+    with tab_allocation:
+        st.subheader("🏭 Multi-Facility Plant Load Allocation")
+
+        col_alloc1, col_alloc2 = st.columns([1, 1.1])
+
+        with col_alloc1:
+            st.markdown(f"#### **Facility Production Share ({term_unit})**")
+            
+            plant1_max = 500000
+            plant1_alloc_pct = st.slider(f"{plant1_name} Target Utilization (%)", 50, 100, 85, key="p1_alloc_slider")
+            plant1_units = int(plant1_max * (plant1_alloc_pct / 100.0))
+
+            plant2_max = 350000
+            plant2_alloc_pct = st.slider(f"{plant2_name} Target Utilization (%)", 50, 100, 80, key="p2_alloc_slider")
+            plant2_units = int(plant2_max * (plant2_alloc_pct / 100.0))
+
+            toller_alloc_pct = st.slider(f"{toller_name} Offload Share (%)", 0, 50, 15, key="toller_split_slider")
+            toller_units = int(total_horizon_demand * (toller_alloc_pct / 100.0))
+
+            allocated_total = plant1_units + plant2_units + toller_units
+            unallocated_gap = total_horizon_demand - allocated_total
+
+        with col_alloc2:
+            st.markdown("#### **Capacity vs. Allocated Horizon Load**")
+            
+            cap_df = pd.DataFrame({
+                "Facility": [plant1_name, plant2_name, toller_name],
+                "Allocated Load": [plant1_units, plant2_units, toller_units],
+                "Max Capacity": [plant1_max, plant2_max, int(total_horizon_demand * 0.4)]
+            })
+            
+            fig = go.Figure(data=[
+                go.Bar(name='Allocated Load', x=cap_df['Facility'], y=cap_df['Allocated Load'], marker_color='#1f77b4'),
+                go.Bar(name='Max Capacity Limit', x=cap_df['Facility'], y=cap_df['Max Capacity'], marker_color='#ff7f0e', opacity=0.6)
+            ])
+            fig.update_layout(barmode='group', height=280, margin=dict(l=20, r=20, t=30, b=20))
+            st.plotly_chart(fig, use_container_width=True)
+
+            if unallocated_gap > 0:
+                st.warning(f"⚠️ **Capacity Deficit Detected**: Unallocated demand shortfall of **{unallocated_gap:,} {term_unit}**. Trigger CTRM Desk or increase CMO offload.")
+            else:
+                st.success(f"🟢 **Network Balanced**: All {total_horizon_demand:,} {term_unit} allocated across enterprise footprint.")
+
+    st.markdown("---")
+    col_btn1, col_btn2 = st.columns([1, 2])
+    with col_btn1:
+        if st.button("📌 Commit Plant Allocation & Finalize S&OP Plan", key="btn_commit_demand_plan"):
+            st.session_state["demand_plan_committed"] = True
+            st.session_state["committed_horizon_demand"] = total_horizon_demand
+            st.toast("S&OP Demand Plan Committed & Synced to ERP/BOM!", icon="📌")
+
+    if st.session_state.get("demand_plan_committed", False):
+        st.success(f"✅ **Demand Plan Committed**: Horizon plan locked at **{st.session_state.get('committed_horizon_demand', total_horizon_demand):,} {term_unit}**. ERP Purchase Orders and BOM Engine updated!")
+
+
 def fetch_live_or_fallback(feed_url, fallback_headlines, timeout_sec=1.5):
     if not feed_url:
         return fallback_headlines, False
@@ -275,7 +376,7 @@ def get_persona_contracts(persona_type):
 # =====================================================================
 # ROUTER 1: EXECUTIVE S&OP CONTROL TOWER
 # =====================================================================
-if "Executive S&OP" in selected_module or "IBP Tower" in selected_module or "Balance Sheet" in selected_module:
+if "Executive S&OP" in selected_module or "IBP" in selected_module or "Balance Sheet" in selected_module:
     st.title("📊 Executive S&OP Control Tower")
     st.caption(f"Active Persona View: **{persona}**")
     st.markdown("Real-time financial alignment, financial waterfalls, and trade hedge benefit reconciliation.")
@@ -565,79 +666,10 @@ elif "NLP Commercial Sensing" in selected_module or "Macro & Satellite" in selec
             st.success(f"✅ Propagated **{alert_title}** ({weather_impact:,} Units) directly to S&OP Workbench & CTRM Desk!")
 
 # =====================================================================
-# ROUTER 3: DEMAND/SUPPLY MATCH & PLANT LOAD BALANCER (RESTORED)
+# ROUTER 3: DEMAND/SUPPLY MATCH & PLANT LOAD BALANCER
 # =====================================================================
 elif "Demand/Supply Match" in selected_module or "Batch Processing" in selected_module or "Physical Off-Take" in selected_module:
-    st.title(f"⚖️ {selected_module}")
-    st.caption(f"Active Persona View: **{persona}**")
-    st.markdown("Reconcile commercial demand signals against manufacturing footprint capacity, toller allocations, and plant loading constraints.")
-
-    raw_surge = st.session_state.get("extracted_demand_surge", 65000)
-    base_forecast = 781049
-    total_horizon_demand = base_forecast + raw_surge
-
-    st.session_state["calculated_horizon_demand"] = total_horizon_demand
-
-    col_s1, col_s2, col_s3 = st.columns(3)
-    col_s1.metric("Baseline S&OP Forecast", f"{base_forecast:,} {term_unit}")
-    col_s2.metric("Commercial Surge (NLP Signal)", f"+{raw_surge:,} {term_unit}", f"Signal Ingested")
-    col_s3.metric("Total Unconstrained Horizon Demand", f"{total_horizon_demand:,} {term_unit}")
-
-    st.markdown("---")
-    st.subheader("🏭 Multi-Facility Plant Load Allocation")
-
-    col_alloc1, col_alloc2 = st.columns([1, 1.1])
-
-    with col_alloc1:
-        st.markdown(f"#### **Facility Production Share ({term_unit})**")
-        
-        plant1_max = 500000
-        plant1_alloc_pct = st.slider(f"{plant1_name} Target Utilization (%)", 50, 100, 85, key="p1_alloc_slider")
-        plant1_units = int(plant1_max * (plant1_alloc_pct / 100.0))
-
-        plant2_max = 350000
-        plant2_alloc_pct = st.slider(f"{plant2_name} Target Utilization (%)", 50, 100, 80, key="p2_alloc_slider")
-        plant2_units = int(plant2_max * (plant2_alloc_pct / 100.0))
-
-        # CMO Offload Share feeds directly into Router 5 Net Hedging logic
-        toller_alloc_pct = st.slider(f"{toller_name} Offload Share (%)", 0, 50, 15, key="toller_split_slider")
-        toller_units = int(total_horizon_demand * (toller_alloc_pct / 100.0))
-
-        allocated_total = plant1_units + plant2_units + toller_units
-        unallocated_gap = total_horizon_demand - allocated_total
-
-    with col_alloc2:
-        st.markdown("#### **Capacity vs. Allocated Horizon Load**")
-        
-        cap_df = pd.DataFrame({
-            "Facility": [plant1_name, plant2_name, toller_name],
-            "Allocated Load": [plant1_units, plant2_units, toller_units],
-            "Max Capacity": [plant1_max, plant2_max, int(total_horizon_demand * 0.4)]
-        })
-        
-        fig = go.Figure(data=[
-            go.Bar(name='Allocated Load', x=cap_df['Facility'], y=cap_df['Allocated Load'], marker_color='#1f77b4'),
-            go.Bar(name='Max Capacity Limit', x=cap_df['Facility'], y=cap_df['Max Capacity'], marker_color='#ff7f0e', opacity=0.6)
-        ])
-        fig.update_layout(barmode='group', height=280, margin=dict(l=20, r=20, t=30, b=20))
-        st.plotly_chart(fig, use_container_width=True)
-
-        if unallocated_gap > 0:
-            st.warning(f"⚠️ **Capacity Deficit Detected**: Unallocated demand shortfall of **{unallocated_gap:,} {term_unit}**. Trigger CTRM Desk or increase CMO offload.")
-        else:
-            st.success(f"🟢 **Network Balanced**: All {total_horizon_demand:,} {term_unit} allocated across enterprise footprint.")
-
-    st.markdown("---")
-    col_btn1, col_btn2 = st.columns([1, 2])
-    with col_btn1:
-        if st.button("📌 Commit Plant Allocation & Finalize S&OP Plan", key="btn_commit_demand_plan"):
-            st.session_state["demand_plan_committed"] = True
-            st.session_state["committed_horizon_demand"] = total_horizon_demand
-            st.toast("S&OP Demand Plan Committed & Synced to ERP/BOM!", icon="📌")
-
-    if st.session_state.get("demand_plan_committed", False):
-        st.success(f"✅ **Demand Plan Committed**: Horizon plan locked at **{st.session_state.get('committed_horizon_demand', total_horizon_demand):,} {term_unit}**. ERP Purchase Orders and BOM Engine updated!")
-
+    render_demand_supply_match(persona, term_unit, plant1_name, plant2_name, toller_name)
 # =====================================================================
 # ROUTER 4: PHYSICAL PROCUREMENT & MASTER CONTRACT DESK
 # =====================================================================
