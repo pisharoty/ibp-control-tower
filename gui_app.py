@@ -201,7 +201,7 @@ with col_sim2:
         st.toast("Flight Simulator reset to Baseline.", icon="🔄")
 
 st.sidebar.markdown("---")
-# =====================================================================
+ # =====================================================================
 # HELPER FUNCTIONS
 # =====================================================================
 def fetch_live_or_fallback(feed_url, fallback_headlines, timeout_sec=1.5):
@@ -274,6 +274,105 @@ def get_persona_contracts(persona_type):
             {"Contract ID": "CTR-2026-M2", "Commodity": "Rare Earth Elements (Neodymium)", "Supplier": "Rotterdam Metal Depot", "Volume": "1,200 MT", "Fixed Price": "$115,000 / MT", "Status": "Active"},
             {"Contract ID": "CTR-2026-M3", "Commodity": "Light Sweet Crude Off-Take", "Supplier": "Cushing Tank Farm", "Volume": "1,200,000 Bbls", "Fixed Price": "$76.50 / Bbl", "Status": "Under Review"}
         ]
+
+# =====================================================================
+# UNIVERSAL PERSONA ROUTER (KEYWORD MATCHING FOR ALL 3 PERSONAS)
+# =====================================================================
+
+# ---------------------------------------------------------------------
+# MODULE 1: S&OP / IBP / TRADING POSITION TOWER
+# ---------------------------------------------------------------------
+if any(k in selected_module for k in ["S&OP", "IBP", "Trading Balance Sheet"]):
+    st.title(f"📊 {selected_module}")
+    st.caption(f"Active Persona View: **{persona}**")
+    st.markdown("Executive visibility into long-term operational horizons, revenue projections, and financial balance sheet metrics.")
+    
+    col_s1, col_s2, col_s3 = st.columns(3)
+    col_s1.metric("Baseline Demand Plan", f"450,000 {term_unit}")
+    col_s2.metric("Sensing Surge Signal", f"+{st.session_state.get('extracted_demand_surge', 85000):,} {term_unit}")
+    col_s3.metric("Hedging Value at Risk (VaR)", "$1.2M", delta="-4.2% Volatility")
+
+# ---------------------------------------------------------------------
+# MODULE 2: COMMERCIAL SENSING & MARKET INTELLIGENCE
+# ---------------------------------------------------------------------
+elif any(k in selected_module for k in ["Sensing", "Global Macro"]):
+    st.title(f"🧠 {selected_module}")
+    st.caption(f"Active Persona View: **{persona}**")
+    st.markdown("Ingest unstructured signals from news feeds, field emails, and GIS weather/freight telemetry.")
+
+# ---------------------------------------------------------------------
+# MODULE 3: CAPACITY, LOAD BALANCING & OFF-TAKE DESK
+# ---------------------------------------------------------------------
+elif any(k in selected_module for k in ["Demand/Supply Match", "Batch Processing", "Physical Off-Take"]):
+    st.title(f"⚖️ {selected_module}")
+    st.caption(f"Active Persona View: **{persona}**")
+    
+    active_surge = st.session_state.get("extracted_demand_surge", 85000)
+    st.info(f"📍 **Active Signal:** {st.session_state.get('active_risk_signal_title', 'Baseline')} | **Volume Impact:** {active_surge:,} {term_unit}")
+    
+    col_m1, col_m2 = st.columns(2)
+    with col_m1:
+        st.subheader("🏭 Network Asset Utilization")
+        load_1 = st.slider(f"{plant1_name} Load (%)", 50, 100, 90, key="slider_p1")
+        load_2 = st.slider(f"{plant2_name} Load (%)", 50, 100, 82, key="slider_p2")
+        load_3 = st.slider(f"{toller_name} Load (%)", 50, 100, 75, key="slider_p3")
+    with col_m2:
+        st.subheader("📊 Network Capacity Summary")
+        total_cap = 500000
+        alloc = int(total_cap * ((load_1 + load_2 + load_3) / 300.0)) + active_surge
+        st.metric("Total Regional Capacity", f"{total_cap:,} {term_unit}")
+        st.metric("Allocated Load", f"{alloc:,} {term_unit}", delta=f"+{active_surge:,} {term_unit}")
+
+# ---------------------------------------------------------------------
+# MODULE 4: PROCUREMENT & DIRECT CONTRACT DESK
+# ---------------------------------------------------------------------
+elif any(k in selected_module for k in ["Procurement", "Agri-Ingredients"]):
+    st.title(f"📈 {selected_module}")
+    st.caption(f"Active Persona View: **{persona}**")
+    st.markdown(f"Manage long-term physical contracts and supplier commitments for **{term_raw}**.")
+    
+    contracts = get_persona_contracts(persona)
+    st.dataframe(pd.DataFrame(contracts), use_container_width=True)
+
+# ---------------------------------------------------------------------
+# MODULE 5: CTRM & DERIVATIVES RISK DESK
+# ---------------------------------------------------------------------
+elif any(k in selected_module for k in ["CTRM", "Hedging", "Risk Desk", "Derivatives"]):
+    st.title(f"🛡️ {selected_module}")
+    st.caption(f"Active Persona View: **{persona}**")
+    st.markdown("Execute event-driven derivative options and evaluate Black-76 Greeks against physical volume exposures.")
+
+# ---------------------------------------------------------------------
+# MODULE 6: SANDBOX FLIGHT SIMULATOR & STRESS LAB
+# ---------------------------------------------------------------------
+elif any(k in selected_module for k in ["Sandbox", "Flight Simulator"]):
+    st.title(f"🧪 {selected_module}")
+    st.caption(f"Active Persona View: **{persona}**")
+    st.markdown("Isolated environment for stress-testing portfolio resilience against macro black swan shocks.")
+
+# ---------------------------------------------------------------------
+# MODULE 7: GLOBAL LOGISTICS, COLD CHAIN & MARITIME GIS
+# ---------------------------------------------------------------------
+elif any(k in selected_module for k in ["Logistics", "Cold Chain", "Maritime AIS", "GIS"]):
+    st.title(f"🌐 {selected_module}")
+    st.caption(f"Active Persona View: **{persona}**")
+    st.markdown("Real-time spatial tracking of transit routes, port dwell delays, and chokepoint bottlenecks.")
+
+# ---------------------------------------------------------------------
+# MODULE 8: INTEGRATION & ARCHITECTURE ENDPOINTS
+# ---------------------------------------------------------------------
+elif any(k in selected_module for k in ["Integration", "Endpoints"]):
+    st.title(f"🔌 {selected_module}")
+    st.caption(f"Active Persona View: **{persona}**")
+    st.markdown("API gateway mappings for SAP S/4HANA, Bloomberg B-PIPE, and Kafka event brokers.")
+
+# ---------------------------------------------------------------------
+# SAFETY FALLBACK: CATCH-ALL (NEVER BLANK)
+# ---------------------------------------------------------------------
+else:
+    st.title(f"📌 {selected_module}")
+    st.caption(f"Active Persona View: **{persona}**")
+    st.info(f"Module view active under **{persona}**. Workspace initialized successfully.")     
 # =====================================================================
 # ROUTER 1: EXECUTIVE S&OP CONTROL TOWER
 # =====================================================================
@@ -566,66 +665,7 @@ elif "NLP Commercial Sensing" in selected_module:
             st.session_state["signal_category"] = "Climate & GIS Telemetry"
             st.toast(f"Activated {alert_title} ({weather_impact:,} Units)", icon="⛈️")
             st.success(f"✅ Propagated **{alert_title}** ({weather_impact:,} Units) directly to S&OP Workbench & CTRM Desk!")
-# -----------------------------------------------------------------
-    # TAB 3: FREIGHT, WEATHER & BLACK SWAN FEEDS (HYBRID LIVE API)
-    # -----------------------------------------------------------------
-    with tab3:
-        st.subheader("⛈️ Climate, Weather & Black Swan Risk Feeds")
-        st.markdown("Ingest live NOAA alerts, GIS spatial telemetry, and macro disruption feeds to price commodity tail-risk.")
 
-        WEATHER_FEED_ENDPOINTS = {
-            "NOAA NWS Severe Weather Alerts (Live GIS Stream)": "https://alerts.weather.gov/cap/us.php?x=0",
-            "Copernicus Marine & Satellite Telemetry Feed": "https://www.shippingwatch.com/rss",
-            "Panama Canal & Maritime Chokepoint Feed": "https://www.reutersagency.com/feed/?best-topics=commodities&post_type=best"
-        }
-
-        WEATHER_FALLBACKS = [
-            "NOAA Category 4 Gulf Coast Hurricane Warning (Houston Port Closure) [Impact: 120,000 Units]",
-            "Panama Canal Drought & Slot Auction Spike [Impact: 60,000 Units]",
-            "Midwest Inland Rail Freeze & Bottleneck [Impact: 25,000 Units]"
-        ]
-
-        col_b1, col_b2 = st.columns([2, 1])
-        with col_b1:
-            weather_provider = st.selectbox(
-                "Select Live GIS / Weather Feed Provider:",
-                list(WEATHER_FEED_ENDPOINTS.keys()),
-                key="weather_provider_select_live"
-            )
-
-            # Circuit-Breaker Call for NOAA / GIS Live Telemetry
-            feed_url_w = WEATHER_FEED_ENDPOINTS.get(weather_provider, "")
-            active_weather_alerts, is_weather_live = fetch_live_or_fallback(feed_url_w, WEATHER_FALLBACKS, timeout_sec=1.2)
-
-            if is_weather_live:
-                st.caption("🟢 **Status:** Connected to Live NOAA / GIS Satellite API (Latency: < 1.2s)")
-            else:
-                st.caption("🛡️ **Status:** High-Speed Enterprise Synthetic Climate Model Active")
-
-            selected_weather_alert = st.selectbox(
-                "Select Active GIS Alert / Telemetry Signal:",
-                active_weather_alerts,
-                key="weather_alert_select_clean_v3"
-            )
-
-        with col_b2:
-            match_w = re.search(r'\[Impact:\s*([\d,]+)\s*Units\]', selected_weather_alert)
-            extracted_w_val = int(match_w.group(1).replace(',', '')) if match_w else 120000
-
-            weather_impact = st.number_input(
-                "Climate Risk Supply Deficit Impact (Units)", 
-                value=extracted_w_val, 
-                step=5000, 
-                key="weather_signal_units_clean_v3"
-            )
-
-        if st.button("⛈️ Ingest Active Climate / GIS Risk Feed", key="btn_ingest_weather_clean_v3"):
-            alert_clean = selected_weather_alert.split("[")[0].strip()
-            st.session_state["extracted_demand_surge"] = weather_impact
-            st.session_state["active_risk_signal_title"] = f"GIS/NOAA: {alert_clean}"
-            st.session_state["signal_category"] = f"Climate Telemetry ({'Live Stream' if is_weather_live else 'Synthetic'})"
-            st.toast(f"Ingested {alert_clean} ({weather_impact:,} Units)", icon="⛈️")
-            st.success(f"✅ Propagated **{alert_clean}** ({weather_impact:,} Units) directly to S&OP Workbench & CTRM Desk!")
 # =====================================================================
 # ROUTER 4: PHYSICAL PROCUREMENT & MASTER CONTRACT DESK
 # =====================================================================
