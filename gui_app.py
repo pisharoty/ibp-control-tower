@@ -143,6 +143,123 @@ def render_physical_procurement(persona="Discrete & Heavy Industrial Enterprise"
             st.success("✅ **ERP Requisitions Synced**: Purchase orders PO-2026-9901 through PO-2026-9904 generated and sent to procurement queue.")
 
 
+def render_executive_sop(persona="Discrete & Heavy Industrial Enterprise", term_unit="Units"):
+    st.title("📊 Executive S&OP Control Tower")
+    st.caption(f"Active Persona View: **{persona}**")
+    st.markdown("Real-time financial alignment, financial waterfalls, and trade hedge benefit reconciliation.")
+
+    # 1. STATE INGESTION & DYNAMIC FINANCIAL AUDIT
+    baseline_volume = 781049
+    is_committed = st.session_state.get("demand_plan_committed", False)
+    active_demand = st.session_state.get(
+        "committed_horizon_demand" if is_committed else "calculated_horizon_demand", 
+        846049
+    )
+    surge_units = max(0, active_demand - baseline_volume)
+    
+    # Financial Inputs ($ Millions)
+    base_aop_revenue = 120.00
+    avg_asp_per_unit = 249.23 / 1000  # Realized ASP in $M per unit
+    surge_revenue_upside = round(surge_units * avg_asp_per_unit, 2)
+    unconstrained_demand_rev = base_aop_revenue + surge_revenue_upside
+
+    # CTRM Desk Inputs
+    ctrm_gain = st.session_state.get("ctrm_hedge_gain", 3.25)
+    
+    # GIS & Logistics Surcharge Inputs
+    rop_offset_active = st.session_state.get("rop_offset_executed", False)
+    delay_days = st.session_state.get("active_leadtime_delay_days", 4.2)
+    base_freight_drag = 12.40
+    
+    # Expedited Freight Surcharge Penalty if GIS Delay is Active
+    freight_penalty = 0.85 if rop_offset_active else 0.00
+    total_freight_drag = base_freight_drag + freight_penalty
+
+    # Realized Net EBITDA Calculation
+    net_ebitda = base_aop_revenue + surge_revenue_upside + ctrm_gain - total_freight_drag
+
+    # 2. EXECUTIVE KPI CARDS
+    col_k1, col_k2, col_k3, col_k4 = st.columns(4)
+    
+    col_k1.metric(
+        label="Annual Operating Plan (AOP)", 
+        value=f"${base_aop_revenue:.1f}M", 
+        delta="+4.2% YoY"
+    )
+    col_k2.metric(
+        label="Unconstrained Demand (AOP + Surge)", 
+        value=f"${unconstrained_demand_rev:.1f}M", 
+        delta=f"+{surge_units:,} {term_unit}"
+    )
+    col_k3.metric(
+        label="CTRM Hedge & Trade Benefit", 
+        value=f"+${ctrm_gain:.2f}M", 
+        delta="⚡ Pending Execution" if ctrm_gain > 0 else "Unhedged Exposure",
+        delta_color="normal" if ctrm_gain > 0 else "inverse"
+    )
+    col_k4.metric(
+        label="Net Realized EBITDA", 
+        value=f"${net_ebitda:.2f}M", 
+        delta=f"{'+' if (net_ebitda - 120.0) >= 0 else ''}{(net_ebitda - 120.0):.2f}M vs AOP"
+    )
+
+    st.markdown("---")
+
+    # 3. LIVE DESK FEEDS (4-DESK CROSS-TALK)
+    st.subheader("📡 Live Operational Desk Feeds")
+    col_f1, col_f2, col_f3, col_f4 = st.columns(4)
+
+    with col_f1:
+        st.info(f"🔵 **NLP Commercial Sensing:** Auto-hooked signal (+{surge_units:,} {term_unit}).")
+
+    with col_f2:
+        if ctrm_gain > 0:
+            st.warning(f"🟡 **CTRM Desk:** ${ctrm_gain:.2f}M hedge gain locked in.")
+        else:
+            st.error("🔴 **CTRM Desk:** Unhedged spot exposure pending execution.")
+
+    with col_f3:
+        if is_committed:
+            st.success("🟢 **Demand/Supply Balancer:** S&OP Plan committed to production.")
+        else:
+            st.error("🔴 **Demand/Supply Balancer:** Plant operating near capacity limits.")
+
+    with col_f4:
+        erp_pushed = st.session_state.get("erp_requisitions_pushed", False)
+        if erp_pushed:
+            st.success(f"✅ **Procurement Desk:** POs Synced (+{delay_days:.1f}d Lead Time Shift).")
+        elif rop_offset_active:
+            st.warning(f"🚚 **GIS Control Tower:** +{delay_days:.1f}d Delay Active | Freight Drag Applied.")
+        else:
+            st.info("ℹ️ **Procurement Desk:** Standard MRP baseline active.")
+
+    st.markdown("---")
+
+    # 4. DYNAMIC FINANCIAL WATERFALL & HEDGING LEDGER
+    col_w1, col_w2 = st.columns([1.2, 1])
+
+    with col_w1:
+        st.subheader("💵 Financial P&L Margin Waterfall Report")
+        
+        waterfall_data = [
+            {"P&L Line Item": "1. Base AOP Revenue Target", "Amount ($)": f"${base_aop_revenue:.2f}M", "Impact": "🔴 Baseline Plan"},
+            {"P&L Line Item": "2. Unconstrained Surge Realization", "Amount ($)": f"+${surge_revenue_upside:.2f}M", "Impact": "🟢 Commercial Upside"},
+            {"P&L Line Item": "3. CTRM Derivative & Hedge Gain", "Amount ($)": f"+${ctrm_gain:.2f}M", "Impact": "🟡 Market Execution"},
+            {"P&L Line Item": f"4. COGS & Freight Cost Drag", "Amount ($)": f"-${total_freight_drag:.2f}M", "Impact": "⚠️ Expedited Drag" if rop_offset_active else "➖ Supply Baseline"},
+            {"P&L Line Item": "5. Projected Net EBITDA", "Amount ($)": f"${net_ebitda:.2f}M", "Impact": "🎯 Net Bottom-Line"}
+        ]
+        st.dataframe(pd.DataFrame(waterfall_data), use_container_width=True, hide_index=True)
+
+    with col_w2:
+        st.subheader("📈 CTRM Commodity Hedging Ledger")
+        ledger_data = [
+            {"Commodity": "Raw Metals & Components", "Hedge Position": "85% Hedged", "Locked Rate": "$2,210 / MT", "Spot Exposure": "15% Unhedged ⚠️"},
+            {"Commodity": "Freight Futures (FEU)", "Hedge Position": "80% Hedged", "Locked Rate": "$1,450 / FEU", "Spot Exposure": "20% Unhedged ⚠️"},
+            {"Commodity": "Power & Energy", "Hedge Position": "100% Covered", "Locked Rate": "$64.50 / MWh", "Spot Exposure": "0% Covered"}
+        ]
+        st.dataframe(pd.DataFrame(ledger_data), use_container_width=True, hide_index=True)
+
+
 # =====================================================================
 # SIDEBAR: PERSONA SWITCHER, DYNAMIC NAVIGATION & FLIGHT SIMULATOR SANDBOX
 # =====================================================================
@@ -595,73 +712,8 @@ def render_global_logistics_gis(persona="Discrete & Heavy Industrial Enterprise"
 # =====================================================================
 # ROUTER 1: EXECUTIVE S&OP CONTROL TOWER
 # =====================================================================
-if "Executive S&OP" in selected_module or "IBP" in selected_module or "Balance Sheet" in selected_module:
-    st.title("📊 Executive S&OP Control Tower")
-    st.caption(f"Active Persona View: **{persona}**")
-    st.markdown("Real-time financial alignment, financial waterfalls, and trade hedge benefit reconciliation.")
-
-    # Dynamic inputs from CTRM & Sandbox
-    is_executed = st.session_state.get("fix_executed", False) or st.session_state.get("fix_order_executed", False)
-    is_sandbox = st.session_state.get("sandbox_active", False)
-    sim_params = st.session_state.get("sandbox_params", {"spot_cost_increase": 0.0})
-    raw_surge = st.session_state.get("extracted_demand_surge", 65000)
-
-    # Dynamic Financial Calculations
-    base_aop = 120.00  # $120.0M
-    surge_revenue = (raw_surge / 65000.0) * 16.20  # $16.20M
-
-    if is_executed:
-        ctrm_hedge_benefit = 4.82  # Realized gain from executed FIX Asian Call Collar
-        hedge_badge = "🟢 FIX Order Realized Gain"
-        hedge_pct = "100% Fully Hedged"
-    else:
-        ctrm_hedge_benefit = 3.25  # Unexecuted paper model gain
-        hedge_badge = "⚠️ Pending FIX Execution"
-        hedge_pct = "85% Hedged (15% Float)"
-
-    base_cogs_freight = 12.40 * (1.0 + sim_params.get("spot_cost_increase", 0.0))
-    net_ebitda = base_aop + surge_revenue + ctrm_hedge_benefit - base_cogs_freight
-
-    # Top Metric Strip
-    col_m1, col_m2, col_m3, col_m4 = st.columns(4)
-    col_m1.metric("Annual Operating Plan (AOP)", f"${base_aop:.1f}M", "+4.2% YoY")
-    col_m2.metric("Unconstrained Demand (AOP + Surge)", f"${base_aop + surge_revenue:.1f}M", f"+{raw_surge:,} {term_unit}")
-    col_m3.metric("CTRM Hedge & Trade Benefit", f"+${ctrm_hedge_benefit:.2f}M", hedge_badge)
-    col_m4.metric("Net Realized EBITDA", f"${net_ebitda:.2f}M", f"{'+' if net_ebitda >= 127.10 else ''}{net_ebitda - 120.0:.2f}M vs AOP")
-
-    st.markdown("---")
-    st.subheader("📡 Live Operational Desk Feeds")
-    col_d1, col_d2, col_d3 = st.columns(3)
-    col_d1.info(f"🧠 **NLP Commercial Sensing**: Auto-hooked signal (+{raw_surge:,} {term_unit}).")
-    if is_executed:
-        col_d2.success(f"🛡️ **CTRM Desk**: FIX 4.4 Order Executed! Derivative gain unlocked (+${ctrm_hedge_benefit:.2f}M).")
-    else:
-        col_d2.warning(f"🛡️ **CTRM Desk**: Unhedged spot exposure pending FIX order execution.")
-    col_d3.error(f"⚖️ **Demand/Supply Load Balancer**: Plant load operating near capacity limits.")
-
-    st.markdown("---")
-    col_w1, col_w2 = st.columns([1.2, 1])
-
-    with col_w1:
-        st.subheader("💵 Financial P&L Margin Waterfall Report")
-        pnl_df = pd.DataFrame([
-            {"P&L Line Item": "1. Base AOP Revenue Target", "Amount ($)": f"${base_aop:.2f}M", "Impact": "🎯 Baseline Plan"},
-            {"P&L Line Item": "2. Unconstrained Surge Realization", "Amount ($)": f"+${surge_revenue:.2f}M", "Impact": "➕ Commercial Upside"},
-            {"P&L Line Item": "3. CTRM Derivative & Hedge Gain", "Amount ($)": f"+${ctrm_hedge_benefit:.2f}M", "Impact": "🛡️ Risk Protection (FIX Active)" if is_executed else "⚠️ Unexecuted Target"},
-            {"P&L Line Item": "4. COGS & Freight Cost Drag", "Amount ($)": f"-${base_cogs_freight:.2f}M", "Impact": "🚨 Stress Shock Drag" if is_sandbox else "➖ Supply Operations"},
-            {"P&L Line Item": "5. Projected Net EBITDA", "Amount ($)": f"${net_ebitda:.2f}M", "Impact": "🟢 Net Bottom-Line"}
-        ])
-        st.dataframe(pnl_df, use_container_width=True, hide_index=True)
-
-    with col_w2:
-        st.subheader("📈 CTRM Commodity Hedging Ledger")
-        ledger_df = pd.DataFrame([
-            {"Raw Material Commodity": term_raw, "Hedged Position": hedge_pct, "Locked Rate": "$2,210 / MT", "Spot Exposure": "0% Covered" if is_executed else "15% Unhedged ⚠️"},
-            {"Raw Material Commodity": "Freight Futures (FBX)", "Hedged Position": "90%", "Locked Rate": "$1,450 / FEU", "Spot Exposure": "10% Unhedged ⚠️"},
-            {"Raw Material Commodity": "Power & Energy Hedges", "Hedged Position": "100%", "Locked Rate": "$64.50 / MWh", "Spot Exposure": "0% Covered"}
-        ])
-        st.dataframe(ledger_df, use_container_width=True, hide_index=True)
-
+if "Executive S&OP" in selected_module or "Control Tower" in selected_module:
+    render_executive_sop(persona=persona, term_unit=term_unit)
 # =====================================================================
 # ROUTER 2: NLP COMMERCIAL SENSING & FIELD INTELLIGENCE
 # =====================================================================
