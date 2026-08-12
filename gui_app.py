@@ -68,6 +68,81 @@ if "bom_requisitions" not in st.session_state:
 
 st.set_page_config(page_title="IBP Enterprise Control Tower", layout="wide")
 
+
+# =====================================================================
+# SCREEN RENDER FUNCTIONS (PASTE HERE!)
+# =====================================================================
+def render_physical_procurement(persona="Discrete & Heavy Industrial Enterprise", term_unit="Units", term_raw="Raw Material"):
+    st.title("📄 Physical Procurement & Master Contract Desk")
+    st.caption(f"Active Persona View: **{persona}**")
+    st.markdown("Active enterprise supplier commitments, physical off-take agreements, and volume requisitions.")
+
+    # Ingest GIS Control Tower Lead-Time Offset
+    rop_offset_active = st.session_state.get("rop_offset_executed", False)
+    delay_days = st.session_state.get("active_leadtime_delay_days", 4.2 if rop_offset_active else 0.0)
+
+    # Dynamic GIS Alert Banner
+    if rop_offset_active:
+        st.warning(
+            f"⚡ **Dynamic Lead-Time Offset Active (from GIS Control Tower):** "
+            f"Carrier delays added **+{delay_days:.1f} Days** to active transit corridors. "
+            f"Purchase Order release triggers have automatically shifted from **Day T-4.0** to **Day T-{(4.0 + delay_days):.1f}**."
+        )
+    else:
+        st.info("ℹ️ **Standard MRP Mode:** Lead times running on static baseline vendor contracts.")
+
+    # Physical Contract Table
+    st.subheader("📋 Active Physical Supply Contracts")
+    contracts_data = get_persona_contracts(persona)
+    contracts_df = pd.DataFrame(contracts_data)
+
+    if not contracts_df.empty and rop_offset_active:
+        contracts_df["GIS Transit Delay"] = f"+{delay_days:.1f} Days"
+        contracts_df["Adjusted ROP Trigger"] = f"Day T-{(4.0 + delay_days):.1f} ⚠️"
+
+    st.dataframe(contracts_df, use_container_width=True, hide_index=True)
+
+    st.markdown("---")
+
+    # BOM Auto-Requisition Engine
+    st.subheader("📦 Bill of Materials (BOM) Auto-Requisition Engine")
+
+    is_committed = st.session_state.get("demand_plan_committed", False)
+    active_demand = st.session_state.get(
+        "committed_horizon_demand" if is_committed else "calculated_horizon_demand", 
+        846049
+    )
+
+    if is_committed:
+        st.success(f"⚡ **Live S&OP Sync Active**: Displaying requisitions for committed Demand Plan of **{active_demand:,} {term_unit}**.")
+    else:
+        st.info(f"ℹ️ **Baseline S&OP Forecast**: Displaying uncommitted requisitions for **{active_demand:,} {term_unit}** (Commit in Router 3 to finalize ERP purchase orders).")
+
+    req_metals_mt = int(active_demand * 0.015)
+    req_components = int(active_demand * 1.50)
+    req_freight_feus = int(active_demand / 144.28)
+
+    col_b1, col_b2, col_b3 = st.columns(3)
+    col_b1.metric(f"Required {term_raw}", f"{req_metals_mt:,} MT")
+    col_b2.metric("Component Requisitions", f"{req_components:,} Units")
+    col_b3.metric("Freight Slots Reserved", f"{req_freight_feus:,} FEUs")
+
+    st.markdown("<br>", unsafe_allow_html=True)
+    if st.button("📌 Push Auto-Requisitions to ERP (SAP S/4HANA / Odoo)", key="btn_push_erp", type="primary"):
+        st.session_state["erp_requisitions_pushed"] = True
+        st.toast(f"Pushed {req_components:,} component requisitions directly to SAP S/4HANA!", icon="🚀")
+
+    if st.session_state.get("erp_requisitions_pushed", False):
+        if rop_offset_active:
+            st.success(
+                f"✅ **ERP Requisitions Synced with +{delay_days:.1f} Day Lead-Time Offset**: "
+                f"Purchase orders PO-2026-9901 through PO-2026-9904 generated and sent to procurement queue "
+                f"with recalculated release windows (Day T-{(4.0 + delay_days):.1f})."
+            )
+        else:
+            st.success("✅ **ERP Requisitions Synced**: Purchase orders PO-2026-9901 through PO-2026-9904 generated and sent to procurement queue.")
+
+
 # =====================================================================
 # SIDEBAR: PERSONA SWITCHER, DYNAMIC NAVIGATION & FLIGHT SIMULATOR SANDBOX
 # =====================================================================
@@ -510,8 +585,9 @@ def render_global_logistics_gis(persona="Discrete & Heavy Industrial Enterprise"
         st.markdown("#### **Automated Procurement Recalibration**")
         st.info(f"💡 **Dynamic MRP Integration Active:** Detected **+{delay_days} Day delay** on the Gulf Freight Corridor. Purchase Order triggers for raw materials are offset from **Day T-4 to Day T-8.2**.")
         
-        if st.button("⚡ Execute Dynamic Order Offset in ERP", type="primary"):
+        if st.button("⚡ Execute Dynamic Order Offset in ERP", type="primary", key="btn_gis_execute_rop"):
             st.session_state["rop_offset_executed"] = True
+            st.session_state["active_leadtime_delay_days"] = delay_days  # 👈 Dynamic handoff to Procurement Desk!
             st.toast("Reorder points synchronized with SAP S/4HANA & Logistics Engine!", icon="🚀")
 
     if st.session_state.get("rop_offset_executed", False):
@@ -817,43 +893,7 @@ elif "Demand/Supply Match" in selected_module or "Batch Processing" in selected_
 # ROUTER 4: PHYSICAL PROCUREMENT & MASTER CONTRACT DESK
 # =====================================================================
 elif "Physical Procurement" in selected_module or "Agri-Ingredients" in selected_module:
-    st.title("📄 Physical Procurement & Master Contract Desk")
-    st.caption(f"Active Persona View: **{persona}**")
-    st.markdown("Active enterprise supplier commitments, physical off-take agreements, and volume requisitions.")
-
-    st.subheader("📋 Active Physical Supply Contracts")
-    contracts_df = pd.DataFrame(get_persona_contracts(persona))
-    st.dataframe(contracts_df, use_container_width=True, hide_index=True)
-
-    st.markdown("---")
-    st.subheader("📦 Bill of Materials (BOM) Auto-Requisition Engine")
-
-    # Read demand dynamically from Router 3
-    is_committed = st.session_state.get("demand_plan_committed", False)
-    active_demand = st.session_state.get("committed_horizon_demand" if is_committed else "calculated_horizon_demand", 846049)
-
-    if is_committed:
-        st.success(f"⚡ **Live S&OP Sync Active**: Displaying requisitions for committed Demand Plan of **{active_demand:,} {term_unit}**.")
-    else:
-        st.info(f"ℹ️ **Baseline S&OP Forecast**: Displaying uncommitted requisitions for **{active_demand:,} {term_unit}** (Commit in Router 3 to finalize ERP purchase orders).")
-
-    req_metals_mt = int(active_demand * 0.015)
-    req_components = int(active_demand * 1.50)
-    req_freight_feus = int(active_demand / 144.28)
-
-    col_b1, col_b2, col_b3 = st.columns(3)
-    col_b1.metric(f"Required {term_raw}", f"{req_metals_mt:,} MT")
-    col_b2.metric("Component Requisitions", f"{req_components:,} Units")
-    col_b3.metric("Freight Slots Reserved", f"{req_freight_feus:,} FEUs")
-
-    st.markdown("<br>", unsafe_allow_html=True)
-    if st.button("📌 Push Auto-Requisitions to ERP (SAP S/4HANA / Odoo)", key="btn_push_erp"):
-        st.session_state["erp_requisitions_pushed"] = True
-        st.toast(f"Pushed {req_components:,} component requisitions directly to SAP S/4HANA!", icon="🚀")
-
-    if st.session_state.get("erp_requisitions_pushed", False):
-        st.success("✅ **ERP Requisitions Synced**: Purchase orders PO-2026-9901 through PO-2026-9904 generated and sent to procurement queue.")
-
+    render_physical_procurement(persona=persona, term_unit=term_unit, term_raw=term_raw)
 # =====================================================================
 # ROUTER 5: CTRM EVENT-DRIVEN HEDGING DESK
 # =====================================================================
