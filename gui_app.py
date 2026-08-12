@@ -594,113 +594,89 @@ def render_executive_sop(persona="Discrete & Heavy Industrial Enterprise", term_
     baseline_volume = 781049
     is_committed = st.session_state.get("demand_plan_committed", False)
     active_demand = st.session_state.get(
-        "committed_horizon_demand" if is_committed else "calculated_horizon_demand", 
-        846049
-    )
+        "committed_horizon_demand" if is_committed else "extracted_demand_surge", 
+        65000
+    ) + baseline_volume
+    
     surge_units = max(0, active_demand - baseline_volume)
     
-    # Financial Inputs ($ Millions)
+    # Financial Inputs ($ Millions) - FIXED DIVISOR (/ 1_000_000)
     base_aop_revenue = 120.00
-    avg_asp_per_unit = 249.23 / 1000  # Realized ASP in $M per unit
-    surge_revenue_upside = round(surge_units * avg_asp_per_unit, 2)
+    surge_revenue_upside = round((surge_units * 249.23) / 1_000_000, 2)  # Yields +$16.20M (NOT $16,199M)
     unconstrained_demand_rev = base_aop_revenue + surge_revenue_upside
-
-    # CTRM Desk Inputs
-    ctrm_gain = st.session_state.get("ctrm_hedge_gain", 3.25)
     
-    # GIS & Logistics Surcharge Inputs
-    rop_offset_active = st.session_state.get("rop_offset_executed", False)
+    # Check procurement sync state from Procurement / GIS Desks
+    pos_synced = st.session_state.get("procurement_pos_synced", False) or st.session_state.get("rop_offset_executed", False)
     delay_days = st.session_state.get("active_leadtime_delay_days", 4.2)
-    base_freight_drag = 12.40
     
-    # Expedited Freight Surcharge Penalty if GIS Delay is Active
-    freight_penalty = 0.85 if rop_offset_active else 0.00
-    total_freight_drag = base_freight_drag + freight_penalty
+    # Dynamic Freight Drag & Hedging Benefit
+    base_freight_drag = 3.20 + (delay_days * 0.15 if st.session_state.get("sandbox_active", False) else 0.0)
+    total_freight_drag = round(base_freight_drag * 0.6 if pos_synced else base_freight_drag, 2)
+    ctrm_gain = 3.25
+    net_ebitda = round(unconstrained_demand_rev + ctrm_gain - total_freight_drag - 10.0, 2)
 
-    # Realized Net EBITDA Calculation
-    net_ebitda = base_aop_revenue + surge_revenue_upside + ctrm_gain - total_freight_drag
-
-    # 2. EXECUTIVE KPI CARDS
-    col_k1, col_k2, col_k3, col_k4 = st.columns(4)
-    
-    col_k1.metric(
-        label="Annual Operating Plan (AOP)", 
-        value=f"${base_aop_revenue:.1f}M", 
-        delta="+4.2% YoY"
-    )
-    col_k2.metric(
-        label="Unconstrained Demand (AOP + Surge)", 
-        value=f"${unconstrained_demand_rev:.1f}M", 
-        delta=f"+{surge_units:,} {term_unit}"
-    )
-    col_k3.metric(
-        label="CTRM Hedge & Trade Benefit", 
-        value=f"+${ctrm_gain:.2f}M", 
-        delta="⚡ Pending Execution" if ctrm_gain > 0 else "Unhedged Exposure",
-        delta_color="normal" if ctrm_gain > 0 else "inverse"
-    )
-    col_k4.metric(
-        label="Net Realized EBITDA", 
-        value=f"${net_ebitda:.2f}M", 
-        delta=f"{'+' if (net_ebitda - 120.0) >= 0 else ''}{(net_ebitda - 120.0):.2f}M vs AOP"
-    )
+    # 2. EXECUTIVE METRICS CARDS
+    col_m1, col_m2, col_m3, col_m4 = st.columns(4)
+    col_m1.metric("Annual Operating Plan (AOP)", f"${base_aop_revenue:.1f}M", "+4.2% YoY")
+    col_m2.metric("Unconstrained Demand (AOP + Surge)", f"${unconstrained_demand_rev:.2f}M", f"+{surge_units:,} {term_unit}")
+    col_m3.metric("CTRM Hedge & Trade Benefit", f"+${ctrm_gain:.2f}M", "⚡ Active Execution" if pos_synced else "⚡ Pending Sync")
+    col_m4.metric("Net Realized EBITDA", f"${net_ebitda:.2f}M", f"+${round(net_ebitda - base_aop_revenue, 2)}M vs AOP")
 
     st.markdown("---")
-
-    # 3. LIVE DESK FEEDS (4-DESK CROSS-TALK)
+    
+    # 3. LIVE DESK CROSS-TALK FEEDS
     st.subheader("📡 Live Operational Desk Feeds")
     col_f1, col_f2, col_f3, col_f4 = st.columns(4)
-
-    with col_f1:
-        st.info(f"🔵 **NLP Commercial Sensing:** Auto-hooked signal (+{surge_units:,} {term_unit}).")
-
-    with col_f2:
-        if ctrm_gain > 0:
-            st.warning(f"🟡 **CTRM Desk:** ${ctrm_gain:.2f}M hedge gain locked in.")
-        else:
-            st.error("🔴 **CTRM Desk:** Unhedged spot exposure pending execution.")
-
-    with col_f3:
-        if is_committed:
-            st.success("🟢 **Demand/Supply Balancer:** S&OP Plan committed to production.")
-        else:
-            st.error("🔴 **Demand/Supply Balancer:** Plant operating near capacity limits.")
-
-    with col_f4:
-        erp_pushed = st.session_state.get("erp_requisitions_pushed", False)
-        if erp_pushed:
-            st.success(f"✅ **Procurement Desk:** POs Synced (+{delay_days:.1f}d Lead Time Shift).")
-        elif rop_offset_active:
-            st.warning(f"🚚 **GIS Control Tower:** +{delay_days:.1f}d Delay Active | Freight Drag Applied.")
-        else:
-            st.info("ℹ️ **Procurement Desk:** Standard MRP baseline active.")
+    col_f1.info(f"🔵 **NLP Commercial Sensing**: Auto-hooked signal (+{surge_units:,} {term_unit}).")
+    col_f2.warning(f"🟡 **CTRM Desk**: ${ctrm_gain:.2f}M hedge gain locked in.")
+    col_f3.error("🔴 **Demand/Supply Balancer**: Plant operating near capacity limits.")
+    
+    if pos_synced:
+        col_f4.success(f"🟢 **Procurement Desk**: POs Synced (+{delay_days:.1f}d Lead-Time Offset Active).")
+    else:
+        col_f4.info("ℹ️ **Procurement Desk**: Standard MRP baseline active.")
 
     st.markdown("---")
 
-    # 4. DYNAMIC FINANCIAL WATERFALL & HEDGING LEDGER
+    # 4. P&L WATERFALL & CTRM LEDGER TABLES
     col_w1, col_w2 = st.columns([1.2, 1])
-
+    
     with col_w1:
         st.subheader("💵 Financial P&L Margin Waterfall Report")
-        
         waterfall_data = [
             {"P&L Line Item": "1. Base AOP Revenue Target", "Amount ($)": f"${base_aop_revenue:.2f}M", "Impact": "🔴 Baseline Plan"},
             {"P&L Line Item": "2. Unconstrained Surge Realization", "Amount ($)": f"+${surge_revenue_upside:.2f}M", "Impact": "🟢 Commercial Upside"},
             {"P&L Line Item": "3. CTRM Derivative & Hedge Gain", "Amount ($)": f"+${ctrm_gain:.2f}M", "Impact": "🟡 Market Execution"},
-            {"P&L Line Item": f"4. COGS & Freight Cost Drag", "Amount ($)": f"-${total_freight_drag:.2f}M", "Impact": "⚠️ Expedited Drag" if rop_offset_active else "➖ Supply Baseline"},
-            {"P&L Line Item": "5. Projected Net EBITDA", "Amount ($)": f"${net_ebitda:.2f}M", "Impact": "🎯 Net Bottom-Line"}
+            {"P&L Line Item": "4. COGS & Freight Cost Drag", "Amount ($)": f"-${total_freight_drag:.2f}M", "Impact": "🟢 Mitigated" if pos_synced else "⚠️ Expedited Drag"},
+            {"P&L Line Item": "5. Projected Net EBITDA", "Amount ($)": f"${net_ebitda:.2f}M", "Impact": "🟢 Net Bottom-Line"}
         ]
         st.dataframe(pd.DataFrame(waterfall_data), use_container_width=True, hide_index=True)
 
     with col_w2:
         st.subheader("📈 CTRM Commodity Hedging Ledger")
+        
+        # Dynamic ledger status based on procurement ERP sync
         ledger_data = [
-            {"Commodity": "Raw Metals & Components", "Hedge Position": "85% Hedged", "Locked Rate": "$2,210 / MT", "Spot Exposure": "15% Unhedged ⚠️"},
-            {"Commodity": "Freight Futures (FEU)", "Hedge Position": "80% Hedged", "Locked Rate": "$1,450 / FEU", "Spot Exposure": "20% Unhedged ⚠️"},
-            {"Commodity": "Power & Energy", "Hedge Position": "100% Covered", "Locked Rate": "$64.50 / MWh", "Spot Exposure": "0% Covered"}
+            {
+                "Commodity": "Raw Metals & Components", 
+                "Hedge Position": "100% Synced 🟢" if pos_synced else "85% Hedged", 
+                "Locked Rate": "$2,210 / MT", 
+                "Spot Exposure": "0% Covered" if pos_synced else "15% Unhedged ⚠️"
+            },
+            {
+                "Commodity": "Freight Futures (FEU)", 
+                "Hedge Position": "100% Synced 🟢" if pos_synced else "80% Hedged", 
+                "Locked Rate": "$3,450 / FEU", 
+                "Spot Exposure": "0% Covered" if pos_synced else "20% Unhedged ⚠️"
+            },
+            {
+                "Commodity": "Power & Energy", 
+                "Hedge Position": "100% Covered", 
+                "Locked Rate": "$64.50 / MWh", 
+                "Spot Exposure": "0% Covered"
+            }
         ]
         st.dataframe(pd.DataFrame(ledger_data), use_container_width=True, hide_index=True)
-
 
 # =====================================================================
 # HELPER FUNCTIONS — CARRIER TELEMETRY & FALLBACK ENGINE
