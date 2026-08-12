@@ -203,8 +203,38 @@ with col_sim2:
 st.sidebar.markdown("---")
 
 # =====================================================================
-# HELPER FUNCTIONS
+# HELPER FUNCTIONS — CARRIER TELEMETRY & FALLBACK ENGINE
 # =====================================================================
+
+def fetch_carrier_telemetry_with_fallback():
+    """
+    Attempts to ingest live carrier API telemetry (DHL, FedEx, UPS, AIS).
+    Falls back gracefully to canned telemetry data if feeds are unreachable.
+    """
+    canned_telemetry = {
+        "is_live": False,
+        "primary_alert": "HIGH (Gulf Ports)",
+        "dwell_delay_days": 4.2,
+        "feed_status": "OFFLINE (Using Canned Telemetry)",
+        "telemetry_rows": [
+            {"Carrier Feed": "DHL Express (Air)", "Active Corridor": "Frankfurt → Detroit", "Base Lead-Time": "2 Days", "Live Delay": "0.0 Days", "Adjusted ROP Trigger": "Day T-2"},
+            {"Carrier Feed": "FedEx Freight (Road)", "Active Corridor": "Houston → Detroit", "Base Lead-Time": "4 Days", "Live Delay": "+4.2 Days (Gulf Surge)", "Adjusted ROP Trigger": "Day T-8.2 ⚠️"},
+            {"Carrier Feed": "UPS SCS (Rail)", "Active Corridor": "Rotterdam → Munich", "Base Lead-Time": "8 Days", "Live Delay": "+2.1 Days (Suez Transit)", "Adjusted ROP Trigger": "Day T-10.1 ⚠️"},
+            {"Carrier Feed": "Maersk (Ocean AIS)", "Active Corridor": "Shanghai → Long Beach", "Base Lead-Time": "18 Days", "Live Delay": "0.0 Days", "Adjusted ROP Trigger": "Day T-18"}
+        ]
+    }
+
+    # Example API endpoint check (e.g. Carrier Gateway / REST endpoint)
+    try:
+        # If you wire live API endpoints later, place the requests.get() here
+        # response = requests.get("https://api.your-carrier-gateway.com/v1/status", timeout=1.5)
+        # if response.status_code == 200:
+        #     return parse_live_telemetry(response.json())
+        pass
+    except Exception:
+        pass
+
+    return canned_telemetry
 
 def render_demand_supply_match(persona, term_unit="Units", plant1_name="Detroit Main Assembly", plant2_name="Munich Component Line", toller_name="3rd-Party CMO"):
     st.title(f"⚖️ Demand/Supply Match & Plant Load Balancer")
@@ -373,6 +403,119 @@ def get_persona_contracts(persona_type):
             {"Contract ID": "CTR-2026-M3", "Commodity": "Light Sweet Crude Off-Take", "Supplier": "Cushing Tank Farm", "Volume": "1,200,000 Bbls", "Fixed Price": "$76.50 / Bbl", "Status": "Under Review"}
         ]
 
+
+
+def render_global_logistics_gis(persona="Discrete & Heavy Industrial Enterprise", term_unit="FEUs"):
+    st.title("🌐 Global Logistics Network & GIS Control Tower")
+    st.caption(f"Active Persona View: **{persona}**")
+    st.markdown("Real-time maritime telemetry, port dwell tracking, multimodal corridor optimization, and lead-time-aware procurement bridging.")
+
+    # Ingest carrier data (uses fallback seamlessly if feeds are offline)
+    telemetry = fetch_carrier_telemetry_with_fallback()
+    delay_days = telemetry["dwell_delay_days"]
+
+    # Top Metric Banner
+    m1, m2, m3, m4 = st.columns(4)
+    m1.metric("Active Freight Volume", f"7,261 {term_unit}", "+312 in-transit")
+    m2.metric("Primary Chokepoint Alert", telemetry["primary_alert"], f"Dwell Time +{delay_days} Days")
+    m3.metric("Carrier API Feeds", "ONLINE" if telemetry["is_live"] else "STANDBY", telemetry["feed_status"])
+    m4.metric("D/S Lead-Time Offset", "AUTOMATED", f"ROP +{delay_days} Days Adjusted")
+
+    st.markdown("---")
+
+    # =====================================================================
+    # GIS HEADS-UP DISPLAY (HUD) MAP
+    # =====================================================================
+    st.subheader("🗺️ Global Multi-Modal Transit HUD & Chokepoint Telemetry")
+
+    # Facility Nodes
+    nodes_df = pd.DataFrame({
+        "Name": ["Detroit Main Plant", "Munich Assembly", "Shanghai Port Hub", "Rotterdam Port Hub", "Houston Logistics Hub"],
+        "Lat": [42.3314, 48.1351, 31.2304, 51.9244, 29.7604],
+        "Lon": [-83.0458, 11.5820, 121.4737, 4.4777, -95.3698]
+    })
+
+    # Chokepoints
+    chokepoints_df = pd.DataFrame({
+        "Location": ["Suez Canal", "Panama Canal", "US Gulf Ports (Houston/Mobile)", "Strait of Malacca"],
+        "Status": ["AMBER", "GREEN", "RED", "GREEN"],
+        "Color": ["#fecb52", "#00cc96", "#ef553b", "#00cc96"],
+        "Delay": ["+2.1 Days (Bottleneck)", "Normal Operations", f"+{delay_days} Days (NOAA Surge)", "Normal Operations"],
+        "Lat": [30.5852, 9.0800, 29.3013, 1.3521],
+        "Lon": [32.3432, -79.6800, -94.7977, 103.8198],
+        "Size": [18, 12, 26, 12]
+    })
+
+    fig = go.Figure()
+
+    # Corridor Arcs
+    corridors = [
+        {"name": "Transpacific Lane", "lats": [31.2304, 34.0522], "lons": [121.4737, -118.2437], "color": "#1f77b4"},
+        {"name": "Transatlantic Lane", "lats": [51.9244, 29.7604], "lons": [4.4777, -95.3698], "color": "#ef553b"},
+        {"name": "Eurasia Rail/Sea Corridor", "lats": [31.2304, 1.3521, 30.5852, 51.9244], "lons": [121.4737, 103.8198, 32.3432, 4.4777], "color": "#fecb52"}
+    ]
+
+    for line in corridors:
+        fig.add_trace(go.Scattergeo(
+            lat=line["lats"], lon=line["lons"],
+            mode="lines", line=dict(width=2.5, color=line["color"], dash="dot"),
+            name=line["name"], hoverinfo="name"
+        ))
+
+    # Plant/Warehouse Markers
+    fig.add_trace(go.Scattergeo(
+        lat=nodes_df["Lat"], lon=nodes_df["Lon"],
+        mode="markers+text",
+        marker=dict(size=10, color="#ffffff", symbol="diamond", line=dict(width=1.5, color="#000000")),
+        text=nodes_df["Name"], textposition="top center",
+        name="Enterprise Nodes (Plants/WH)"
+    ))
+
+    # Chokepoint Pulse Markers
+    fig.add_trace(go.Scattergeo(
+        lat=chokepoints_df["Lat"], lon=chokepoints_df["Lon"],
+        mode="markers",
+        marker=dict(size=chokepoints_df["Size"], color=chokepoints_df["Color"], opacity=0.85, line=dict(width=2, color="#ffffff")),
+        text=chokepoints_df["Location"] + ": " + chokepoints_df["Delay"], hoverinfo="text",
+        name="Chokepoint Telemetry"
+    ))
+
+    fig.update_layout(
+        geo=dict(
+            projection_type="natural earth",
+            showland=True, landcolor="#1e1e1e",
+            showocean=True, oceancolor="#0e1117",
+            showcountries=True, countrycolor="#333333",
+            bgcolor="#0e1117"
+        ),
+        height=480, margin=dict(l=10, r=10, t=20, b=10),
+        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1)
+    )
+
+    st.plotly_chart(fig, use_container_width=True)
+
+    # =====================================================================
+    # GOLDEN BRIDGE: LEAD-TIME DRIVEN PROCUREMENT
+    # =====================================================================
+    st.markdown("---")
+    st.subheader("🌉 The Golden Bridge: Demand/Supply & Procurement Lead-Time Offset")
+
+    col_gb1, col_gb2 = st.columns([1.2, 1])
+
+    with col_gb1:
+        st.markdown("#### **Active Carrier Telemetry & Dwell Breakdown**")
+        st.dataframe(pd.DataFrame(telemetry["telemetry_rows"]), use_container_width=True)
+
+    with col_gb2:
+        st.markdown("#### **Automated Procurement Recalibration**")
+        st.info(f"💡 **Dynamic MRP Integration Active:** Detected **+{delay_days} Day delay** on the Gulf Freight Corridor. Purchase Order triggers for raw materials are offset from **Day T-4 to Day T-8.2**.")
+        
+        if st.button("⚡ Execute Dynamic Order Offset in ERP", type="primary"):
+            st.session_state["rop_offset_executed"] = True
+            st.toast("Reorder points synchronized with SAP S/4HANA & Logistics Engine!", icon="🚀")
+
+    if st.session_state.get("rop_offset_executed", False):
+        st.success("✅ **ERP Synchronized**: Reorder points updated across all active manufacturing plants.")
 # =====================================================================
 # ROUTER 1: EXECUTIVE S&OP CONTROL TOWER
 # =====================================================================
@@ -835,52 +978,8 @@ elif "CTRM" in selected_module:
 # =====================================================================
 # ROUTER 6: GLOBAL LOGISTICS NETWORK & GIS CONTROL TOWER
 # =====================================================================
-elif "Global Logistics" in selected_module or "Cold Chain" in selected_module or "Maritime AIS" in selected_module:
-    st.title("🌐 Global Logistics Network & GIS Control Tower")
-    st.caption(f"Active Persona View: **{persona}**")
-    st.markdown("Real-time maritime telemetry, port dwell tracking, container route optimization, and physical re-routing.")
-
-    committed_feus = st.session_state.get("feus_required", 7261)
-    active_signal = st.session_state.get("active_risk_signal_title", "Baseline Operations")
-
-    col_g1, col_g2, col_g3 = st.columns(3)
-    col_g1.metric("Active Freight Allocation", f"{committed_feus:,} FEUs")
-    col_g2.metric("Chokepoint Alert Level", "HIGH (Gulf Ports)", "Dwell Time +4.2 Days")
-    col_g3.metric("Current Active Signal", active_signal)
-
-    st.markdown("---")
-    st.subheader("🗺️ Spatial Maritime & Warehouse Node Network")
-
-    selected_lane = st.selectbox(
-        "Select Active Transit Corridor to Stress-Test / Re-Route:",
-        [
-            "Transpacific Lane (Shanghai → Long Beach) - Status: CLEAR",
-            "US Gulf Coast Lane (Rotterdam → Houston) - Status: RED (NOAA Hurricane Risk)",
-            "Suez / Red Sea Lane (Singapore → Rotterdam) - Status: AMBER (Bottleneck Delay)"
-        ],
-        key="gis_lane_select"
-    )
-
-    col_actions1, col_actions2 = st.columns(2)
-
-    with col_actions1:
-        if st.button("📡 Inject Selected Lane Bottleneck into NLP & CTRM Desk", key="btn_gis_inject"):
-            st.session_state["extracted_demand_surge"] = 110000
-            st.session_state["active_risk_signal_title"] = f"GIS Alert: {selected_lane.split('-')[0].strip()}"
-            st.session_state["signal_category"] = "GIS Spatial Telemetry"
-            st.toast("GIS Logistics Disruption Pushed to NLP Sensing & CTRM Desk!", icon="🌐")
-            st.success("✅ Lane bottleneck injected into S&OP Load Balancer & Commodity Hedging Desk!")
-
-    with col_actions2:
-        if st.button("🔀 Execute Dynamic Volume Re-Routing to Secondary Plant", key="btn_gis_reroute"):
-            st.session_state["gis_rerouted"] = True
-            st.toast(f"Re-routed {int(committed_feus * 0.35):,} FEUs away from congested port!", icon="🔀")
-
-    if st.session_state.get("gis_rerouted", False):
-        st.info(
-            f"🔄 **Physical Shift Executed:** Diverted **{int(committed_feus * 0.35):,} FEUs** (35% of horizon load) "
-            "from Gulf Coast / Plant A to Inland Hub / Plant B to maintain OTIF customer SLAs."
-        )
+elif "Global Logistics" in selected_module or "GIS" in selected_module or "Cold Chain" in selected_module or "Maritime AIS" in selected_module:
+    render_global_logistics_gis(persona=persona, term_unit=term_unit)
 
 # =====================================================================
 # ROUTER 7: SANDBOX FLIGHT SIMULATOR & STRESS LAB
