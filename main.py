@@ -285,6 +285,7 @@ def render_physical_procurement(persona="Discrete & Heavy Industrial Enterprise"
     st.caption(f"Active Persona View: **{persona}**")
     st.markdown("Active enterprise supplier commitments, physical off-take agreements, and volume requisitions.")
 
+    # --- 1. GIS Lead-Time Offset State ---
     rop_offset_active = st.session_state.get("rop_offset_executed", False)
     delay_days = st.session_state.get("active_leadtime_delay_days", 4.2 if rop_offset_active else 0.0)
 
@@ -297,6 +298,7 @@ def render_physical_procurement(persona="Discrete & Heavy Industrial Enterprise"
     else:
         st.info("ℹ️ **Standard MRP Mode:** Lead times running on static baseline vendor contracts.")
 
+    # --- 2. Master Active Physical Contracts ---
     st.subheader("📋 Active Physical Supply Contracts")
     contracts_df = pd.DataFrame(get_persona_contracts(persona))
 
@@ -307,26 +309,37 @@ def render_physical_procurement(persona="Discrete & Heavy Industrial Enterprise"
     st.dataframe(contracts_df, use_container_width=True, hide_index=True)
     st.markdown("---")
 
+    # --- 3. Dynamic Horizon Ingestion & BOM Engine ---
     st.subheader("📦 Bill of Materials (BOM) Auto-Requisition Engine")
     is_committed = st.session_state.get("demand_plan_committed", False)
+    
+    # Reads multi-week total from Load Balancer, fallback to committed/calculated demand
     active_demand = st.session_state.get(
-        "committed_horizon_demand" if is_committed else "calculated_horizon_demand", 
-        846049
+        "total_horizon_units",
+        st.session_state.get(
+            "committed_horizon_demand" if is_committed else "calculated_horizon_demand", 
+            862640
+        )
     )
 
     if is_committed:
-        st.success(f"⚡ **Live S&OP Sync Active**: Displaying requisitions for committed Demand Plan of **{active_demand:,} {term_unit}**.")
+        st.success(f"⚡ **Live S&OP Horizon Sync Active**: Displaying requisitions for committed Demand Plan of **{active_demand:,} {term_unit}**.")
     else:
         st.info(f"ℹ️ **Baseline S&OP Forecast**: Displaying uncommitted requisitions for **{active_demand:,} {term_unit}**.")
 
+    # Chautauqua BOM Explosion Formulas
     req_metals_mt = int(active_demand * 0.015)
     req_components = int(active_demand * 1.50)
     req_freight_feus = int(active_demand / 144.28)
 
+    # Push to session state for downstream CTRM Derivatives Desk
+    st.session_state["required_metal_mt"] = req_metals_mt
+    st.session_state["required_feu_slots"] = req_freight_feus
+
     col_b1, col_b2, col_b3 = st.columns(3)
-    col_b1.metric(f"Required {term_raw}", f"{req_metals_mt:,} MT")
-    col_b2.metric("Component Requisitions", f"{req_components:,} Units")
-    col_b3.metric("Freight Slots Reserved", f"{req_freight_feus:,} FEUs")
+    col_b1.metric(f"Required {term_raw}", f"{req_metals_mt:,} MT", help="Formula: Horizon Units * 0.015")
+    col_b2.metric("Component Requisitions", f"{req_components:,} Units", help="Formula: Horizon Units * 1.5")
+    col_b3.metric("Freight Slots Reserved", f"{req_freight_feus:,} FEUs", help="Formula: Horizon Units / 144.28")
 
     st.markdown("<br>", unsafe_allow_html=True)
     if st.button("📌 Push Auto-Requisitions to ERP (SAP S/4HANA / Odoo)", key="btn_push_erp", type="primary"):
@@ -609,29 +622,102 @@ def render_demand_supply_match(persona, term_unit, plant1_name, plant2_name, tol
     st.title("⚙️ Demand / Supply Match & Plant Load Balancer")
     st.caption(f"Active Persona View: **{persona}**")
     
-    active_demand = st.session_state.get("extracted_demand_surge", 65000) + 781049
+    # Ingest live NLP surge from Commercial Sensing session state
+    nlp_surge_val = st.session_state.get("extracted_demand_surge", 65000)
     
-    st.subheader("🏭 Multi-Site Production Load & Capacity Allocation")
-    col_p1, col_p2, col_p3 = st.columns(3)
-    col_p1.metric(f"Facility A: {plant1_name}", f"410,000 {term_unit}", "98% Capacity (Near Max)")
-    col_p2.metric(f"Facility B: {plant2_name}", f"320,000 {term_unit}", "85% Capacity (Normal)")
-    col_p3.metric(f"Partner Node: {toller_name}", f"116,049 {term_unit}", "Active Offload Buffer")
+    # --- 1. Horizon Window & BAU Baseline Controls ---
+    col_ctrl1, col_ctrl2, col_ctrl3 = st.columns([1.2, 1, 1])
     
+    with col_ctrl1:
+        horizon_window = st.radio(
+            "Planning Horizon Window",
+            ["+30 Days (W35–W38)", "+60 Days (W35–W42)", "+90 Days (W35–W46)"],
+            horizontal=True
+        )
+    with col_ctrl2:
+        yoy_growth = st.slider("YoY Base Growth %", min_value=-10.0, max_value=30.0, value=5.0, step=0.5)
+    with col_ctrl3:
+        base_avg_demand = st.slider(f"Weekly BAU Base Avg ({term_unit})", min_value=100000, max_value=200000, value=130000, step=5000)
+
+    # --- 2. Dynamic Time-Phased Baseline & NLP Surge Array ---
+    num_weeks = 4 if "+30" in horizon_window else (8 if "+60" in horizon_window else 12)
+    weeks = [f"W{35 + i}" for i in range(num_weeks)]
+    
+    base_demand = [int(base_avg_demand * (1 + (yoy_growth / 100.0)) * (1 + 0.015 * i)) for i in range(num_weeks)]
+    
+    # Map ingested NLP surge across mid-horizon weeks
+    nlp_surge = [0] * num_weeks
+    if num_weeks >= 3:
+        nlp_surge[2] = int(nlp_surge_val * 0.4)
+    if num_weeks >= 4:
+        nlp_surge[3] = int(nlp_surge_val * 0.6)
+        
+    total_unconstrained = [b + s for b, s in zip(base_demand, nlp_surge)]
+    
+    moq_floor = 115000
+    max_plant_capacity = 145000
+
+    # --- 3. Interactive Plotly Horizon HUD ---
+    fig = go.Figure()
+
+    fig.add_trace(go.Bar(
+        x=weeks, y=total_unconstrained, 
+        name='Total Unconstrained (BAU + NLP Surge)',
+        marker_color='#0747a6', opacity=0.45
+    ))
+    
+    fig.add_trace(go.Scatter(
+        x=weeks, y=base_demand, 
+        mode='lines+markers', name='BAU Baseline (YoY Dynamic)',
+        line=dict(color='#0052cc', width=3)
+    ))
+    
+    fig.add_hline(y=moq_floor, line_dash="dash", line_color="#ffab00", annotation_text=f"Contract MOQ Floor ({moq_floor:,})")
+    fig.add_hline(y=max_plant_capacity, line_dash="dot", line_color="#de350b", annotation_text=f"Primary Plant Ceiling ({max_plant_capacity:,})")
+
+    fig.update_layout(
+        title=f"Time-Phased Demand vs. Capacity Constraints ({horizon_window})",
+        xaxis_title="Planning Horizon (Weeks)",
+        yaxis_title=f"Volume ({term_unit})",
+        height=380,
+        margin=dict(l=20, r=20, t=40, b=20),
+        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1)
+    )
+
+    st.plotly_chart(fig, use_container_width=True)
+
+    # --- 4. Plant Telemetry & Co-Packer Margin Drag Engine ---
     st.markdown("---")
-    st.subheader("⚖️ Dynamic Allocation Adjustment")
+    st.subheader("⚖️ Dynamic Allocation Adjustment & Co-Packer Drag Engine")
+    
     cmo_slider = st.slider(f"CMO / Partner Offload Ratio ({toller_name}):", min_value=5, max_value=40, value=15, step=5, key="toller_split_slider")
-    
-    offloaded_qty = int(active_demand * (cmo_slider / 100.0))
-    st.caption(f"Allocating **{offloaded_qty:,} {term_unit}** ({cmo_slider}%) to {toller_name} to mitigate primary plant overload.")
-    
+
+    total_horizon_units = sum(total_unconstrained)
+    offload_units = int(total_horizon_units * (cmo_slider / 100.0))
+    retained_units = total_horizon_units - offload_units
+    margin_drag = cmo_slider * 0.12  # Formula: Slider % * $0.12M per % offload
+
+    col_p1, col_p2, col_p3, col_p4 = st.columns(4)
+    col_p1.metric(f"Facility A: {plant1_name}", f"{int(retained_units * 0.56):,} {term_unit}", "98% Capacity")
+    col_p2.metric(f"Facility B: {plant2_name}", f"{int(retained_units * 0.44):,} {term_unit}", "85% Capacity")
+    col_p3.metric(f"Partner: {toller_name}", f"{offload_units:,} {term_unit}", f"{cmo_slider}% Offload Split")
+    col_p4.metric("Co-Packer Margin Drag", f"-${margin_drag:.2f}M", delta_color="inverse")
+
+    # --- 5. Commit Button & Multi-Desk State Handshake ---
     if st.button("⚡ Commit & Finalize S&OP Production Horizon", type="primary", key="btn_commit_sop"):
         st.session_state["demand_plan_committed"] = True
-        st.session_state["committed_horizon_demand"] = active_demand
+        st.session_state["committed_horizon_demand"] = total_horizon_units
+        st.session_state["total_horizon_units"] = total_horizon_units
+        st.session_state["retained_plant_units"] = retained_units
+        st.session_state["cmo_offload_units"] = offload_units
         st.toast("Production plan committed across primary plants and partner nodes!", icon="🚀")
         
     if st.session_state.get("demand_plan_committed", False):
-        st.success(f"✅ **S&OP Horizon Plan Committed**: {active_demand:,} {term_unit} locked into manufacturing schedule.")
-
+        st.success(
+            f"✅ **S&OP Horizon Plan Committed**: "
+            f"{st.session_state.get('total_horizon_units', total_horizon_units):,} {term_unit} "
+            f"locked into manufacturing schedule across {horizon_window}."
+        )
 
 def render_global_logistics_gis(persona="Discrete & Heavy Industrial Enterprise", term_unit="Units"):
     st.title("🌐 Global Logistics Network & GIS Control Tower")
