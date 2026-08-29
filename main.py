@@ -355,267 +355,497 @@ def render_physical_procurement(persona="Discrete & Heavy Industrial Enterprise"
             )
         else:
             st.success("✅ **ERP Requisitions Synced**: Purchase orders PO-2026-9901 through PO-2026-9904 generated and sent to procurement queue.")
+import numpy as np
+import pandas as pd
+import streamlit as st
 
-def render_ctrm_desk(persona="Discrete & Heavy Industrial Enterprise", term_unit="Units"):
-    st.title("🛡️ CTRM Event-Driven Hedging Desk")
-    st.caption(f"Active Persona View: **{persona}**")
-    st.markdown("Financial commodity risk engine, custom synthetic derivatives builder, and FIX order execution.")
 
-    # ----------------------------------------------------
-    # 0. CROSS-DESK SESSION STATE INITIALIZATION
-    # ----------------------------------------------------
-    if "sop_cash_balance" not in st.session_state:
-        st.session_state["sop_cash_balance"] = 5_000_000.00  # Default $5M Treasury
-    if "future_supply_ledger" not in st.session_state:
-        st.session_state["future_supply_ledger"] = {
-            "Current Period": 50000,
-            "Target Period (+30D)": 60000,
-            "Target Period (+90D)": 65000
-        }
+def render_ctrm_desk(
+    persona="Discrete & Heavy Industrial Enterprise", term_unit="Units"
+):
+  st.title("🛡️ CTRM Event-Driven Hedging Desk")
+  st.caption(f"Active Persona View: **{persona}**")
+  st.markdown(
+      "Financial commodity risk engine, custom synthetic derivatives builder,"
+      " and FIX order execution."
+  )
 
-    raw_surge = st.session_state.get("extracted_demand_surge", 65000)
-    signal_title = st.session_state.get("active_risk_signal_title", "NOAA Climate Alert")
-    signal_category = st.session_state.get("signal_category", "Weather & Macro Feed")
+  # ----------------------------------------------------
+  # 0. CROSS-DESK SESSION STATE INITIALIZATION
+  # ----------------------------------------------------
+  if "sop_cash_balance" not in st.session_state:
+    st.session_state["sop_cash_balance"] = 5_000_000.00  # Default $5M Treasury
+  if "future_supply_ledger" not in st.session_state:
+    st.session_state["future_supply_ledger"] = {
+        "Current Period": 50000,
+        "Target Period (+30D)": 60000,
+        "Target Period (+90D)": 65000,
+    }
 
-    cmo_offload_pct = st.session_state.get("toller_split_slider", 15)
-    net_exposure_pct = max(0.20, cmo_offload_pct / 100.0)
-    net_unhedged_units = int(raw_surge * net_exposure_pct)
-    unhedged_risk = net_unhedged_units * 150.0
-    default_lots = max(10, int(net_unhedged_units / 100))
+  # Ingest Demand Signals & Physical Procurement State
+  raw_surge = st.session_state.get("extracted_demand_surge", 65000)
+  req_metal_mt = st.session_state.get("required_metal_mt", 9349)
+  req_feus = st.session_state.get("required_feu_slots", 4319)
 
-    # Auto-Derive Time Period / Expiration Horizon from Market Signal
-    if "Climate" in signal_title or "Surge" in signal_category:
-        auto_horizon_days = 90
-        target_period_key = "Target Period (+90D)"
-    else:
-        auto_horizon_days = 30
-        target_period_key = "Target Period (+30D)"
+  signal_title = st.session_state.get(
+      "active_risk_signal_title", "NOAA Climate Alert"
+  )
+  signal_category = st.session_state.get(
+      "signal_category", "Weather & Macro Feed"
+  )
 
-    st.info(
-        f"⚡ **Active Risk Signal Ingested**: {signal_title} *({signal_category})* | "
-        f"**Gross Exposure:** {raw_surge:,} {term_unit} | **Net Shortfall:** {net_unhedged_units:,} {term_unit} | "
-        f"⏱️ **Auto Horizon:** {auto_horizon_days} Days"
+  cmo_offload_pct = st.session_state.get("toller_split_slider", 15)
+  net_exposure_pct = max(0.20, cmo_offload_pct / 100.0)
+  net_unhedged_units = int(raw_surge * net_exposure_pct)
+  net_metal_shortfall_mt = int(req_metal_mt * net_exposure_pct)
+  unhedged_risk = net_unhedged_units * 150.0
+  default_lots = max(10, int(net_metal_shortfall_mt / 25))  # 25 MT / LME Lot
+
+  # Auto-Derive Expiration Horizon
+  if "Climate" in signal_title or "Surge" in signal_category:
+    auto_horizon_days = 90
+    target_period_key = "Target Period (+90D)"
+  else:
+    auto_horizon_days = 30
+    target_period_key = "Target Period (+30D)"
+
+  st.info(
+      f"⚡ **Active Risk Signal Ingested**: {signal_title} *({signal_category})*"
+      f" | **Gross Material Exposure:** {req_metal_mt:,} MT ({raw_surge:,}"
+      f" {term_unit}) | **Unhedged Shortfall:** {net_metal_shortfall_mt:,} MT"
+      f" ({net_unhedged_units:,} {term_unit}) | ⏱️ **Auto Horizon:**"
+      f" {auto_horizon_days} Days"
+  )
+
+  tab_exec, tab_lab = st.tabs([
+      "📊 Standard Desk & FIX Execution",
+      "🧪 Synthetic Derivative Builder & Model Lab",
+  ])
+
+  # ----------------------------------------------------
+  # TAB 1: STANDARD DESK & FIX EXECUTION
+  # ----------------------------------------------------
+  with tab_exec:
+    col_c1, col_c2, col_c3, col_c4 = st.columns(4)
+    col_c1.metric(
+        "Gross Demand Surge",
+        f"{raw_surge:,} {term_unit}",
+        f"{req_metal_mt:,} MT Metals",
+    )
+    col_c2.metric(
+        "Physical Cover (Stock/CMO)",
+        f"{raw_surge - net_unhedged_units:,} {term_unit}",
+        f"{req_metal_mt - net_metal_shortfall_mt:,} MT Covered",
+    )
+    col_c3.metric(
+        "Net Shortfall",
+        f"{net_unhedged_units:,} {term_unit}",
+        f"{net_exposure_pct*100:.0f}% Unhedged Gap",
+    )
+    col_c4.metric("Unhedged Margin Risk", f"${unhedged_risk:,.2f}")
+
+    st.markdown("---")
+    st.subheader("⚡ FIX 4.4 Order Execution Gateway")
+
+    # Row 1: Intent & Horizon
+    col_i1, col_i2, col_i3 = st.columns(3)
+    with col_i1:
+      intent_type = st.selectbox(
+          "Execution Intent",
+          [
+              "Hedge Risk (Cover Shortfall)",
+              "Exercise Call Option",
+              "Exercise Put Option",
+              "Speculative Position",
+          ],
+          key="std_intent",
+      )
+    with col_i2:
+      time_horizon = st.selectbox(
+          "Time Period / Expiration",
+          [
+              f"Auto-Matched ({auto_horizon_days} Days)",
+              "30 Days (Short-Term)",
+              "60 Days (Mid-Term)",
+              "90 Days (Long-Term LEAP)",
+          ],
+          key="std_horizon",
+      )
+    with col_i3:
+      unit_premium_est = st.number_input(
+          "Est. Premium ($/Unit)", value=4.25, step=0.25, key="std_unit_prem"
+      )
+
+    calculated_total_premium = net_unhedged_units * unit_premium_est
+
+    # Row 2: Order Structure & Exchange
+    col_f1, col_f2, col_f3 = st.columns([1.5, 1.5, 1])
+    with col_f1:
+      order_type = st.selectbox(
+          "Order Structure",
+          [
+              "Asian Call Collar",
+              "Outright Call Option",
+              "Outright Put Option",
+              "Delta-Hedged Futures Spread",
+          ],
+          key="std_order_type",
+      )
+    with col_f2:
+      exchange = st.selectbox(
+          "Execution Exchange",
+          ["LME (London Metal Exchange)", "CME Group", "ICE Futures"],
+          key="std_exchange",
+      )
+    with col_f3:
+      lots = st.number_input(
+          "Lots / Contracts (LME 25 MT)",
+          value=default_lots,
+          step=5,
+          key="std_lots",
+      )
+
+    st.caption(
+        f"💰 **Total Premium Required:** `${calculated_total_premium:,.2f}`"
+        " (Will be debited from Exec S&OP Cash Treasury)"
     )
 
-    tab_exec, tab_lab = st.tabs(["📊 Standard Desk & FIX Execution", "🧪 Synthetic Derivative Builder & Model Lab"])
+    if st.button("⚡ Execute & Route FIX 4.4 Paper Order", key="btn_exec_std"):
+      # 1. State Cascade: Deduct Premium from S&OP Treasury Cash
+      st.session_state["sop_cash_balance"] -= calculated_total_premium
 
-    with tab_exec:
-        col_c1, col_c2, col_c3, col_c4 = st.columns(4)
-        col_c1.metric("Gross Demand Surge", f"{raw_surge:,} {term_unit}")
-        col_c2.metric("Physical Cover (Stock/CMO)", f"{raw_surge - net_unhedged_units:,} {term_unit}")
-        col_c3.metric("Net Shortfall", f"{net_unhedged_units:,} {term_unit}", f"{net_exposure_pct*100:.0f}% Unhedged Gap")
-        col_c4.metric("Unhedged Margin Risk", f"${unhedged_risk:,.2f}")
+      # 2. State Cascade: Inject Hedged Volume into Demand/Supply Ledger
+      if "Hedge" in intent_type or "Call" in intent_type:
+        st.session_state["future_supply_ledger"][target_period_key] += (
+            net_unhedged_units
+        )
+        supply_msg = (
+            f"Added +{net_unhedged_units:,} {term_unit} ("
+            f"{net_metal_shortfall_mt:,} MT) to Module 3 ({target_period_key})."
+        )
+      else:
+        supply_msg = (
+            "No physical volume added (Financial Settlement/Put Option)."
+        )
 
-        st.markdown("---")
-        st.subheader("⚡ FIX 4.4 Order Execution Gateway")
+      st.session_state["fix_executed"] = True
+      st.session_state["ctrm_hedged"] = True
+      st.session_state["ctrm_hedge_gain"] = 3.25
+      st.session_state["executed_lots"] = lots
+      st.session_state["executed_order_type"] = order_type
+      st.session_state["executed_exchange"] = exchange
+      st.session_state["last_supply_msg"] = supply_msg
 
-        # Row 1: Intent & Time Period
-        col_i1, col_i2, col_i3 = st.columns(3)
-        with col_i1:
-            intent_type = st.selectbox(
-                "Execution Intent", 
-                ["Hedge Risk (Cover Shortfall)", "Exercise Call Option", "Exercise Put Option", "Speculative Position"], 
-                key="std_intent"
-            )
-        with col_i2:
-            time_horizon = st.selectbox(
-                "Time Period / Expiration", 
-                [f"Auto-Matched ({auto_horizon_days} Days)", "30 Days (Short-Term)", "60 Days (Mid-Term)", "90 Days (Long-Term LEAP)"], 
-                key="std_horizon"
-            )
-        with col_i3:
-            unit_premium_est = st.number_input("Est. Premium ($/Unit)", value=4.25, step=0.25, key="std_unit_prem")
+      st.toast(f"FIX Order Sent: {lots:,} Lots to {exchange}!", icon="⚡")
 
-        # Dynamic Premium Cost Calculation
-        calculated_total_premium = net_unhedged_units * unit_premium_est
+    if st.session_state.get("fix_executed", False):
+      exec_lots = st.session_state.get("executed_lots", lots)
+      exec_type = st.session_state.get("executed_order_type", order_type)
+      exec_exch = st.session_state.get("executed_exchange", exchange)
+      last_msg = st.session_state.get("last_supply_msg", "")
 
-        # Row 2: Structure, Exchange, Lots
-        col_f1, col_f2, col_f3 = st.columns([1.5, 1.5, 1])
-        with col_f1:
-            order_type = st.selectbox("Order Structure", ["Asian Call Collar", "Outright Call Option", "Outright Put Option", "Delta-Hedged Futures Spread"], key="std_order_type")
-        with col_f2:
-            exchange = st.selectbox("Execution Exchange", ["CME Group", "ICE Futures", "LME"], key="std_exchange")
-        with col_f3:
-            lots = st.number_input("Lots / Contracts (Net Shortfall)", value=default_lots, step=10, key="std_lots")
+      st.success(
+          f"✅ **FIX 4.4 Executed**: {exec_type} on {exec_exch} for"
+          f" **{exec_lots:,} Lots** | Intent: **{intent_type}**\n\n💸 **Exec"
+          f" S&OP Treasury Updated:** Debited `${calculated_total_premium:,.2f}`."
+          f" Remaining Cash: `${st.session_state['sop_cash_balance']:,.2f}`\n\n📦"
+          f" **Demand/Supply (Module 3) Updated:** {last_msg}"
+      )
 
-        st.caption(f"💰 **Total Premium Required:** `${calculated_total_premium:,.2f}` (Will be debited from Exec S&OP Cash)")
-
-        if st.button("⚡ Execute & Route FIX 4.4 Paper Order", key="btn_exec_std"):
-            # 1. State cascade: Deduct Premium from S&OP Treasury
-            st.session_state["sop_cash_balance"] -= calculated_total_premium
-            
-            # 2. State cascade: Inject Volume to Module 3 if Hedging or Exercising Call
-            if "Hedge" in intent_type or "Call" in intent_type:
-                st.session_state["future_supply_ledger"][target_period_key] += net_unhedged_units
-                supply_msg = f"Added +{net_unhedged_units:,} {term_unit} to Module 3 ({target_period_key})."
-            else:
-                supply_msg = "No physical volume added (Financial Settlement/Put Option)."
-
-            st.session_state["fix_executed"] = True
-            st.session_state["executed_lots"] = lots
-            st.session_state["executed_order_type"] = order_type
-            st.session_state["executed_exchange"] = exchange
-            st.session_state["last_supply_msg"] = supply_msg
-
-            st.toast(f"FIX Order Sent: {lots:,} Lots to {exchange}!", icon="⚡")
-
-        if st.session_state.get("fix_executed", False):
-            exec_lots = st.session_state.get("executed_lots", lots)
-            exec_type = st.session_state.get("executed_order_type", order_type)
-            exec_exch = st.session_state.get("executed_exchange", exchange)
-            last_msg = st.session_state.get("last_supply_msg", "")
-            
-            st.success(
-                f"✅ **FIX 4.4 Executed**: {exec_type} on {exec_exch} for **{exec_lots:,} Lots** | Intent: **{intent_type}**\n\n"
-                f"💸 **Exec S&OP Treasury Updated:** Debited `${calculated_total_premium:,.2f}`. Remaining Cash: `${st.session_state['sop_cash_balance']:,.2f}`\n\n"
-                f"📦 **Demand/Supply (Module 3) Updated:** {last_msg}"
-            )
-
-    with tab_lab:
-        st.subheader("🛠️ Custom Synthetic Derivative Constructor")
-        col_d1, col_d2, col_d3 = st.columns(3)
-        with col_d1:
-            deriv_type = st.selectbox("Structure Type", ["Fixed-for-Floating Synthetic Swap", "Zero-Cost Asian Collar", "Custom Crack/Spark Spread", "Digital Barrier Option"], key="lab_deriv_type")
-        with col_d2:
-            pricing_engine = st.selectbox("Pricing Model Engine", ["Black76 Jump-Diffusion Model", "Monte Carlo Path Simulation (10k Runs)", "Hawkes Stochastic Volatility"], key="lab_model_engine")
-        with col_d3:
-            strike_price = st.number_input("Strike / Cap Price ($/Unit)", value=150.0, step=5.0, key="lab_strike")
-
-        st.markdown("---")
-        st.subheader("📊 Dynamic Payoff Profile & Sensitivity Analysis")
-
-        col_m1, col_m2 = st.columns([1.5, 1])
-        with col_m1:
-            price_range = np.linspace(strike_price * 0.7, strike_price * 1.3, 50)
-            if "Swap" in deriv_type:
-                payoff = (price_range - strike_price) * net_unhedged_units
-            elif "Collar" in deriv_type:
-                floor, cap = strike_price * 0.9, strike_price * 1.1
-                payoff = np.clip(price_range - floor, 0, cap - floor) * net_unhedged_units - (strike_price * 0.05 * net_unhedged_units)
-            else:
-                payoff = np.maximum(price_range - strike_price, 0) * net_unhedged_units - (strike_price * 0.08 * net_unhedged_units)
-
-            chart_data = pd.DataFrame({"Underlying Price ($)": price_range, "Net Payoff ($)": payoff})
-            st.line_chart(chart_data, x="Underlying Price ($)", y="Net Payoff ($)", use_container_width=True)
-
-        with col_m2:
-            st.markdown("#### **Estimated Instrument Greeks**")
-            st.metric("Delta (Δ) Sensitivity", "0.52" if "Black76" in pricing_engine else "0.48 (Simulated)")
-            st.metric("Vega (ν) Vol Risk", "$12,450 / 1% Vol" if "Jump-Diffusion" in pricing_engine else "$10,200 / 1% Vol")
-            st.metric("Estimated Structure Premium", f"${net_unhedged_units * 4.25:,.2f}")
-
-        if st.button("🚀 Route Custom OTC Synthetic Structure to Exchange Clearing", key="btn_route_synthetic"):
-            synthetic_prem = net_unhedged_units * 4.25
-            st.session_state["sop_cash_balance"] -= synthetic_prem
-            st.session_state["future_supply_ledger"][target_period_key] += net_unhedged_units
-            st.session_state["synthetic_executed"] = True
-            st.toast(f"Custom OTC Structure Cleared! Debited ${synthetic_prem:,.2f} from S&OP Cash.", icon="🚀")
-
-    # ----------------------------------------------------
-    # LIVE CROSS-DESK LEDGER AUDIT DISPLAY
-    # ----------------------------------------------------
-    st.markdown("---")
-    st.markdown("### 🔗 Real-Time Cross-Desk Cascades")
-    l_col1, l_col2 = st.columns(2)
-    with l_col1:
-        st.markdown("**Exec S&OP Desk (Module 1) Treasury**")
-        st.metric("Available Cash Balance", f"${st.session_state['sop_cash_balance']:,.2f}")
-    with l_col2:
-        st.markdown("**Demand/Supply Match (Module 3) Ledger**")
-        st.json(st.session_state["future_supply_ledger"])
-
-
-def render_executive_sop(persona="Discrete & Heavy Industrial Enterprise", term_unit="Units"):
-    st.title("📊 Executive S&OP Control Tower")
-    st.caption(f"Active Persona View: **{persona}**")
-    st.markdown("Real-time financial alignment, financial waterfalls, and trade hedge benefit reconciliation.")
-
-    # 1. STATE INGESTION & DYNAMIC FINANCIAL AUDIT
-    baseline_volume = 781049
-    is_committed = st.session_state.get("demand_plan_committed", False)
-    active_demand = st.session_state.get(
-        "committed_horizon_demand" if is_committed else "extracted_demand_surge", 
-        65000
-    ) + baseline_volume
-    
-    surge_units = max(0, active_demand - baseline_volume)
-    
-    # Financial Inputs ($ Millions) - FIXED DIVISOR (/ 1_000_000)
-    base_aop_revenue = 120.00
-    surge_revenue_upside = round((surge_units * 249.23) / 1_000_000, 2)  # Yields +$16.20M
-    unconstrained_demand_rev = base_aop_revenue + surge_revenue_upside
-    
-    # Check procurement sync state from Procurement / GIS Desks
-    pos_synced = st.session_state.get("erp_requisitions_pushed", False) or st.session_state.get("rop_offset_executed", False)
-    delay_days = st.session_state.get("active_leadtime_delay_days", 4.2)
-    
-    # Dynamic Freight Drag & Hedging Benefit
-    base_freight_drag = 3.20 + (delay_days * 0.15 if st.session_state.get("sandbox_active", False) else 0.0)
-    total_freight_drag = round(base_freight_drag * 0.6 if pos_synced else base_freight_drag, 2)
-    ctrm_gain = 3.25
-    net_ebitda = round(unconstrained_demand_rev + ctrm_gain - total_freight_drag - 10.0, 2)
-
-    # 2. EXECUTIVE METRICS CARDS
-    col_m1, col_m2, col_m3, col_m4 = st.columns(4)
-    col_m1.metric("Annual Operating Plan (AOP)", f"${base_aop_revenue:.1f}M", "+4.2% YoY")
-    col_m2.metric("Unconstrained Demand (AOP + Surge)", f"${unconstrained_demand_rev:.2f}M", f"+{surge_units:,} {term_unit}")
-    col_m3.metric("CTRM Hedge & Trade Benefit", f"+${ctrm_gain:.2f}M", "⚡ Active Execution" if pos_synced else "⚡ Pending Sync")
-    col_m4.metric("Net Realized EBITDA", f"${net_ebitda:.2f}M", f"+${round(net_ebitda - base_aop_revenue, 2)}M vs AOP")
+  # ----------------------------------------------------
+  # TAB 2: SYNTHETIC DERIVATIVE BUILDER & MODEL LAB
+  # ----------------------------------------------------
+  with tab_lab:
+    st.subheader("🛠️ Custom Synthetic Derivative Constructor")
+    col_d1, col_d2, col_d3 = st.columns(3)
+    with col_d1:
+      deriv_type = st.selectbox(
+          "Structure Type",
+          [
+              "Fixed-for-Floating Synthetic Swap",
+              "Zero-Cost Asian Collar",
+              "Custom Crack/Spark Spread",
+              "Digital Barrier Option",
+          ],
+          key="lab_deriv_type",
+      )
+    with col_d2:
+      pricing_engine = st.selectbox(
+          "Pricing Model Engine",
+          [
+              "Black76 Jump-Diffusion Model",
+              "Monte Carlo Path Simulation (10k Runs)",
+              "Hawkes Stochastic Volatility",
+          ],
+          key="lab_model_engine",
+      )
+    with col_d3:
+      strike_price = st.number_input(
+          "Strike / Cap Price ($/Unit)",
+          value=150.0,
+          step=5.0,
+          key="lab_strike",
+      )
 
     st.markdown("---")
-    
-    # 3. LIVE DESK CROSS-TALK FEEDS
-    st.subheader("📡 Live Operational Desk Feeds")
-    col_f1, col_f2, col_f3, col_f4 = st.columns(4)
-    col_f1.info(f"🔵 **NLP Commercial Sensing**: Auto-hooked signal (+{surge_units:,} {term_unit}).")
-    col_f2.warning(f"🟡 **CTRM Desk**: ${ctrm_gain:.2f}M hedge gain locked in.")
-    col_f3.error("🔴 **Demand/Supply Balancer**: Plant operating near capacity limits.")
-    
-    if pos_synced:
-        col_f4.success(f"🟢 **Procurement Desk**: POs Synced (+{delay_days:.1f}d Lead-Time Offset Active).")
-    else:
-        col_f4.info("ℹ️ **Procurement Desk**: Standard MRP baseline active.")
+    st.subheader("📊 Dynamic Payoff Profile & Sensitivity Analysis")
 
-    st.markdown("---")
+    col_m1, col_m2 = st.columns([1.5, 1])
+    with col_m1:
+      price_range = np.linspace(strike_price * 0.7, strike_price * 1.3, 50)
+      if "Swap" in deriv_type:
+        payoff = (price_range - strike_price) * net_unhedged_units
+      elif "Collar" in deriv_type:
+        floor, cap = strike_price * 0.9, strike_price * 1.1
+        payoff = (
+            np.clip(price_range - floor, 0, cap - floor) * net_unhedged_units
+            - (strike_price * 0.05 * net_unhedged_units)
+        )
+      else:
+        payoff = (
+            np.maximum(price_range - strike_price, 0) * net_unhedged_units
+            - (strike_price * 0.08 * net_unhedged_units)
+        )
 
-    # 4. P&L WATERFALL & CTRM LEDGER TABLES
-    col_w1, col_w2 = st.columns([1.2, 1])
-    
-    with col_w1:
-        st.subheader("💵 Financial P&L Margin Waterfall Report")
-        waterfall_data = [
-            {"P&L Line Item": "1. Base AOP Revenue Target", "Amount ($)": f"${base_aop_revenue:.2f}M", "Impact": "🔴 Baseline Plan"},
-            {"P&L Line Item": "2. Unconstrained Surge Realization", "Amount ($)": f"+${surge_revenue_upside:.2f}M", "Impact": "🟢 Commercial Upside"},
-            {"P&L Line Item": "3. CTRM Derivative & Hedge Gain", "Amount ($)": f"+${ctrm_gain:.2f}M", "Impact": "🟡 Market Execution"},
-            {"P&L Line Item": "4. COGS & Freight Cost Drag", "Amount ($)": f"-${total_freight_drag:.2f}M", "Impact": "🟢 Mitigated" if pos_synced else "⚠️ Expedited Drag"},
-            {"P&L Line Item": "5. Projected Net EBITDA", "Amount ($)": f"${net_ebitda:.2f}M", "Impact": "🟢 Net Bottom-Line"}
-        ]
-        st.dataframe(pd.DataFrame(waterfall_data), use_container_width=True, hide_index=True)
+      chart_data = pd.DataFrame(
+          {"Underlying Price ($)": price_range, "Net Payoff ($)": payoff}
+      )
+      st.line_chart(
+          chart_data,
+          x="Underlying Price ($)",
+          y="Net Payoff ($)",
+          use_container_width=True,
+      )
 
-    with col_w2:
-        st.subheader("📈 CTRM Commodity Hedging Ledger")
-        
-        ledger_data = [
-            {
-                "Commodity": "Raw Metals & Components", 
-                "Hedge Position": "100% Synced 🟢" if pos_synced else "85% Hedged", 
-                "Locked Rate": "$2,210 / MT", 
-                "Spot Exposure": "0% Covered" if pos_synced else "15% Unhedged ⚠️"
-            },
-            {
-                "Commodity": "Freight Futures (FEU)", 
-                "Hedge Position": "100% Synced 🟢" if pos_synced else "80% Hedged", 
-                "Locked Rate": "$3,450 / FEU", 
-                "Spot Exposure": "0% Covered" if pos_synced else "20% Unhedged ⚠️"
-            },
-            {
-                "Commodity": "Power & Energy", 
-                "Hedge Position": "100% Covered", 
-                "Locked Rate": "$64.50 / MWh", 
-                "Spot Exposure": "0% Covered"
-            }
-        ]
-        st.dataframe(pd.DataFrame(ledger_data), use_container_width=True, hide_index=True)
+    with col_m2:
+      st.markdown("#### **Estimated Instrument Greeks**")
+      st.metric(
+          "Delta (Δ) Sensitivity",
+          "0.52" if "Black76" in pricing_engine else "0.48 (Simulated)",
+      )
+      st.metric(
+          "Vega (ν) Vol Risk",
+          "$12,450 / 1% Vol"
+          if "Jump-Diffusion" in pricing_engine
+          else "$10,200 / 1% Vol",
+      )
+      st.metric(
+          "Estimated Structure Premium", f"${net_unhedged_units * 4.25:,.2f}"
+      )
+
+    if st.button(
+        "🚀 Route Custom OTC Synthetic Structure to Exchange Clearing",
+        key="btn_route_synthetic",
+    ):
+      synthetic_prem = net_unhedged_units * 4.25
+      st.session_state["sop_cash_balance"] -= synthetic_prem
+      st.session_state["future_supply_ledger"][target_period_key] += (
+          net_unhedged_units
+      )
+      st.session_state["synthetic_executed"] = True
+      st.session_state["ctrm_hedged"] = True
+      st.session_state["ctrm_hedge_gain"] = 3.25
+      st.toast(
+          f"Custom OTC Structure Cleared! Debited ${synthetic_prem:,.2f} from"
+          " S&OP Cash.",
+          icon="🚀",
+      )
+
+  # ----------------------------------------------------
+  # LIVE CROSS-DESK LEDGER AUDIT DISPLAY
+  # ----------------------------------------------------
+  st.markdown("---")
+  st.markdown("### 🔗 Real-Time Cross-Desk Cascades")
+  l_col1, l_col2, l_col3 = st.columns(3)
+  with l_col1:
+    st.markdown("**Exec S&OP Treasury (Module 1)**")
+    st.metric(
+        "Available Cash Balance", f"${st.session_state['sop_cash_balance']:,.2f}"
+    )
+  with l_col2:
+    st.markdown("**Demand/Supply Ledger (Module 3)**")
+    st.json(st.session_state["future_supply_ledger"])
+  with l_col3:
+    st.markdown("**Physical Procurement Exposure (Module 4)**")
+    st.metric("Raw Metals Exposure", f"{req_metal_mt:,} MT")
+    st.metric("Freight Slots Reserved", f"{req_feus:,} FEUs")
+
+
+def render_executive_sop(
+    persona="Discrete & Heavy Industrial Enterprise", term_unit="Units"
+):
+  st.title("📊 Executive S&OP Control Tower")
+  st.caption(f"Active Persona View: **{persona}**")
+  st.markdown(
+      "Real-time financial alignment, financial waterfalls, and trade hedge"
+      " benefit reconciliation."
+  )
+
+  # 1. STATE INGESTION & DYNAMIC FINANCIAL AUDIT
+  baseline_volume = 781049
+  is_committed = st.session_state.get("demand_plan_committed", False)
+  active_demand = (
+      st.session_state.get(
+          "committed_horizon_demand"
+          if is_committed
+          else "extracted_demand_surge",
+          65000,
+      )
+      + baseline_volume
+  )
+
+  surge_units = max(0, active_demand - baseline_volume)
+
+  # Financial Inputs ($ Millions)
+  base_aop_revenue = 120.00
+  surge_revenue_upside = round((surge_units * 249.23) / 1_000_000, 2)
+  unconstrained_demand_rev = base_aop_revenue + surge_revenue_upside
+
+  # Check State Locks
+  pos_synced = st.session_state.get(
+      "erp_requisitions_pushed", False
+  ) or st.session_state.get("rop_offset_executed", False)
+  ctrm_hedged = st.session_state.get("ctrm_hedged", False)
+  delay_days = st.session_state.get("active_leadtime_delay_days", 4.2)
+
+  # Dynamic Drag & Hedge Calculations
+  base_freight_drag = 3.20 + (
+      delay_days * 0.15 if st.session_state.get("sandbox_active", False) else 0.0
+  )
+  total_freight_drag = round(
+      base_freight_drag * 0.6 if pos_synced else base_freight_drag, 2
+  )
+  ctrm_gain = 3.25 if ctrm_hedged else 0.00
+  net_ebitda = round(
+      unconstrained_demand_rev + ctrm_gain - total_freight_drag - 10.0, 2
+  )
+
+  # 2. EXECUTIVE METRICS CARDS
+  col_m1, col_m2, col_m3, col_m4 = st.columns(4)
+  col_m1.metric(
+      "Annual Operating Plan (AOP)", f"${base_aop_revenue:.1f}M", "+4.2% YoY"
+  )
+  col_m2.metric(
+      "Unconstrained Demand (AOP + Surge)",
+      f"${unconstrained_demand_rev:.2f}M",
+      f"+{surge_units:,} {term_unit}",
+  )
+  col_m3.metric(
+      "CTRM Hedge & Trade Benefit",
+      f"+${ctrm_gain:.2f}M",
+      "⚡ Active Execution" if ctrm_hedged else "⚡ Floating Spot Exposure",
+  )
+  col_m4.metric(
+      "Net Realized EBITDA",
+      f"${net_ebitda:.2f}M",
+      f"+${round(net_ebitda - base_aop_revenue, 2)}M vs AOP",
+  )
+
+  st.markdown("---")
+
+  # 3. LIVE DESK CROSS-TALK FEEDS
+  st.subheader("📡 Live Operational Desk Feeds")
+  col_f1, col_f2, col_f3, col_f4 = st.columns(4)
+  col_f1.info(
+      f"🔵 **NLP Commercial Sensing**: Auto-hooked signal (+{surge_units:,}"
+      f" {term_unit})."
+  )
+
+  if ctrm_hedged:
+    col_f2.success(f"🟢 **CTRM Desk**: ${ctrm_gain:.2f}M hedge gain locked in.")
+  else:
+    col_f2.warning(
+        "🟡 **CTRM Desk**: Metal & Freight exposure floating on spot market."
+    )
+
+  col_f3.error("🔴 **Demand/Supply Balancer**: Plant operating near capacity limits.")
+
+  if pos_synced:
+    col_f4.success(
+        f"🟢 **Procurement Desk**: POs Synced (+{delay_days:.1f}d Lead-Time"
+        " Offset Active)."
+    )
+  else:
+    col_f4.info("ℹ️ **Procurement Desk**: Standard MRP baseline active.")
+
+  st.markdown("---")
+
+  # 4. P&L WATERFALL & CTRM LEDGER TABLES
+  col_w1, col_w2 = st.columns([1.2, 1])
+
+  with col_w1:
+    st.subheader("💵 Financial P&L Margin Waterfall Report")
+    waterfall_data = [
+        {
+            "P&L Line Item": "1. Base AOP Revenue Target",
+            "Amount ($)": f"${base_aop_revenue:.2f}M",
+            "Impact": "🔴 Baseline Plan",
+        },
+        {
+            "P&L Line Item": "2. Unconstrained Surge Realization",
+            "Amount ($)": f"+${surge_revenue_upside:.2f}M",
+            "Impact": "🟢 Commercial Upside",
+        },
+        {
+            "P&L Line Item": "3. CTRM Derivative & Hedge Gain",
+            "Amount ($)": f"+${ctrm_gain:.2f}M",
+            "Impact": (
+                "🟢 Market Execution"
+                if ctrm_hedged
+                else "⚠️ Unhedged Spot Exposure"
+            ),
+        },
+        {
+            "P&L Line Item": "4. COGS & Freight Cost Drag",
+            "Amount ($)": f"-${total_freight_drag:.2f}M",
+            "Impact": (
+                "🟢 Mitigated" if pos_synced else "⚠️ Expedited Drag"
+            ),
+        },
+        {
+            "P&L Line Item": "5. Projected Net EBITDA",
+            "Amount ($)": f"${net_ebitda:.2f}M",
+            "Impact": "🟢 Net Bottom-Line",
+        },
+    ]
+    st.dataframe(
+        pd.DataFrame(waterfall_data),
+        use_container_width=True,
+        hide_index=True,
+    )
+
+  with col_w2:
+    st.subheader("📈 CTRM Commodity Hedging Ledger")
+
+    ledger_data = [
+        {
+            "Commodity": "Raw Metals & Components",
+            "Hedge Position": (
+                "100% Synced 🟢" if ctrm_hedged else "15% Unhedged ⚠️"
+            ),
+            "Locked Rate": "$2,210 / MT",
+            "Spot Exposure": (
+                "0% Covered" if ctrm_hedged else "Spot Volatility Float"
+            ),
+        },
+        {
+            "Commodity": "Freight Futures (FEU)",
+            "Hedge Position": (
+                "100% Synced 🟢" if pos_synced else "20% Unhedged ⚠️"
+            ),
+            "Locked Rate": "$3,450 / FEU",
+            "Spot Exposure": "0% Covered" if pos_synced else "Spot Logistics Float",
+        },
+        {
+            "Commodity": "Power & Energy",
+            "Hedge Position": "100% Covered",
+            "Locked Rate": "$64.50 / MWh",
+            "Spot Exposure": "0% Covered",
+        },
+    ]
+    st.dataframe(
+        pd.DataFrame(ledger_data), use_container_width=True, hide_index=True
+    )
 
 
 def render_demand_supply_match(persona, term_unit, plant1_name, plant2_name, toller_name):
