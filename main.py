@@ -1277,149 +1277,141 @@ def render_global_logistics_gis(
 ):
   """Global Logistics Network & GIS Control Tower.
 
-  Monitors global maritime routes, vessel chokepoints, and automatically
-  triggers contingency freight bookings based on CTRM hedge positions and open
-  unhedged exposure.
+  Visualizes freight transit routes, port congestion bottlenecks, and inbound
+  ETA delays tied to active physical purchase orders.
   """
-  st.title("🚢 Global Logistics Network & GIS Control Tower")
+  st.title("🌐 Global Logistics Network & GIS Control Tower")
   st.caption(f"Active Persona View: **{persona}**")
   st.markdown(
-      "Real-time vessel tracking, port dwell anomalies, and automated"
-      " contingency freight booking."
+      "Real-time freight route tracking, port bottleneck telemetry, and inbound"
+      " physical inventory arrival monitoring."
   )
 
-  # Read upstream states from CTRM Desk, NLP Engine, and Procurement
-  fix_executed = st.session_state.get("fix_executed", False)
-  synthetic_executed = st.session_state.get("synthetic_executed", False)
-  is_hedged = st.session_state.get("ctrm_hedged", False)
+  # Read upstream operational states
+  surge_units = st.session_state.get("extracted_demand_surge", 133858)
+  po_executed = st.session_state.get("po_executed", True)
+  fix_executed = st.session_state.get("fix_executed", True)
 
-  si_score = st.session_state.get("si_composite", -0.33)
-  raw_surge = st.session_state.get("extracted_demand_surge", 102968)
-  req_feus = st.session_state.get("required_feu_slots", 4319)
+  delay_days = 7
+  base_lead_time = 14
+  total_eta = base_lead_time + delay_days
 
-  # Calculate open unhedged volume & ratio
-  exec_lots = st.session_state.get("executed_lots", 0)
-  hedged_units = exec_lots * 25 * 11 if fix_executed else 0
-  open_unhedged_units = (
-      max(0, raw_surge - hedged_units) if is_hedged else raw_surge
-  )
-  unhedged_ratio = (
-      open_unhedged_units / raw_surge if raw_surge > 0 else 0.0
+  # Route Ingestion Banner
+  st.info(
+      f"🛳️ **Inbound Logistics Feed**: Tracking **{surge_units:,} {term_unit}**"
+      f" across 3 Ocean & Rail Corridors | Lead-Time Shock: **+{delay_days}"
+      f" Days** | Current Inbound Status:"
+      f" **{'En Route (PO Issued)' if po_executed else 'Awaiting PO Release'}**"
   )
 
-  # Contingency Freight Trigger Policy: Triggered if unhedged ratio > 25% or macro SI < -0.25
-  contingency_required = unhedged_ratio > 0.25 or si_score < -0.25
-
-  # Dynamic Operational Alert Banner
-  if fix_executed or synthetic_executed:
-    st.success(
-        f"✅ **CTRM HEDGE COVERAGE ACTIVE**: FIX execution confirmed."
-        f" Open unhedged physical gap reduced to **{open_unhedged_units:,}"
-        f" {term_unit} ({unhedged_ratio:.1%})**."
-    )
-  elif contingency_required:
-    st.warning(
-        f"⚠️ **UNHEDGED SUPPLY EXPOSURE DETECTED**: Open gap sits at"
-        f" **{open_unhedged_units:,} {term_unit} ({unhedged_ratio:.1%})** with"
-        f" sentiment $SI = {si_score:+.2f}$. Automated policy recommends"
-        " locking contingency freight slots."
-    )
-  else:
-    st.info(
-        f"🟢 **LOGISTICS BALANCED**: Unhedged exposure is within safe limits"
-        f" ({unhedged_ratio:.1%}). Baseline freight schedules active."
-    )
-
-  # Key Logistics Metrics
-  m1, m2, m3, m4 = st.columns(4)
-  with m1:
-    st.metric("Total Vessel FEU Requirement", f"{req_feus:,} FEUs")
-  with m2:
-    st.metric("Open Unhedged Freight Gap", f"{open_unhedged_units:,} {term_unit}")
-  with m3:
+  # Top Logistics Kpis
+  k1, k2, k3, k4 = st.columns(4)
+  with k1:
+    st.metric("Active Inbound Volume", f"{surge_units:,} {term_unit}")
+  with k2:
     st.metric(
-        "Unhedged Volatility Ratio",
-        f"{unhedged_ratio:.1%}",
-        delta="Requires Contingency" if contingency_required else "Safe Level",
-        delta_color="inverse" if contingency_required else "normal",
+        "Avg Transit Lead Time",
+        f"{total_eta} Days",
+        delta=f"+{delay_days} Days Delay Shock",
+        delta_color="inverse",
     )
-  with m4:
-    rec_contingency_feus = int(req_feus * max(0.15, unhedged_ratio))
+  with k3:
+    st.metric("Global Route Risk Level", "ELEVATED", delta="Port Congestion")
+  with k4:
     st.metric(
-        "Recommended Express Freight",
-        f"{rec_contingency_feus:,} FEUs",
+        "On-Time In-Full (OTIF) Target",
+        "88.4%",
+        delta="-6.2% Stressed",
+        delta_color="inverse",
     )
 
   st.divider()
 
-  # GIS Vessel Tracking & Dispatch Panel
-  col_map, col_action = st.columns([1.8, 1])
+  # GIS Map & Corridor Tracking
+  st.subheader("🗺️ Live Global Freight GIS Map")
 
-  with col_map:
-    st.subheader("🗺️ Live Global Shipping Chokepoints")
+  # Sample shipping route coordinates (Asia / Europe / Americas hubs)
+  routes_df = pd.DataFrame({
+      "Hub": [
+          "Port of Shanghai (Origin)",
+          "Suez Transit Checkpoint",
+          "Port of Rotterdam (Chokepoint)",
+          "Port of Los Angeles",
+          "Central Assembly Facility A",
+      ],
+      "Lat": [31.2304, 29.9753, 51.9244, 33.7423, 41.8781],
+      "Lon": [121.4737, 32.5599, 4.4777, -118.2702, -87.6298],
+      "Status": [
+          "Dispatched",
+          "Congested (+3 Days)",
+          "Severe Bottleneck (+4 Days)",
+          "Clear",
+          "Destination Hub",
+      ],
+      "Volume": [
+          surge_units * 0.4,
+          surge_units * 0.4,
+          surge_units * 0.25,
+          surge_units * 0.35,
+          surge_units,
+      ],
+  })
 
-    # Interactive vessel location map data
-    map_data = pd.DataFrame({
-        "lat": [29.93, 1.29, 22.31, 51.95, 25.03],
-        "lon": [32.55, 103.85, 114.16, 4.14, 121.56],
-        "name": [
-            "Suez Canal Chokepoint",
-            "Singapore Transshipment Hub",
-            "Hong Kong Terminal",
-            "Rotterdam Gateway",
-            "Taiwan Strait Route",
-        ],
-    })
-    st.map(map_data, zoom=1)
+  fig_map = px.scatter_geo(
+      routes_df,
+      lat="Lat",
+      lon="Lon",
+      hover_name="Hub",
+      size="Volume",
+      color="Status",
+      projection="natural earth",
+      title="Active Inbound Shipments & Bottleneck Telemetry",
+      color_discrete_map={
+          "Dispatched": "#28A745",
+          "Congested (+3 Days)": "#FFC107",
+          "Severe Bottleneck (+4 Days)": "#DC3545",
+          "Clear": "#0068C9",
+          "Destination Hub": "#6F42C1",
+      },
+  )
+  fig_map.update_layout(height=450, margin={"r": 0, "t": 40, "l": 0, "b": 0})
+  st.plotly_chart(fig_map, use_container_width=True)
 
-  with col_action:
-    st.subheader("⚡ Contingency Dispatch")
-    st.markdown("Automated priority slot allocation for unhedged volume.")
+  st.divider()
 
-    freight_mode = st.selectbox(
-        "Contingency Transport Mode",
-        [
-            "Express Air Freight (3-5 Day Lead)",
-            "Premium Guaranteed Ocean FEU",
-            "Multi-Modal Rail/Truck Relay",
-        ],
-        key="gis_freight_mode",
-    )
+  # Inbound Shipment Corridor Breakdown
+  st.subheader("📦 Transit Corridor Health & Arrival Timeline")
 
-    feus_to_book = st.number_input(
-        "FEU / Express Slots to Reserve",
-        value=max(25, rec_contingency_feus),
-        step=25,
-        key="gis_feus_book",
-    )
-
-    unit_rate = 4800 if "Air" in freight_mode else 2200
-    est_cost = feus_to_book * unit_rate
-    st.caption(f"💰 Estimated Contingency Premium: **${est_cost:,.2f}**")
-
-    if st.button("🚢 Lock Contingency Freight Booking", key="btn_book_freight"):
-      st.session_state["contingency_freight_booked"] = True
-      st.session_state["booked_feus"] = feus_to_book
-      st.session_state["booked_mode"] = freight_mode
-      st.session_state["contingency_cost"] = est_cost
-
-      st.toast(
-          f"Reserved {feus_to_book:,} slots via {freight_mode}!", icon="🚢"
-      )
-      st.success(
-          f"✅ **Contingency Freight Confirmed!** Reserved **{feus_to_book:,}"
-          f" FEU slots** using **{freight_mode}** for **${est_cost:,.2f}**."
-          " Logistics bottleneck risk neutralized!"
-      )
-
-  # Display Active Contingency Ledger if booked
-  if st.session_state.get("contingency_freight_booked", False):
-    st.info(
-        f"📦 **Active Freight Reservation**:"
-        f" {st.session_state.get('booked_feus', 0):,} FEUs booked via"
-        f" *{st.session_state.get('booked_mode', '')}* (Total Cost:"
-        f" ${st.session_state.get('contingency_cost', 0.0):,.2f})"
-    )
+  corridor_data = {
+      "Corridor Name": [
+          "Pacific Ocean Expressway (Asia -> LA)",
+          "Trans-Suez / Atlantic Route (Asia -> Europe -> US)",
+          "Domestic Overland Heavy Rail",
+      ],
+      "Primary Carrier": [
+          "Maersk Ocean Line",
+          "MSC Freight Fleet",
+          "BNSF Railway Co",
+      ],
+      "Volume (Units)": [
+          f"{int(surge_units * 0.45):,}",
+          f"{int(surge_units * 0.35):,}",
+          f"{int(surge_units * 0.20):,}",
+      ],
+      "Original ETA": ["14 Days", "16 Days", "5 Days"],
+      "Delay Shock": ["+3 Days", "+4 Days", "+0 Days"],
+      "Adjusted ETA": [
+          f"{14 + 3} Days",
+          f"{16 + 4} Days",
+          "5 Days (On Schedule)",
+      ],
+      "Bottleneck Reason": [
+          "Port Berth Queueing",
+          "Canal Capacity Constraints",
+          "Normal Operations",
+      ],
+  }
+  st.table(pd.DataFrame(corridor_data))
 
 
 # =====================================================================
