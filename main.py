@@ -1171,7 +1171,7 @@ def render_demand_supply_match(persona, term_unit, plant1_name, plant2_name, tol
             f"locked into manufacturing schedule across {horizon_window}."
         )
 
-def render_global_logistics(
+def render_global_logistics_gis(
     persona="Discrete & Heavy Industrial Enterprise", term_unit="Units", **kwargs
 ):
   """Global Logistics Network & GIS Control Tower.
