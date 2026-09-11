@@ -1,6 +1,9 @@
+import json
+import os
 import re
 import numpy as np
 import pandas as pd
+import plotly.express as px
 import plotly.graph_objects as go
 import streamlit as st
 
@@ -152,11 +155,6 @@ def render_integration_architecture(persona="Discrete & Heavy Industrial Enterpr
         "platform_persona": persona,
         "selected_module": selected_module
     })
-
-import json
-import os
-import re
-import streamlit as st
 
 
 def render_nlp_intelligence(persona=None, term_unit="Units", **kwargs):
@@ -567,14 +565,15 @@ def render_physical_procurement(persona="Discrete & Heavy Industrial Enterprise"
             )
         else:
             st.success("✅ **ERP Requisitions Synced**: Purchase orders PO-2026-9901 through PO-2026-9904 generated and sent to procurement queue.")
-import numpy as np
-import pandas as pd
-import streamlit as st
 
 
 def render_ctrm_desk(
-    persona="Discrete & Heavy Industrial Enterprise", term_unit="Units"
+    persona="Discrete & Heavy Industrial Enterprise", term_unit="Units", **kwargs
 ):
+  """Financial commodity risk engine, custom synthetic derivatives builder, and
+
+  FIX order execution with dynamic NLP sentiment ($SI$) integration.
+  """
   st.title("🛡️ CTRM Event-Driven Hedging Desk")
   st.caption(f"Active Persona View: **{persona}**")
   st.markdown(
@@ -594,27 +593,32 @@ def render_ctrm_desk(
         "Target Period (+90D)": 65000,
     }
 
-  # Ingest Demand Signals & Physical Procurement State
+  # Ingest Upstream Signals (NLP Sentiment SI, Demand Surge, Physical Procurement State)
+  si_score = st.session_state.get("si_composite", -0.33)
   raw_surge = st.session_state.get("extracted_demand_surge", 65000)
   req_metal_mt = st.session_state.get("required_metal_mt", 9349)
   req_feus = st.session_state.get("required_feu_slots", 4319)
 
   signal_title = st.session_state.get(
-      "active_risk_signal_title", "NOAA Climate Alert"
+      "active_risk_signal_title", "NOAA Climate Alert / Sentiment Engine"
   )
   signal_category = st.session_state.get(
       "signal_category", "Weather & Macro Feed"
   )
 
+  # Dynamic Quantitative Risk & Hedge Policy Models driven by SI
+  target_hedge_ratio = min(1.0, max(0.20, 0.50 - (0.80 * si_score)))
   cmo_offload_pct = st.session_state.get("toller_split_slider", 15)
-  net_exposure_pct = max(0.20, cmo_offload_pct / 100.0)
+  net_exposure_pct = max(target_hedge_ratio, cmo_offload_pct / 100.0)
+
   net_unhedged_units = int(raw_surge * net_exposure_pct)
   net_metal_shortfall_mt = int(req_metal_mt * net_exposure_pct)
   unhedged_risk = net_unhedged_units * 150.0
+  margin_buffer = unhedged_risk * (0.10 + abs(si_score) * 0.15)
   default_lots = max(10, int(net_metal_shortfall_mt / 25))  # 25 MT / LME Lot
 
   # Auto-Derive Expiration Horizon
-  if "Climate" in signal_title or "Surge" in signal_category:
+  if "Climate" in signal_title or "Surge" in signal_category or si_score < -0.20:
     auto_horizon_days = 90
     target_period_key = "Target Period (+90D)"
   else:
@@ -623,10 +627,10 @@ def render_ctrm_desk(
 
   st.info(
       f"⚡ **Active Risk Signal Ingested**: {signal_title} *({signal_category})*"
-      f" | **Gross Material Exposure:** {req_metal_mt:,} MT ({raw_surge:,}"
-      f" {term_unit}) | **Unhedged Shortfall:** {net_metal_shortfall_mt:,} MT"
-      f" ({net_unhedged_units:,} {term_unit}) | ⏱️ **Auto Horizon:**"
-      f" {auto_horizon_days} Days"
+      f" | **Upstream Sentiment ($SI$):** `{si_score:+.2f}` | **Target Hedge"
+      f" Ratio:** `{target_hedge_ratio:.1%}` | **Unhedged Shortfall:**"
+      f" {net_metal_shortfall_mt:,} MT ({net_unhedged_units:,} {term_unit}) |"
+      f" ⏱️ **Auto Horizon:** {auto_horizon_days} Days"
   )
 
   tab_exec, tab_lab = st.tabs([
@@ -645,16 +649,21 @@ def render_ctrm_desk(
         f"{req_metal_mt:,} MT Metals",
     )
     col_c2.metric(
-        "Physical Cover (Stock/CMO)",
-        f"{raw_surge - net_unhedged_units:,} {term_unit}",
-        f"{req_metal_mt - net_metal_shortfall_mt:,} MT Covered",
+        "Target Hedge Ratio ($HR$)",
+        f"{target_hedge_ratio:.1%}",
+        f"Sentiment $SI = {si_score:+.2f}$",
     )
     col_c3.metric(
-        "Net Shortfall",
+        "Net Shortfall to Hedge",
         f"{net_unhedged_units:,} {term_unit}",
-        f"{net_exposure_pct*100:.0f}% Unhedged Gap",
+        f"{net_exposure_pct*100:.0f}% Target Cover Gap",
     )
-    col_c4.metric("Unhedged Margin Risk", f"${unhedged_risk:,.2f}")
+    col_c4.metric(
+        "Required Risk Margin Buffer",
+        f"${margin_buffer:,.2f}",
+        delta=f"+{abs(si_score)*100:.1f}% Volatility Load",
+        delta_color="inverse",
+    )
 
     st.markdown("---")
     st.subheader("⚡ FIX 4.4 Order Execution Gateway")
@@ -760,7 +769,8 @@ def render_ctrm_desk(
           f"✅ **FIX 4.4 Executed**: {exec_type} on {exec_exch} for"
           f" **{exec_lots:,} Lots** | Intent: **{intent_type}**\n\n💸 **Exec"
           f" S&OP Treasury Updated:** Debited `${calculated_total_premium:,.2f}`."
-          f" Remaining Cash: `${st.session_state['sop_cash_balance']:,.2f}`\n\n📦"
+          f" Remaining Cash:"
+          f" `${st.session_state['sop_cash_balance']:,.2f}`\n\n📦"
           f" **Demand/Supply (Module 3) Updated:** {last_msg}"
       )
 
