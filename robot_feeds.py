@@ -11,7 +11,6 @@ GEP_URL = (
 )
 
 # 2. Step 1: Kill-the-Newsletter RSS Bridge Feed URL
-# Set KTN_FEED_URL as an Environment Variable in Render, or paste your generated XML link here
 KTN_FEED_URL = os.getenv(
     "KTN_FEED_URL", "https://kill-the-newsletter.com/feeds/YOUR_FEED_ID.xml"
 )
@@ -55,19 +54,34 @@ def fetch_gep_index():
 
 
 def fetch_ktn_feed(feed_url=KTN_FEED_URL):
-  """Parses emails forwarded from Kill-the-Newsletter Atom/RSS feed."""
+  """Parses emails forwarded from Kill-the-Newsletter Atom/RSS feed using browser headers."""
   if "YOUR_FEED_ID" in feed_url:
     return [{
         "source": "LinkedIn Newsletters",
         "status": "Pending KTN_FEED_URL Configuration",
     }]
 
+  headers = {
+      "User-Agent": (
+          "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+          " (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+      )
+  }
+
   try:
-    parsed = feedparser.parse(feed_url)
+    # Fetch feed content via requests to bypass Cloudflare drops
+    res = requests.get(feed_url, headers=headers, timeout=10)
+    if res.status_code != 200:
+      return [{
+          "source": "LinkedIn Newsletters",
+          "status": "Error",
+          "details": f"HTTP {res.status_code}",
+      }]
+
+    parsed = feedparser.parse(res.content)
     newsletter_signals = []
 
-    for entry in parsed.entries[:5]:  # Fetch up to 5 recent emails
-      # Strip HTML markup out of email body text
+    for entry in parsed.entries[:5]:
       clean_body = bs4.BeautifulSoup(
           entry.get("summary", ""), "html.parser"
       ).get_text()
@@ -78,7 +92,14 @@ def fetch_ktn_feed(feed_url=KTN_FEED_URL):
           "summary": clean_body[:200].strip() + "...",
           "link": entry.get("link", feed_url),
       })
-    return newsletter_signals
+
+    return (
+        newsletter_signals
+        if newsletter_signals
+        else [
+            {"source": "LinkedIn Newsletters", "status": "No Entries Found"}
+        ]
+    )
   except Exception as e:
     return [
         {
