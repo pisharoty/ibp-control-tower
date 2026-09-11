@@ -154,6 +154,12 @@ def render_integration_architecture(persona="Discrete & Heavy Industrial Enterpr
     })
 
 
+import json
+import os
+import re
+import streamlit as st
+
+
 def render_nlp_intelligence(
     persona="Discrete & Heavy Industrial Enterprise", term_unit="Units"
 ):
@@ -164,49 +170,33 @@ def render_nlp_intelligence(
       " show emails, and GIS weather/freight telemetry."
   )
 
- tab1, tab2, tab3 = st.tabs([
-        "📡 Live Web Signals",
-        "📧 Email & Event Debrief Parser",
-        "🌐 Freight, Weather & Black Swan Feeds",
-    ])
+  tab1, tab2, tab3 = st.tabs([
+      "📡 Live Web Signals",
+      "📧 Email & Event Debrief Parser",
+      "🌐 Freight, Weather & Black Swan Feeds",
+  ])
 
-    with tab1:
-        # =========================================================================
-        # 🤖 AUTOMATED ROBOT FEED INGESTION BLOCK (GEP & NEWSLETTERS)
-        # =========================================================================
-        if not os.path.exists("robot_signals.json"):
-            try:
-                from robot_feeds import sync_robot_feeds
+  with tab1:
+    # =========================================================================
+    # 🤖 AUTOMATED ROBOT FEED INGESTION BLOCK (GEP & NEWSLETTERS)
+    # =========================================================================
 
-                sync_robot_feeds()
-            except Exception as e:
-                st.error(f"Robot Feed Sync Error: {e}")
+    # 1. Auto-create cache on Render/Server if missing
+    if not os.path.exists("robot_signals.json"):
+      try:
+        from robot_feeds import sync_robot_feeds
 
-    with tab1:
-      # =========================================================================
-      # 🤖 AUTOMATED ROBOT FEED INGESTION BLOCK (GEP & NEWSLETTERS)
-      # =========================================================================
+        sync_robot_feeds()
+      except Exception as e:
+        st.error(f"Robot Feed Sync Error: {e}")
 
-      # 1. AUTO-CREATE CACHE ON RENDER IF MISSING
-      if not os.path.exists("robot_signals.json"):
-        try:
-          from robot_feeds import sync_robot_feeds
-
-          sync_robot_feeds()
-        except Exception as e:
-          st.error(f"Robot Feed Sync Error: {e}")
-
-      # 2. DISPLAY BANNER
-      if os.path.exists("robot_signals.json"):
-        try:
-          with open("robot_signals.json", "r") as f:
-            robot_data = json.load(f)
-          # ... (your existing banner rendering code remains identical below)
+    # 2. Display Robot Signals (GEP + LinkedIn Newsletters)
     if os.path.exists("robot_signals.json"):
       try:
         with open("robot_signals.json", "r") as f:
           robot_data = json.load(f)
 
+        # GEP Index Display
         gep = robot_data.get("gep_index", {})
         if gep and gep.get("source"):
           st.info(
@@ -244,6 +234,31 @@ def render_nlp_intelligence(
             )
 
           st.divider()
+
+        # LinkedIn Newsletter Feed Display
+        newsletters = robot_data.get("newsletter_feeds", [])
+        if newsletters and isinstance(newsletters, list):
+          first_signal = newsletters[0]
+          if "title" in first_signal:
+            st.success(
+                f"📰 **LinkedIn Signal Received**: {first_signal.get('title')}"
+            )
+            st.caption(
+                f"Published: {first_signal.get('published', 'Recent')} |"
+                f" Summary: {first_signal.get('summary', '')}"
+            )
+            if st.button(
+                "📰 Ingest LinkedIn Newsletter Signal",
+                key="btn_ingest_ktn_news",
+            ):
+              st.session_state["extracted_demand_surge"] = 95000
+              st.session_state["active_risk_signal_title"] = (
+                  f"[LinkedIn] {first_signal.get('title')}"
+              )
+              st.session_state["signal_category"] = "LinkedIn Feed"
+              st.toast("Ingested LinkedIn Newsletter Signal!", icon="📰")
+            st.divider()
+
       except Exception as e:
         st.warning(f"⚠️ Robot feed cache found but could not be parsed: {e}")
     # =========================================================================
@@ -315,8 +330,7 @@ def render_nlp_intelligence(
           list(NEWS_DOMAINS.keys()),
           key="nlp_sector_focus",
       )
-      fallback_list = NEWS_DOMAINS[selected_domain]
-      active_headlines, is_live = fetch_live_or_fallback("", fallback_list)
+      active_headlines = NEWS_DOMAINS[selected_domain]
 
       selected_headline = st.selectbox(
           "Select AI-Scraped Headline Signal:",
