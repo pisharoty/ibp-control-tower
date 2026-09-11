@@ -677,8 +677,8 @@ def render_ctrm_desk(
 ):
   """CTRM Derivatives & Commodity Risk Desk.
 
-  Ingests demand/sentiment signals and executes FIX 4.4 paper orders to mitigate
-  p&l volatility.
+  Full multi-tab risk engine: FIX order execution, Synthetic Derivative
+  Builder, and Real-Time Cross-Desk Cascades.
   """
   st.title("🛡️ CTRM Event-Driven Hedging Desk")
   st.caption(f"Active Persona View: **{persona}**")
@@ -691,108 +691,197 @@ def render_ctrm_desk(
   si_score = st.session_state.get("si_composite", -0.33)
   surge_units = st.session_state.get("extracted_demand_surge", 102968)
   sop_cash = st.session_state.get("sop_cash_balance", 5_000_000.0)
-
-  # Calculate target hedge ratio & shortfall based on sentiment severity
-  target_hr = min(0.95, max(0.50, 0.70 + abs(si_score) * 0.40))
-  net_shortfall_units = int(surge_units * target_hr)
-  mt_metals = int(net_shortfall_units / 11)  # Conversion factor
-  required_margin = net_shortfall_units * 23.83
-
-  st.info(
-      f"📡 **Active Risk Signal Ingested**: Upstream Sentiment ($SI ="
-      f" {si_score:+.2f}$) | Target Hedge Ratio:"
-      f" **{target_hr:.1%}** | Unhedged Shortfall: **{net_shortfall_units:,}"
-      f" {term_unit}** ({mt_metals:,} MT Metals)"
-  )
-
-  # Top Risk Metrics
-  m1, m2, m3, m4 = st.columns(4)
-  with m1:
-    st.metric("Gross Demand Surge", f"{surge_units:,} {term_unit}")
-  with m2:
-    st.metric("Target Hedge Ratio (HR)", f"{target_hr:.1%}")
-  with m3:
-    st.metric("Net Shortfall to Hedge", f"{net_shortfall_units:,} {term_unit}")
-  with m4:
-    st.metric("Required Risk Margin Buffer", f"${required_margin:,.2f}")
-
-  st.divider()
-
-  # FIX 4.4 Execution Gateway
-  st.subheader("⚡ FIX 4.4 Order Execution Gateway")
-
-  c1, c2, c3 = st.columns(3)
-  with c1:
-    exec_intent = st.selectbox(
-        "Execution Intent",
-        ["Hedge Risk (Cover Shortfall)", "Speculative Overlay", "Tail Protect"],
-        key="ctrm_intent",
-    )
-    order_struct = st.selectbox(
-        "Order Structure",
-        [
-            "Asian Call Collar",
-            "Zero-Cost Collar",
-            "Fixed Swap",
-            "Out-of-Money Put",
-        ],
-        key="ctrm_struct",
-    )
-
-  with c2:
-    expiration = st.selectbox(
-        "Time Period / Expiration",
-        ["Auto-Matched (90 Days)", "30 Days", "60 Days", "180 Days"],
-        key="ctrm_exp",
-    )
-    exchange = st.selectbox(
-        "Execution Exchange",
-        [
-            "LME (London Metal Exchange)",
-            "CME Group",
-            "ICE Futures",
-            "OTC Bilateral",
-        ],
-        key="ctrm_exch",
-    )
-
-  with c3:
-    est_premium_unit = st.number_input(
-        "Est. Premium ($/Unit)", value=4.25, step=0.25, key="ctrm_prem"
-    )
-    suggested_lots = max(1, int(mt_metals / 25))
-    lots = st.number_input(
-        "Lots / Contracts (LME 25 MT)",
-        value=suggested_lots,
-        step=5,
-        key="ctrm_lots",
-    )
-
-  total_premium = lots * 25 * 11 * est_premium_unit
-  st.caption(
-      f"💰 Total Premium Required: **${total_premium:,.2f}** (Will be debited"
-      " from Exec S&OP Cash Treasury)"
-  )
-
-  # Execution Trigger
   fix_executed = st.session_state.get("fix_executed", False)
 
-  if fix_executed:
-    st.success(
-        f"✅ **FIX 4.4 PAPER ORDER EXECUTED**: {lots} Lots routed to {exchange}."
-        " Hedge benefit active on S&OP Control Tower."
-    )
-  else:
-    if st.button("🚀 Execute & Route FIX 4.4 Paper Order", key="btn_fix_exec"):
-      st.session_state["fix_executed"] = True
-      st.session_state["ctrm_hedged"] = True
-      st.session_state["executed_lots"] = lots
-      st.session_state["sop_cash_balance"] = sop_cash - total_premium
+  target_hr = min(1.0, max(0.50, 0.70 + abs(si_score) * 0.40))
+  net_shortfall_units = int(surge_units * target_hr)
+  mt_metals = int(net_shortfall_units / 11)
+  required_margin = net_shortfall_units * 23.83
+  vol_load = abs(si_score) * 100.0
 
-      st.toast(
-          f"FIX Order Routed! {lots} Contracts locked on {exchange}.", icon="🛡️"
+  # NOAA / Sentiment Signal Ingestion Banner
+  st.info(
+      "📡 **Active Risk Signal Ingested**: NOAA Climate Alert / Sentiment Engine"
+      f" (Weather & Macro Feed) | Upstream Sentiment ($SI = {si_score:+.2f}$) |"
+      f" Target Hedge Ratio: **{target_hr:.1%}** | Unhedged Shortfall:"
+      f" **{net_shortfall_units:,} {term_unit}** ({mt_metals:,} MT Metals) |"
+      " **Auto Horizon: 90 Days**"
+  )
+
+  # Full Multi-Tab Interface
+  tab_std, tab_synth = st.tabs([
+      "📊 Standard Desk & FIX Execution",
+      "🧪 Synthetic Derivative Builder & Model Lab",
+  ])
+
+  with tab_std:
+    # 4 Top Metrics with restored deltas/sub-captions
+    m1, m2, m3, m4 = st.columns(4)
+    with m1:
+      st.metric(
+          "Gross Demand Surge",
+          f"{surge_units:,} {term_unit}",
+          delta=f"+{mt_metals:,} MT Metals",
       )
-      st.rerun()
+    with m2:
+      st.metric(
+          "Target Hedge Ratio (HR)",
+          f"{target_hr:.1%}",
+          delta=f"Sentiment SI = {si_score:+.2f}",
+      )
+    with m3:
+      st.metric(
+          "Net Shortfall to Hedge",
+          f"{net_shortfall_units:,} {term_unit}",
+          delta=f"+{target_hr:.0%} Target Cover Gap",
+      )
+    with m4:
+      st.metric(
+          "Required Risk Margin Buffer",
+          f"${required_margin:,.2f}",
+          delta=f"+{vol_load:.1f}% Volatility Load",
+          delta_color="inverse",
+      )
+
+    st.divider()
+
+    # FIX 4.4 Execution Gateway
+    st.subheader("⚡ FIX 4.4 Order Execution Gateway")
+
+    c1, c2, c3 = st.columns(3)
+    with c1:
+      exec_intent = st.selectbox(
+          "Execution Intent",
+          [
+              "Hedge Risk (Cover Shortfall)",
+              "Speculative Overlay",
+              "Tail Protect",
+          ],
+          key="ctrm_intent",
+      )
+      order_struct = st.selectbox(
+          "Order Structure",
+          [
+              "Asian Call Collar",
+              "Zero-Cost Collar",
+              "Fixed Swap",
+              "Out-of-Money Put",
+          ],
+          key="ctrm_struct",
+      )
+
+    with c2:
+      expiration = st.selectbox(
+          "Time Period / Expiration",
+          ["Auto-Matched (90 Days)", "30 Days", "60 Days", "180 Days"],
+          key="ctrm_exp",
+      )
+      exchange = st.selectbox(
+          "Execution Exchange",
+          [
+              "LME (London Metal Exchange)",
+              "CME Group",
+              "ICE Futures",
+              "OTC Bilateral",
+          ],
+          key="ctrm_exch",
+      )
+
+    with c3:
+      est_premium_unit = st.number_input(
+          "Est. Premium ($/Unit)", value=4.25, step=0.25, key="ctrm_prem"
+      )
+      suggested_lots = max(1, int(mt_metals / 25))
+      lots = st.number_input(
+          "Lots / Contracts (LME 25 MT)",
+          value=suggested_lots,
+          step=5,
+          key="ctrm_lots",
+      )
+
+    total_premium = lots * 25 * 11 * est_premium_unit
+    st.caption(
+        f"💰 Total Premium Required: **${total_premium:,.2f}** (Will be debited"
+        " from Exec S&OP Cash Treasury)"
+    )
+
+    if fix_executed:
+      st.success(
+          f"✅ **FIX 4.4 PAPER ORDER EXECUTED**: {lots} Lots routed to"
+          f" {exchange}. P&L hedge benefit active across S&OP Control Tower."
+      )
+    else:
+      if st.button("🚀 Execute & Route FIX 4.4 Paper Order", key="btn_fix_exec"):
+        st.session_state["fix_executed"] = True
+        st.session_state["ctrm_hedged"] = True
+        st.session_state["executed_lots"] = lots
+        st.session_state["sop_cash_balance"] = sop_cash - total_premium
+
+        st.toast(
+            f"FIX Order Routed! {lots} Contracts locked on {exchange}.",
+            icon="🛡️",
+        )
+        st.rerun()
+
+    st.divider()
+
+    # Restored Real-Time Cross-Desk Cascades Section
+    st.subheader("🔗 Real-Time Cross-Desk Cascades")
+    dc1, dc2, dc3 = st.columns(3)
+    with dc1:
+      st.markdown("**Exec S&OP Treasury (Module 1)**")
+      st.caption(
+          f"Cash Balance: **${sop_cash:,.2f}**\n\nHedge Benefit:"
+          f" **{'Active' if fix_executed else '0% Floating Exposure'}**"
+      )
+    with dc2:
+      st.markdown("**Demand/Supply Ledger (Module 3)**")
+      st.caption(
+          f"Gross Demand Surge: **{surge_units:,} {term_unit}**\n\nShortfall"
+          f" Cover: **{net_shortfall_units:,} {term_unit}**"
+      )
+    with dc3:
+      st.markdown("**Physical Procurement Exposure (Module 4)**")
+      st.caption(
+          f"Hedged Volume: **{lots * 25 * 11 if fix_executed else 0:,}"
+          f" {term_unit}**\n\nFloating Open Risk:"
+          f" **{max(0, surge_units - (lots * 25 * 11 if fix_executed else 0)):,} {term_unit}**"
+      )
+
+  with tab_synth:
+    st.subheader("🧪 Synthetic Derivative Payoff Simulator")
+    st.markdown(
+        "Model custom multi-leg options, zero-cost collars, and weather index"
+        " hedges."
+    )
+
+    col_sy1, col_sy2 = st.columns(2)
+    with col_sy1:
+      strike_price = st.slider(
+          "Floor Strike Price ($/MT)", 1500, 3000, 2200, step=50
+      )
+      cap_price = st.slider(
+          "Cap Strike Price ($/MT)", 2200, 4000, 2800, step=50
+      )
+    with col_sy2:
+      spot_range = np.linspace(1200, 3500, 100)
+      payoff = np.clip(spot_range - strike_price, 0, cap_price - strike_price)
+      fig_payoff = go.Figure(
+          data=go.Scatter(
+              x=spot_range,
+              y=payoff,
+              mode="lines",
+              name="Collar Payoff",
+              line=dict(color="#0068C9", width=3),
+          )
+      )
+      fig_payoff.update_layout(
+          title="Synthetic Collar Payoff Diagram ($/MT)",
+          xaxis_title="Underlying Spot Price ($)",
+          yaxis_title="Option Payoff ($)",
+          height=300,
+      )
+      st.plotly_chart(fig_payoff, use_container_width=True)
 
 
 def render_executive_sop(
