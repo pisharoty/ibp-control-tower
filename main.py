@@ -999,180 +999,147 @@ def render_ctrm_desk(
 
 
 def render_executive_sop(
-    persona="Discrete & Heavy Industrial Enterprise", term_unit="Units"
+    persona="Discrete & Heavy Industrial Enterprise", term_unit="Units", **kwargs
 ):
-  st.title("📊 Executive S&OP Control Tower")
+  """Executive S&OP Control Tower.
+
+  Dynamically binds to Monte Carlo VaR results, CTRM hedge positions, and
+  Treasury cash state to drive real-time P&L waterfalls.
+  """
+  st.title("📈 Executive S&OP Control Tower")
   st.caption(f"Active Persona View: **{persona}**")
   st.markdown(
       "Real-time financial alignment, financial waterfalls, and trade hedge"
       " benefit reconciliation."
   )
 
-  # 1. STATE INGESTION & DYNAMIC FINANCIAL AUDIT
-  baseline_volume = 781049
-  is_committed = st.session_state.get("demand_plan_committed", False)
-  active_demand = (
-      st.session_state.get(
-          "committed_horizon_demand"
-          if is_committed
-          else "extracted_demand_surge",
-          65000,
-      )
-      + baseline_volume
-  )
+  # ----------------------------------------------------
+  # 1. DYNAMIC STATE INGESTION
+  # ----------------------------------------------------
+  sop_cash = st.session_state.get("sop_cash_balance", 5_000_000.0)
+  surge_units = st.session_state.get("extracted_demand_surge", 102968)
+  si_score = st.session_state.get("si_composite", -0.33)
+  fix_executed = st.session_state.get("fix_executed", False)
+  mc_res = st.session_state.get("mc_results", None)
 
-  surge_units = max(0, active_demand - baseline_volume)
+  # Base financial targets
+  base_aop_rev = 120_000_000.0
+  unit_price = 780.0  # Finished good ASP
+  unconstrained_rev = base_aop_rev + (surge_units * unit_price * 0.001)
 
-  # Financial Inputs ($ Millions)
-  base_aop_revenue = 120.00
-  surge_revenue_upside = round((surge_units * 249.23) / 1_000_000, 2)
-  unconstrained_demand_rev = base_aop_revenue + surge_revenue_upside
+  # Dynamic COGS & Freight Drag Calculation
+  if mc_res:
+    # Use Monte Carlo mean cost if simulation was executed
+    cogs_drag = mc_res["mean_cost"]
+    var_95_drag = mc_res["var_95"]
+  else:
+    # Baseline operational drag scaled by sentiment shock
+    cogs_drag = 3_200_000.0 * (1.0 + abs(si_score) * 2.5)
+    var_95_drag = cogs_drag * 1.4
 
-  # Check State Locks
-  pos_synced = st.session_state.get(
-      "erp_requisitions_pushed", False
-  ) or st.session_state.get("rop_offset_executed", False)
-  ctrm_hedged = st.session_state.get("ctrm_hedged", False)
-  delay_days = st.session_state.get("active_leadtime_delay_days", 4.2)
+  # Hedge Gain Mitigation
+  ctrm_hedge_benefit = (
+      cogs_drag * 0.42 if fix_executed else 0.0
+  )  # 42% risk mitigation if hedged
+  net_cogs_drag = cogs_drag - ctrm_hedge_benefit
+  net_ebitda = unconstrained_rev - (base_aop_rev * 0.65) - net_cogs_drag
 
-  # Dynamic Drag & Hedge Calculations
-  base_freight_drag = 3.20 + (
-      delay_days * 0.15 if st.session_state.get("sandbox_active", False) else 0.0
-  )
-  total_freight_drag = round(
-      base_freight_drag * 0.6 if pos_synced else base_freight_drag, 2
-  )
-  ctrm_gain = 3.25 if ctrm_hedged else 0.00
-  net_ebitda = round(
-      unconstrained_demand_rev + ctrm_gain - total_freight_drag - 10.0, 2
-  )
-
-  # 2. EXECUTIVE METRICS CARDS
+  # ----------------------------------------------------
+  # 2. TOP EXECUTIVE METRICS
+  # ----------------------------------------------------
   col_m1, col_m2, col_m3, col_m4 = st.columns(4)
-  col_m1.metric(
-      "Annual Operating Plan (AOP)", f"${base_aop_revenue:.1f}M", "+4.2% YoY"
-  )
-  col_m2.metric(
-      "Unconstrained Demand (AOP + Surge)",
-      f"${unconstrained_demand_rev:.2f}M",
-      f"+{surge_units:,} {term_unit}",
-  )
-  col_m3.metric(
-      "CTRM Hedge & Trade Benefit",
-      f"+${ctrm_gain:.2f}M",
-      "⚡ Active Execution" if ctrm_hedged else "⚡ Floating Spot Exposure",
-  )
-  col_m4.metric(
-      "Net Realized EBITDA",
-      f"${net_ebitda:.2f}M",
-      f"+${round(net_ebitda - base_aop_revenue, 2)}M vs AOP",
-  )
-
-  st.markdown("---")
-
-  # 3. LIVE DESK CROSS-TALK FEEDS
-  st.subheader("📡 Live Operational Desk Feeds")
-  col_f1, col_f2, col_f3, col_f4 = st.columns(4)
-  col_f1.info(
-      f"🔵 **NLP Commercial Sensing**: Auto-hooked signal (+{surge_units:,}"
-      f" {term_unit})."
-  )
-
-  if ctrm_hedged:
-    col_f2.success(f"🟢 **CTRM Desk**: ${ctrm_gain:.2f}M hedge gain locked in.")
-  else:
-    col_f2.warning(
-        "🟡 **CTRM Desk**: Metal & Freight exposure floating on spot market."
+  with col_m1:
+    st.metric(
+        "Annual Operating Plan (AOP)",
+        f"${base_aop_rev / 1e6:.1f}M",
+        "+4.2% YoY",
+    )
+  with col_m2:
+    st.metric(
+        "Unconstrained Demand",
+        f"${unconstrained_rev / 1e6:.2f}M",
+        f"+{surge_units:,} {term_unit}",
+    )
+  with col_m3:
+    st.metric(
+        "CTRM Hedge Benefit",
+        f"+${ctrm_hedge_benefit / 1e6:.2f}M",
+        "FIX Hedged" if fix_executed else "0% Cover (Floating Risk)",
+        delta_color="normal" if fix_executed else "inverse",
+    )
+  with col_m4:
+    st.metric(
+        "Available Treasury Cash",
+        f"${sop_cash:,.2f}",
+        delta=(
+            "CRITICAL CASH RISK"
+            if sop_cash < 0
+            else f"SI Impact ({si_score:+.2f})"
+        ),
+        delta_color="normal" if sop_cash >= 0 else "inverse",
     )
 
-  col_f3.error("🔴 **Demand/Supply Balancer**: Plant operating near capacity limits.")
+  st.divider()
 
-  if pos_synced:
-    col_f4.success(
-        f"🟢 **Procurement Desk**: POs Synced (+{delay_days:.1f}d Lead-Time"
-        " Offset Active)."
-    )
-  else:
-    col_f4.info("ℹ️ **Procurement Desk**: Standard MRP baseline active.")
-
-  st.markdown("---")
-
-  # 4. P&L WATERFALL & CTRM LEDGER TABLES
-  col_w1, col_w2 = st.columns([1.2, 1])
-
-  with col_w1:
-    st.subheader("💵 Financial P&L Margin Waterfall Report")
-    waterfall_data = [
-        {
-            "P&L Line Item": "1. Base AOP Revenue Target",
-            "Amount ($)": f"${base_aop_revenue:.2f}M",
-            "Impact": "🔴 Baseline Plan",
-        },
-        {
-            "P&L Line Item": "2. Unconstrained Surge Realization",
-            "Amount ($)": f"+${surge_revenue_upside:.2f}M",
-            "Impact": "🟢 Commercial Upside",
-        },
-        {
-            "P&L Line Item": "3. CTRM Derivative & Hedge Gain",
-            "Amount ($)": f"+${ctrm_gain:.2f}M",
-            "Impact": (
-                "🟢 Market Execution"
-                if ctrm_hedged
-                else "⚠️ Unhedged Spot Exposure"
-            ),
-        },
-        {
-            "P&L Line Item": "4. COGS & Freight Cost Drag",
-            "Amount ($)": f"-${total_freight_drag:.2f}M",
-            "Impact": (
-                "🟢 Mitigated" if pos_synced else "⚠️ Expedited Drag"
-            ),
-        },
-        {
-            "P&L Line Item": "5. Projected Net EBITDA",
-            "Amount ($)": f"${net_ebitda:.2f}M",
-            "Impact": "🟢 Net Bottom-Line",
-        },
-    ]
-    st.dataframe(
-        pd.DataFrame(waterfall_data),
-        use_container_width=True,
-        hide_index=True,
+  # Insolvency Alert Banner if Stressed
+  if sop_cash < 0 or (mc_res and mc_res.get("insolvency_risk", 0) > 10):
+    st.error(
+        f"🚨 **STRESSED FINANCIAL RISK DETECTED**: Monte Carlo VaR indicates"
+        f" **${var_95_drag / 1e6:.2f}M (95% VaR)** potential cost drag."
+        f" Current Treasury Cash balance is **${sop_cash:,.2f}**."
     )
 
-  with col_w2:
-    st.subheader("📈 CTRM Commodity Hedging Ledger")
+  # ----------------------------------------------------
+  # 3. DYNAMIC P&L WATERFALL & FEED DESKS
+  # ----------------------------------------------------
+  col_p1, col_p2 = st.columns([1.2, 1])
 
-    ledger_data = [
-        {
-            "Commodity": "Raw Metals & Components",
-            "Hedge Position": (
-                "100% Synced 🟢" if ctrm_hedged else "15% Unhedged ⚠️"
-            ),
-            "Locked Rate": "$2,210 / MT",
-            "Spot Exposure": (
-                "0% Covered" if ctrm_hedged else "Spot Volatility Float"
-            ),
-        },
-        {
-            "Commodity": "Freight Futures (FEU)",
-            "Hedge Position": (
-                "100% Synced 🟢" if pos_synced else "20% Unhedged ⚠️"
-            ),
-            "Locked Rate": "$3,450 / FEU",
-            "Spot Exposure": "0% Covered" if pos_synced else "Spot Logistics Float",
-        },
-        {
-            "Commodity": "Power & Energy",
-            "Hedge Position": "100% Covered",
-            "Locked Rate": "$64.50 / MWh",
-            "Spot Exposure": "0% Covered",
-        },
-    ]
-    st.dataframe(
-        pd.DataFrame(ledger_data), use_container_width=True, hide_index=True
+  with col_p1:
+    st.subheader("💵 Financial P&L Margin Waterfall")
+
+    pnl_data = {
+        "P&L Line Item": [
+            "1. Base AOP Revenue Target",
+            "2. Unconstrained Demand Realization",
+            "3. Stressed COGS & Freight Cost Drag",
+            "4. CTRM Derivative Hedge Benefit",
+            "5. Projected Net EBITDA",
+        ],
+        "Amount ($)": [
+            f"${base_aop_rev / 1e6:.2f}M",
+            f"+${(unconstrained_rev - base_aop_rev) / 1e6:.2f}M",
+            f"-${cogs_drag / 1e6:.2f}M",
+            f"+${ctrm_hedge_benefit / 1e6:.2f}M",
+            f"${net_ebitda / 1e6:.2f}M",
+        ],
+        "Impact Status": [
+            "Baseline Target",
+            "Volume Surge",
+            "Stressed Market Shock" if mc_res else "Baseline Drag",
+            "FIX Covered" if fix_executed else "Unhedged Exposure",
+            "Net Realized",
+        ],
+    }
+    st.table(pd.DataFrame(pnl_data))
+
+  with col_p2:
+    st.subheader("🚩 Live Operational Desk Feeds")
+
+    st.info(
+        f"🔹 **NLP Sensing**: Auto-parsed $SI = {si_score:+.2f}$ signal across"
+        f" field feeds."
     )
+    st.warning(
+        f"🔸 **CTRM Risk Desk**: Unhedged Volatility Gap ="
+        f" **{surge_units:,} {term_unit}**."
+    )
+    if mc_res:
+      st.error(
+          f"💥 **Monte Carlo Engine**: 95% VaR cost risk elevated to"
+          f" **${mc_res['var_95'] / 1e6:.2f}M**."
+      )
+    else:
+      st.success("🟢 **Monte Carlo Engine**: Baseline parameters active.")
 
 
 def render_demand_supply_match(persona, term_unit, plant1_name, plant2_name, toller_name):
