@@ -476,7 +476,7 @@ with tab1:
 
         
 
-  with tab2:
+with tab2:
     st.subheader("📧 Unstructured Email & Sales Debrief Parser")
     input_mode = st.radio(
         "Select Debrief Input Mode:",
