@@ -1171,77 +1171,154 @@ def render_demand_supply_match(persona, term_unit, plant1_name, plant2_name, tol
             f"locked into manufacturing schedule across {horizon_window}."
         )
 
-def render_global_logistics_gis(persona="Discrete & Heavy Industrial Enterprise", term_unit="Units"):
-    st.title("🌐 Global Logistics Network & GIS Control Tower")
-    st.caption(f"Active Persona View: **{persona}**")
-    st.markdown("Real-time maritime AIS vessel tracking, port dwell telemetry, and dynamic MRP procurement lead-time recalibration.")
+def render_global_logistics(
+    persona="Discrete & Heavy Industrial Enterprise", term_unit="Units", **kwargs
+):
+  """Global Logistics Network & GIS Control Tower.
 
-    active_signal = st.session_state.get("active_risk_signal_title", "Baseline - Normal Transit Operations")
-    
-    col_c1, col_c2 = st.columns([2, 1])
-    with col_c1:
-        st.info(f"📡 **Active GIS Risk Signal**: {active_signal}")
-    with col_c2:
-        delay_days = st.slider("Simulated Route Transit Delay (Days):", min_value=0.0, max_value=14.0, value=4.2, step=0.5, key="gis_delay_slider")
+  Monitors global maritime routes, vessel chokepoints, and automatically
+  triggers contingency freight bookings based on CTRM hedge positions and open
+  unhedged exposure.
+  """
+  st.title("🚢 Global Logistics Network & GIS Control Tower")
+  st.caption(f"Active Persona View: **{persona}**")
+  st.markdown(
+      "Real-time vessel tracking, port dwell anomalies, and automated"
+      " contingency freight booking."
+  )
 
-    col_m1, col_m2, col_m3, col_m4 = st.columns(4)
-    col_m1.metric("Global Freight Index (FBX)", "$3,420 / FEU", "+12.4%", delta_color="inverse")
-    col_m2.metric("Port Dwell Time (US Gulf)", f"{3.2 + delay_days:.1f} Days", f"+{delay_days:.1f} Days", delta_color="inverse")
-    col_m3.metric("Active Vessels Tracked", "142 Cargo Ships")
-    col_m4.metric("Supply Chain Risk Level", "ELEVATED" if delay_days > 3 else "NORMAL")
+  # Read upstream states from CTRM Desk, NLP Engine, and Procurement
+  fix_executed = st.session_state.get("fix_executed", False)
+  synthetic_executed = st.session_state.get("synthetic_executed", False)
+  is_hedged = st.session_state.get("ctrm_hedged", False)
 
-    st.markdown("---")
-    st.subheader("🗺️ Global Multi-Modal Transit HUD & Chokepoint Telemetry")
+  si_score = st.session_state.get("si_composite", -0.33)
+  raw_surge = st.session_state.get("extracted_demand_surge", 102968)
+  req_feus = st.session_state.get("required_feu_slots", 4319)
 
-    nodes_df = pd.DataFrame({
-        "Name": ["Detroit Main Plant", "Munich Assembly", "Shanghai Port Hub", "Rotterdam Port Hub", "Houston Logistics Hub"],
-        "Lat": [42.3314, 48.1351, 31.2304, 51.9244, 29.7604],
-        "Lon": [-83.0458, 11.5820, 121.4737, 4.4777, -95.3698]
+  # Calculate open unhedged volume & ratio
+  exec_lots = st.session_state.get("executed_lots", 0)
+  hedged_units = exec_lots * 25 * 11 if fix_executed else 0
+  open_unhedged_units = (
+      max(0, raw_surge - hedged_units) if is_hedged else raw_surge
+  )
+  unhedged_ratio = (
+      open_unhedged_units / raw_surge if raw_surge > 0 else 0.0
+  )
+
+  # Contingency Freight Trigger Policy: Triggered if unhedged ratio > 25% or macro SI < -0.25
+  contingency_required = unhedged_ratio > 0.25 or si_score < -0.25
+
+  # Dynamic Operational Alert Banner
+  if fix_executed or synthetic_executed:
+    st.success(
+        f"✅ **CTRM HEDGE COVERAGE ACTIVE**: FIX execution confirmed."
+        f" Open unhedged physical gap reduced to **{open_unhedged_units:,}"
+        f" {term_unit} ({unhedged_ratio:.1%})**."
+    )
+  elif contingency_required:
+    st.warning(
+        f"⚠️ **UNHEDGED SUPPLY EXPOSURE DETECTED**: Open gap sits at"
+        f" **{open_unhedged_units:,} {term_unit} ({unhedged_ratio:.1%})** with"
+        f" sentiment $SI = {si_score:+.2f}$. Automated policy recommends"
+        " locking contingency freight slots."
+    )
+  else:
+    st.info(
+        f"🟢 **LOGISTICS BALANCED**: Unhedged exposure is within safe limits"
+        f" ({unhedged_ratio:.1%}). Baseline freight schedules active."
+    )
+
+  # Key Logistics Metrics
+  m1, m2, m3, m4 = st.columns(4)
+  with m1:
+    st.metric("Total Vessel FEU Requirement", f"{req_feus:,} FEUs")
+  with m2:
+    st.metric("Open Unhedged Freight Gap", f"{open_unhedged_units:,} {term_unit}")
+  with m3:
+    st.metric(
+        "Unhedged Volatility Ratio",
+        f"{unhedged_ratio:.1%}",
+        delta="Requires Contingency" if contingency_required else "Safe Level",
+        delta_color="inverse" if contingency_required else "normal",
+    )
+  with m4:
+    rec_contingency_feus = int(req_feus * max(0.15, unhedged_ratio))
+    st.metric(
+        "Recommended Express Freight",
+        f"{rec_contingency_feus:,} FEUs",
+    )
+
+  st.divider()
+
+  # GIS Vessel Tracking & Dispatch Panel
+  col_map, col_action = st.columns([1.8, 1])
+
+  with col_map:
+    st.subheader("🗺️ Live Global Shipping Chokepoints")
+
+    # Interactive vessel location map data
+    map_data = pd.DataFrame({
+        "lat": [29.93, 1.29, 22.31, 51.95, 25.03],
+        "lon": [32.55, 103.85, 114.16, 4.14, 121.56],
+        "name": [
+            "Suez Canal Chokepoint",
+            "Singapore Transshipment Hub",
+            "Hong Kong Terminal",
+            "Rotterdam Gateway",
+            "Taiwan Strait Route",
+        ],
     })
+    st.map(map_data, zoom=1)
 
-    chokepoints_df = pd.DataFrame({
-        "Location": ["Suez Canal", "Panama Canal", "US Gulf Ports", "Strait of Malacca"],
-        "Delay": ["+2.1 Days", "Normal Operations", f"+{delay_days} Days", "Normal Operations"],
-        "Color": ["#fecb52", "#00cc96", "#ef553b", "#00cc96"],
-        "Lat": [30.5852, 9.0800, 29.3013, 1.3521],
-        "Lon": [32.3432, -79.6800, -94.7977, 103.8198],
-        "Size": [18, 12, 26, 12]
-    })
+  with col_action:
+    st.subheader("⚡ Contingency Dispatch")
+    st.markdown("Automated priority slot allocation for unhedged volume.")
 
-    fig = go.Figure()
-    corridors = [
-        {"name": "Transpacific Lane", "lats": [31.2304, 34.0522], "lons": [121.4737, -118.2437], "color": "#1f77b4"},
-        {"name": "Transatlantic Lane", "lats": [51.9244, 29.7604], "lons": [4.4777, -95.3698], "color": "#ef553b"},
-        {"name": "Eurasia Rail/Sea Corridor", "lats": [31.2304, 1.3521, 30.5852, 51.9244], "lons": [121.4737, 103.8198, 32.3432, 4.4777], "color": "#fecb52"}
-    ]
+    freight_mode = st.selectbox(
+        "Contingency Transport Mode",
+        [
+            "Express Air Freight (3-5 Day Lead)",
+            "Premium Guaranteed Ocean FEU",
+            "Multi-Modal Rail/Truck Relay",
+        ],
+        key="gis_freight_mode",
+    )
 
-    for line in corridors:
-        fig.add_trace(go.Scattergeo(lat=line["lats"], lon=line["lons"], mode="lines", line=dict(width=2.5, color=line["color"], dash="dot"), name=line["name"]))
+    feus_to_book = st.number_input(
+        "FEU / Express Slots to Reserve",
+        value=max(25, rec_contingency_feus),
+        step=25,
+        key="gis_feus_book",
+    )
 
-    fig.add_trace(go.Scattergeo(lat=nodes_df["Lat"], lon=nodes_df["Lon"], mode="markers+text", marker=dict(size=10, color="#ffffff", symbol="diamond"), text=nodes_df["Name"], textposition="top center", name="Enterprise Nodes"))
-    fig.add_trace(go.Scattergeo(lat=chokepoints_df["Lat"], lon=chokepoints_df["Lon"], mode="markers", marker=dict(size=chokepoints_df["Size"], color=chokepoints_df["Color"], opacity=0.85), text=chokepoints_df["Location"] + ": " + chokepoints_df["Delay"], name="Chokepoint Telemetry"))
+    unit_rate = 4800 if "Air" in freight_mode else 2200
+    est_cost = feus_to_book * unit_rate
+    st.caption(f"💰 Estimated Contingency Premium: **${est_cost:,.2f}**")
 
-    fig.update_layout(geo=dict(projection_type="natural earth", showland=True, landcolor="#1e1e1e", showocean=True, oceancolor="#0e1117", bgcolor="#0e1117"), height=450, margin=dict(l=10, r=10, t=10, b=10))
-    st.plotly_chart(fig, use_container_width=True)
+    if st.button("🚢 Lock Contingency Freight Booking", key="btn_book_freight"):
+      st.session_state["contingency_freight_booked"] = True
+      st.session_state["booked_feus"] = feus_to_book
+      st.session_state["booked_mode"] = freight_mode
+      st.session_state["contingency_cost"] = est_cost
 
-    st.markdown("---")
-    st.subheader("🌉 Dynamic Procurement Lead-Time Recalibration")
-    col_gb1, col_gb2 = st.columns([1.2, 1])
+      st.toast(
+          f"Reserved {feus_to_book:,} slots via {freight_mode}!", icon="🚢"
+      )
+      st.success(
+          f"✅ **Contingency Freight Confirmed!** Reserved **{feus_to_book:,}"
+          f" FEU slots** using **{freight_mode}** for **${est_cost:,.2f}**."
+          " Logistics bottleneck risk neutralized!"
+      )
 
-    with col_gb1:
-        st.markdown("#### **Active Carrier Telemetry**")
-        st.dataframe(pd.DataFrame([
-            {"Carrier / Vessel": "Maersk Horizon", "Route": "Shanghai -> Houston", "Dwell Time": f"{4.1 + delay_days:.1f} Days", "Status": "⚠️ Delayed"},
-            {"Carrier / Vessel": "MSC Geneva", "Route": "Rotterdam -> Detroit", "Dwell Time": "1.8 Days", "Status": "🟢 On Time"}
-        ]), use_container_width=True, hide_index=True)
-
-    with col_gb2:
-        st.markdown("#### **Automated PO Recalibration**")
-        st.info(f"💡 **Dynamic MRP Integration Active:** Detected **+{delay_days} Day delay**. Purchase Order triggers offset from **Day T-4 to Day T-{(4.0 + delay_days):.1f}**.")
-        if st.button("⚡ Execute Dynamic Order Offset in ERP", type="primary", key="btn_gis_execute_rop"):
-            st.session_state["rop_offset_executed"] = True
-            st.session_state["active_leadtime_delay_days"] = delay_days
-            st.toast("Reorder points synchronized with SAP S/4HANA!", icon="🚀")
+  # Display Active Contingency Ledger if booked
+  if st.session_state.get("contingency_freight_booked", False):
+    st.info(
+        f"📦 **Active Freight Reservation**:"
+        f" {st.session_state.get('booked_feus', 0):,} FEUs booked via"
+        f" *{st.session_state.get('booked_mode', '')}* (Total Cost:"
+        f" ${st.session_state.get('contingency_cost', 0.0):,.2f})"
+    )
 
 
 # =====================================================================
