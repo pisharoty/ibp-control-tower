@@ -595,81 +595,224 @@ def render_nlp_intelligence(persona=None, term_unit="Units", **kwargs):
     )
 
 
-def render_physical_procurement(persona="Discrete & Heavy Industrial Enterprise", term_unit="Units", term_raw="Raw Material"):
-    st.title("📄 Physical Procurement & Master Contract Desk")
-    st.caption(f"Active Persona View: **{persona}**")
-    st.markdown("Active enterprise supplier commitments, physical off-take agreements, and volume requisitions.")
+def render_physical_procurement(
+    persona="Discrete & Heavy Industrial Enterprise", term_unit="Units", **kwargs
+):
+  """Physical Procurement & Master Contract Desk.
 
-    # --- 1. GIS Lead-Time Offset State ---
-    rop_offset_active = st.session_state.get("rop_offset_executed", False)
-    delay_days = st.session_state.get("active_leadtime_delay_days", 4.2 if rop_offset_active else 0.0)
+  Translates paper hedge profits and demand surge signals into binding physical
+  Purchase Orders (POs), supplier allocations, and inbound logistics schedule
+  locks.
+  """
+  st.title("📦 Physical Procurement & Master Contract Desk")
+  st.caption(f"Active Persona View: **{persona}**")
+  st.markdown(
+      "Physical supply chain execution, master contract allocation, and vendor"
+      " invoice settlement subsidized by financial derivative hedges."
+  )
 
-    if rop_offset_active:
-        st.warning(
-            f"⚡ **Dynamic Lead-Time Offset Active (from GIS Control Tower):** "
-            f"Carrier delays added **+{delay_days:.1f} Days** to active transit corridors. "
-            f"Purchase Order release triggers shifted from **Day T-4.0** to **Day T-{(4.0 + delay_days):.1f}**."
-        )
-    else:
-        st.info("ℹ️ **Standard MRP Mode:** Lead times running on static baseline vendor contracts.")
+  # Read upstream states from NLP / Monte Carlo / CTRM / S&OP
+  si_score = st.session_state.get("si_composite", -0.51)
+  surge_units = st.session_state.get("extracted_demand_surge", 133858)
+  sop_cash = st.session_state.get("sop_cash_balance", 4486918.75)
+  fix_executed = st.session_state.get("fix_executed", False)
+  po_executed = st.session_state.get("po_executed", False)
 
-    # --- 2. Master Active Physical Contracts ---
-    st.subheader("📋 Active Physical Supply Contracts")
-    contracts_df = pd.DataFrame(get_persona_contracts(persona))
+  # Operational Calculations
+  base_unit_cogs = 160.00  # Base raw material cost per unit
+  spot_surge_premium = base_unit_cogs * (
+      1.0 + abs(si_score) * 0.35
+  )  # Stressed spot cost
+  hedge_subsidy = 8_970_000.0 if fix_executed else 0.0
 
-    if not contracts_df.empty and rop_offset_active:
-        contracts_df["GIS Transit Delay"] = f"+{delay_days:.1f} Days"
-        contracts_df["Adjusted ROP Trigger"] = f"Day T-{(4.0 + delay_days):.1f} ⚠️"
+  base_lead_time_days = 14
+  delay_shock_days = (
+      7  # +7 day delay shock from Monte Carlo / Logistics Desk
+  )
+  total_lead_time = base_lead_time_days + delay_shock_days
 
-    st.dataframe(contracts_df, use_container_width=True, hide_index=True)
-    st.markdown("---")
+  # Sourcing Volume Split
+  tier1_alloc_pct = 0.60
+  tier2_alloc_pct = 0.25
+  spot_alloc_pct = 0.15
 
-    # --- 3. Dynamic Horizon Ingestion & BOM Engine ---
-    st.subheader("📦 Bill of Materials (BOM) Auto-Requisition Engine")
-    is_committed = st.session_state.get("demand_plan_committed", False)
-    
-    # Reads multi-week total from Load Balancer, fallback to committed/calculated demand
-    active_demand = st.session_state.get(
-        "total_horizon_units",
-        st.session_state.get(
-            "committed_horizon_demand" if is_committed else "calculated_horizon_demand", 
-            862640
-        )
+  v_tier1 = int(surge_units * tier1_alloc_pct)
+  v_tier2 = int(surge_units * tier2_alloc_pct)
+  v_spot = int(surge_units * spot_alloc_pct)
+
+  cost_tier1 = v_tier1 * base_unit_cogs
+  cost_tier2 = v_tier2 * (base_unit_cogs * 1.05)
+  cost_spot = v_spot * spot_surge_premium
+  gross_procurement_cost = cost_tier1 + cost_tier2 + cost_spot
+
+  net_procurement_cost = max(0.0, gross_procurement_cost - hedge_subsidy)
+
+  # Top Operational Ingestion Banner
+  st.info(
+      f"🌐 **Physical Demand Signal Ingested**: Required Procurement Volume:"
+      f" **{surge_units:,} {term_unit}** | Lead-Time Delay Shock:"
+      f" **+{delay_shock_days} Days** (Total Lead Time: **{total_lead_time}"
+      f" Days**) | Financial Hedge Cash Subsidy Available:"
+      f" **${hedge_subsidy:,.2f}**"
+  )
+
+  # Top Procurement Metrics
+  m1, m2, m3, m4 = st.columns(4)
+  with m1:
+    st.metric("Gross Physical Material Need", f"{surge_units:,} {term_unit}")
+  with m2:
+    st.metric(
+        "Gross Supplier Invoice Total", f"${gross_procurement_cost / 1e6:.2f}M"
+    )
+  with m3:
+    st.metric(
+        "CTRM Financial Paper Subsidy",
+        f"-${hedge_subsidy / 1e6:.2f}M" if fix_executed else "$0.00M",
+        delta="Hedge Active" if fix_executed else "Unhedged Spot Risk",
+        delta_color="normal" if fix_executed else "inverse",
+    )
+  with m4:
+    st.metric(
+        "Net Cash Outlay to Suppliers",
+        f"${net_procurement_cost / 1e6:.2f}M",
+        delta=f"-${hedge_subsidy / 1e6:.2f}M Savings"
+        if fix_executed
+        else "+0% Subsidy",
     )
 
-    if is_committed:
-        st.success(f"⚡ **Live S&OP Horizon Sync Active**: Displaying requisitions for committed Demand Plan of **{active_demand:,} {term_unit}**.")
-    else:
-        st.info(f"ℹ️ **Baseline S&OP Forecast**: Displaying uncommitted requisitions for **{active_demand:,} {term_unit}**.")
+  st.divider()
 
-    # Chautauqua BOM Explosion Formulas
-    req_metals_mt = int(active_demand * 0.015)
-    req_components = int(active_demand * 1.50)
-    req_freight_feus = int(active_demand / 144.28)
+  # Master Contract Allocation Matrix
+  st.subheader("📋 Master Contract Sourcing Matrix")
+  st.caption(
+      "Allocations across long-term contracted vendors and open spot market"
+      " sourcing."
+  )
 
-    # Push to session state for downstream CTRM Derivatives Desk
-    st.session_state["required_metal_mt"] = req_metals_mt
-    st.session_state["required_feu_slots"] = req_freight_feus
+  matrix_data = {
+      "Supplier Name": [
+          "Global Metals Corp (Tier 1 Primary)",
+          "Apex Logistics Raw Ltd (Tier 2 Secondary)",
+          "Spot Market Open Sourcing (Emergency)",
+      ],
+      "Contract Type": [
+          "Fixed-Price Master Agreement",
+          "Indexed Master Agreement",
+          "Open Spot Market Purchase",
+      ],
+      "Alloc %": [
+          f"{tier1_alloc_pct:.0%}",
+          f"{tier2_alloc_pct:.0%}",
+          f"{spot_alloc_pct:.0%}",
+      ],
+      "Volume (Units)": [f"{v_tier1:,}", f"{v_tier2:,}", f"{v_spot:,}"],
+      "Unit Cost ($)": [
+          f"${base_unit_cogs:.2f}",
+          f"${base_unit_cogs * 1.05:.2f}",
+          f"${spot_surge_premium:.2f}",
+      ],
+      "Subtotal Invoice": [
+          f"${cost_tier1 / 1e6:.2f}M",
+          f"${cost_tier2 / 1e6:.2f}M",
+          f"${cost_spot / 1e6:.2f}M",
+      ],
+      "Expected ETA": [
+          f"{total_lead_time} Days",
+          f"{total_lead_time - 2} Days",
+          f"{base_lead_time_days} Days (Expedited)",
+      ],
+  }
+  st.table(pd.DataFrame(matrix_data))
 
-    col_b1, col_b2, col_b3 = st.columns(3)
-    col_b1.metric(f"Required {term_raw}", f"{req_metals_mt:,} MT", help="Formula: Horizon Units * 0.015")
-    col_b2.metric("Component Requisitions", f"{req_components:,} Units", help="Formula: Horizon Units * 1.5")
-    col_b3.metric("Freight Slots Reserved", f"{req_freight_feus:,} FEUs", help="Formula: Horizon Units / 144.28")
+  st.divider()
 
-    st.markdown("<br>", unsafe_allow_html=True)
-    if st.button("📌 Push Auto-Requisitions to ERP (SAP S/4HANA / Odoo)", key="btn_push_erp", type="primary"):
-        st.session_state["erp_requisitions_pushed"] = True
-        st.toast(f"Pushed {req_components:,} component requisitions directly to SAP S/4HANA!", icon="🚀")
+  # Physical Purchase Order Dispatch Controls
+  st.subheader("🏭 Physical PO Execution Gateway")
 
-    if st.session_state.get("erp_requisitions_pushed", False):
-        if rop_offset_active:
-            st.success(
-                f"✅ **ERP Requisitions Synced with +{delay_days:.1f} Day Lead-Time Offset**: "
-                f"Purchase orders PO-2026-9901 through PO-2026-9904 generated and sent to procurement queue "
-                f"with recalculated release windows (Day T-{(4.0 + delay_days):.1f})."
-            )
-        else:
-            st.success("✅ **ERP Requisitions Synced**: Purchase orders PO-2026-9901 through PO-2026-9904 generated and sent to procurement queue.")
+  c1, c2, c3 = st.columns(3)
+  with c1:
+    st.selectbox(
+        "Primary Delivery Destination",
+        [
+            "Central Assembly Plant (Facility A)",
+            "Eastern Distribution Center",
+            "Direct-to-Customer Hub",
+        ],
+        key="po_dest",
+    )
+    st.selectbox(
+        "Inbound Logistics Mode",
+        [
+            "Standard Multi-Modal Rail & Truck",
+            "Expedited Air Freight Overlay (+$12/unit)",
+            "Dedicated Direct Vessel Charter",
+        ],
+        key="po_freight",
+    )
+
+  with c2:
+    payment_terms = st.selectbox(
+        "Vendor Payment Terms",
+        ["Net 60 Days", "Net 30 Days", "Letter of Credit (LC)", "Cash on Delivery"],
+        key="po_pay_terms",
+    )
+    quality_cert = st.selectbox(
+        "Quality & Compliance Standard",
+        ["ISO 9001 Heavy Industrial", "Aerospace Grade Spec A", "Standard Commercial"],
+        key="po_qual",
+    )
+
+  with c3:
+    expedite_fee = st.number_input(
+        "Logistics Expedite Fee ($/Unit)", value=0.00, step=2.50, key="po_exp_fee"
+    )
+    st.caption(
+        f"🚚 Logistics Premium: **${expedite_fee * surge_units:,.2f}**"
+    )
+
+  if po_executed:
+    st.success(
+        "✅ **PHYSICAL PURCHASE ORDERS ISSUED**: PO-2026-991A routed to Global"
+        f" Metals Corp & Apex Logistics. Delivery schedule locked for"
+        f" **{surge_units:,} {term_unit}**."
+    )
+  else:
+    if st.button(
+        "📦 Issue Physical Purchase Orders & Lock Delivery Schedules",
+        key="btn_issue_po",
+    ):
+      st.session_state["po_executed"] = True
+      st.toast(
+          f"Purchase Orders Issued! {surge_units:,} Units dispatched.",
+          icon="📦",
+      )
+      st.rerun()
+
+  st.divider()
+
+  # Operational Inbound Schedule Cascade
+  st.subheader("🚚 Inbound Physical Delivery Cascade")
+  dc1, dc2, dc3 = st.columns(3)
+  with dc1:
+    st.markdown("**Warehouse Staging & Buffer**")
+    st.caption(
+        f"Allocated Staging Bays: **{max(12, int(surge_units / 10000))} Bays**\n\nStatus:"
+        f" **{'Space Reserved' if po_executed else 'Awaiting PO Release'}**"
+    )
+  with dc2:
+    st.markdown("**Supplier Production Slots**")
+    st.caption(
+        "Global Metals Capacity:"
+        f" **{'100% Locked' if po_executed else 'Option Held'}**\n\nLead Time:"
+        f" **{total_lead_time} Days**"
+    )
+  with dc3:
+    st.markdown("**Net Financial Settlement**")
+    st.caption(
+        f"Gross Supplier Invoice: **${gross_procurement_cost / 1e6:.2f}M**\n\nCTRM"
+        f" Paper Subsidy: **-${hedge_subsidy / 1e6:.2f}M**\n\nEffective Material"
+        f" Spend: **${net_procurement_cost / 1e6:.2f}M**"
+    )
 
 
 def render_ctrm_desk(
