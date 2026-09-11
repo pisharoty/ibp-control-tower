@@ -153,469 +153,343 @@ def render_integration_architecture(persona="Discrete & Heavy Industrial Enterpr
         "selected_module": selected_module
     })
 
-
 import json
 import os
 import re
 import streamlit as st
 
 
-def render_nlp_intelligence(
-    persona="Discrete & Heavy Industrial Enterprise", term_unit="Units"
-):
+def render_nlp_intelligence(term_unit="Units"):
+  """Complete NLP Commercial Sensing & Intelligence Module.
+
+  Features:
+  - Composite Market Sentiment Index ($SI$) Executive Card with fallback parsing
+  - Automated GEP & LinkedIn IMAP Signal Ingestion
+  - Expanded Sector Coverage: Copper, Tin, Rare Earths, Industrial Chemicals,
+  Semiconductors, Energy, Freight
+  """
   st.title("🧠 NLP Commercial Sensing & Intelligence")
-  st.caption(f"Active Persona View: **{persona}**")
-  st.markdown(
+  st.caption(
       "Ingest unstructured signals from news feeds, social media, post-trade"
-      " show emails, and GIS weather/freight telemetry."
+      " show emails, and GIS telemetry."
   )
 
   tab1, tab2, tab3 = st.tabs([
       "📡 Live Web Signals",
       "📧 Email & Event Debrief Parser",
-      "🌐 Freight, Weather & Black Swan Feeds",
+      "⚓ Freight, Weather & Black Swan Feeds",
   ])
 
-with tab1:
-            # Header & Manual Refresh Button
-            r_head1, r_head2 = st.columns([3, 1])
-            with r_head1:
-                st.caption(
-                    "🤖 **Triangulated Intelligence**: Macro Sentiment + Live Feeds"
-                )
-            with r_head2:
-                if st.button("🔄 Refresh Live Feeds", key="btn_refresh_robot_feeds"):
-                    try:
-                        from robot_feeds import sync_robot_feeds
+  with tab1:
+    # Header & Manual Refresh Button
+    r_head1, r_head2 = st.columns([3, 1])
+    with r_head1:
+      st.caption("🤖 **Triangulated Intelligence**: Macro Sentiment + Live Feeds")
+    with r_head2:
+      if st.button("🔄 Refresh Live Feeds", key="btn_refresh_robot_feeds"):
+        try:
+          from robot_feeds import sync_robot_feeds
 
-                        sync_robot_feeds()
-                        st.toast("Refreshed feeds from Gmail IMAP & GEP!", icon="🔄")
-                        st.rerun()
-                    except Exception as e:
-                        st.error(f"Sync error: {e}")
+          sync_robot_feeds()
+          st.toast("Refreshed feeds from Gmail IMAP & GEP!", icon="🔄")
+          st.rerun()
+        except Exception as e:
+          st.error(f"Sync error: {e}")
 
-            # Auto-sync baseline cache if missing
-            if not os.path.exists("robot_signals.json"):
-                try:
-                    from robot_feeds import sync_robot_feeds
+    # Auto-sync baseline cache if missing
+    if not os.path.exists("robot_signals.json"):
+      try:
+        from robot_feeds import sync_robot_feeds
 
-                    sync_robot_feeds()
-                except Exception as e:
-                    st.error(f"Robot Feed Sync Error: {e}")
+        sync_robot_feeds()
+      except Exception as e:
+        st.error(f"Robot Feed Sync Error: {e}")
 
-            # Read cache or compute dynamic fallback
-            robot_data = {}
-            if os.path.exists("robot_signals.json"):
-                try:
-                    with open("robot_signals.json", "r") as f:
-                        robot_data = json.load(f)
-                except Exception:
-                    pass
+    # Read cache or compute dynamic fallback
+    robot_data = {}
+    if os.path.exists("robot_signals.json"):
+      try:
+        with open("robot_signals.json", "r") as f:
+          robot_data = json.load(f)
+      except Exception:
+        pass
 
-            composite = robot_data.get("composite_sentiment", {})
-            if not composite:
-                try:
-                    from robot_feeds import calculate_composite_sentiment
+    composite = robot_data.get("composite_sentiment", {})
+    if not composite:
+      try:
+        from robot_feeds import calculate_composite_sentiment
 
-                    composite = calculate_composite_sentiment()
-                except Exception:
-                    composite = {}
+        composite = calculate_composite_sentiment()
+      except Exception:
+        composite = {}
 
-            # =========================================================================
-            # 📊 COMPOSITE SENTIMENT INDEX EXECUTIVE CARD
-            # =========================================================================
-            if composite:
-                si_score = composite.get("si_composite", -0.38)
-                surge_units = composite.get("demand_surge_units", 118750)
-                lt_days = composite.get("leadtime_delay_days", 2.9)
-                rec_text = composite.get("recommendation", "")
+    # =========================================================================
+    # 📊 COMPOSITE SENTIMENT INDEX EXECUTIVE CARD
+    # =========================================================================
+    if composite:
+      si_score = composite.get("si_composite", -0.38)
+      surge_units = composite.get("demand_surge_units", 118750)
+      lt_days = composite.get("leadtime_delay_days", 2.9)
+      rec_text = composite.get("recommendation", "")
 
-                with st.container(border=True):
-                    st.markdown("### 🎯 Composite Market Sentiment Index ($SI$)")
-                    c_col1, c_col2, c_col3, c_col4 = st.columns([1.2, 1, 1, 1])
+      with st.container(border=True):
+        st.markdown("### 🎯 Composite Market Sentiment Index ($SI$)")
+        c_col1, c_col2, c_col3, c_col4 = st.columns([1.2, 1, 1, 1])
 
-                    with c_col1:
-                        st.metric(
-                            "Net Sentiment Score",
-                            f"{si_score:+.2f}",
-                            delta="Moderate Supply Strain",
-                            delta_color="inverse",
-                        )
-                    with c_col2:
-                        st.metric("Quantified Demand Surge", f"+{surge_units:,} {term_unit}")
-                    with c_col3:
-                        st.metric("Lead Time Expansion", f"+{lt_days} Days")
-                    with c_col4:
-                        ctrm_status = (
-                            "🔴 HEDGE REQUIRED"
-                            if composite.get("ctrm_hedge_required")
-                            else "🟢 STABLE"
-                        )
-                        st.metric("CTRM Risk Status", ctrm_status)
+        with c_col1:
+          st.metric(
+              "Net Sentiment Score",
+              f"{si_score:+.2f}",
+              delta="Moderate Supply Strain",
+              delta_color="inverse",
+          )
+        with c_col2:
+          st.metric("Quantified Demand Surge", f"+{surge_units:,} {term_unit}")
+        with c_col3:
+          st.metric("Lead Time Expansion", f"+{lt_days} Days")
+        with c_col4:
+          ctrm_status = (
+              "🔴 HEDGE REQUIRED"
+              if composite.get("ctrm_hedge_required")
+              else "🟢 STABLE"
+          )
+          st.metric("CTRM Risk Status", ctrm_status)
 
-                    st.info(f"**Quantified Action Plan**: {rec_text}")
+        st.info(f"**Quantified Action Plan**: {rec_text}")
 
-                    if st.button(
-                        "⚡ Propagate Triangulated Composite Index across Platform",
-                        key="btn_propagate_composite",
-                    ):
-                        st.session_state["si_composite"] = si_score
-                        st.session_state["extracted_demand_surge"] = surge_units
-                        st.session_state["active_leadtime_delay_days"] = lt_days
-                        st.session_state["ctrm_hedge_required"] = composite.get(
-                            "ctrm_hedge_required", True
-                        )
-                        st.session_state["active_risk_signal_title"] = (
-                            f"Triangulated Sentiment Index ({si_score:+.2f})"
-                        )
-                        st.session_state["signal_category"] = (
-                            "Macro Triangulation Engine"
-                        )
+        if st.button(
+            "⚡ Propagate Triangulated Composite Index across Platform",
+            key="btn_propagate_composite",
+        ):
+          st.session_state["si_composite"] = si_score
+          st.session_state["extracted_demand_surge"] = surge_units
+          st.session_state["active_leadtime_delay_days"] = lt_days
+          st.session_state["ctrm_hedge_required"] = composite.get(
+              "ctrm_hedge_required", True
+          )
+          st.session_state["active_risk_signal_title"] = (
+              f"Triangulated Sentiment Index ({si_score:+.2f})"
+          )
+          st.session_state["signal_category"] = "Macro Triangulation Engine"
 
-                        st.toast("Propagated Composite Sentiment Engine!", icon="⚡")
-                        st.success(
-                            f"✅ Loaded **$SI = {si_score:+.2f}$** across S&OP Demand"
-                            f" Matching, Lead Time Offsets (+{lt_days}d), and CTRM"
-                            " Desk!"
-                        )
+          st.toast("Propagated Composite Sentiment Engine!", icon="⚡")
+          st.success(
+              f"✅ Loaded **$SI = {si_score:+.2f}$** across S&OP Demand"
+              f" Matching, Lead Time Offsets (+{lt_days}d), and CTRM Desk!"
+          )
 
-                st.divider()
+      st.divider()
 
-            # GEP Index Display
-            gep = robot_data.get("gep_index", {})
-            if gep and gep.get("source"):
-                st.info(f"🤖 **Automated Robot Signal Detected**: {gep.get('source')}")
+    # GEP Index Display
+    gep = robot_data.get("gep_index", {})
+    if gep and gep.get("source"):
+      st.info(f"🤖 **Automated Robot Signal Detected**: {gep.get('source')}")
 
-                r_col1, r_col2, r_col3 = st.columns([2, 1, 1])
-                with r_col1:
-                    st.caption(f"**Summary**: {gep.get('summary', '')[:180]}...")
-                with r_col2:
-                    st.metric(
-                        "Volatility Score",
-                        gep.get("volatility_score", 0.0),
-                        delta=f"+{gep.get('leadtime_delay_days', 2.0)}d Lead Time",
-                    )
-                with r_col3:
-                    robot_units = gep.get("demand_surge_units", 60000)
-                    st.metric("Auto Surge", f"{robot_units:,} {term_unit}")
+      r_col1, r_col2, r_col3 = st.columns([2, 1, 1])
+      with r_col1:
+        st.caption(f"**Summary**: {gep.get('summary', '')[:180]}...")
+      with r_col2:
+        st.metric(
+            "Volatility Score",
+            gep.get("volatility_score", 0.0),
+            delta=f"+{gep.get('leadtime_delay_days', 2.0)}d Lead Time",
+        )
+      with r_col3:
+        robot_units = gep.get("demand_surge_units", 60000)
+        st.metric("Auto Surge", f"{robot_units:,} {term_unit}")
 
-                if st.button("🤖 Ingest Live Robot GEP Signal", key="btn_ingest_robot_gep"):
-                    st.session_state["extracted_demand_surge"] = robot_units
-                    st.session_state["active_risk_signal_title"] = f"[Robot] {gep.get('source')}"
-                    st.session_state["signal_category"] = "Automated GEP Feed"
-                    st.session_state["active_leadtime_delay_days"] = gep.get(
-                        "leadtime_delay_days", 2.0
-                    )
-                    st.toast("Ingested Live GEP Robot Feed!", icon="🤖")
-                    st.success(
-                        f"✅ Propagated **[Robot] {gep.get('source')}** ({robot_units:,}"
-                        f" {term_unit}) across S&OP and CTRM Desk!"
-                    )
+      if st.button(
+          "🤖 Ingest Live Robot GEP Signal", key="btn_ingest_robot_gep"
+      ):
+        st.session_state["extracted_demand_surge"] = robot_units
+        st.session_state["active_risk_signal_title"] = (
+            f"[Robot] {gep.get('source')}"
+        )
+        st.session_state["signal_category"] = "Automated GEP Feed"
+        st.session_state["active_leadtime_delay_days"] = gep.get(
+            "leadtime_delay_days", 2.0
+        )
+        st.toast("Ingested Live GEP Robot Feed!", icon="🤖")
+        st.success(
+            f"✅ Propagated **[Robot] {gep.get('source')}** ({robot_units:,}"
+            f" {term_unit}) across S&OP and CTRM Desk!"
+        )
 
-                st.divider()
+      st.divider()
 
-            # LinkedIn Newsletter Feed Display
-            newsletters = robot_data.get("newsletter_feeds", [])
-            if newsletters and isinstance(newsletters, list):
-                first_signal = newsletters[0]
-                if "title" in first_signal:
-                    st.success(
-                        f"📰 **LinkedIn Signal Received**: {first_signal.get('title')}"
-                    )
-                    st.caption(
-                        f"Published: {first_signal.get('published', 'Recent')} |"
-                        f" Summary: {first_signal.get('summary', '')}"
-                    )
-                    if st.button(
-                        "📰 Ingest LinkedIn Newsletter Signal",
-                        key="btn_ingest_ktn_news",
-                    ):
-                        st.session_state["extracted_demand_surge"] = 95000
-                        st.session_state["active_risk_signal_title"] = (
-                            f"[LinkedIn] {first_signal.get('title')}"
-                        )
-                        st.session_state["signal_category"] = "LinkedIn Feed"
-                        st.toast("Ingested LinkedIn Newsletter Signal!", icon="📰")
-                    st.divider()
+    # LinkedIn Newsletter Feed Display
+    newsletters = robot_data.get("newsletter_feeds", [])
+    if newsletters and isinstance(newsletters, list) and len(newsletters) > 0:
+      first_signal = newsletters[0]
+      if "title" in first_signal:
+        st.success(
+            f"📰 **LinkedIn Signal Received**: {first_signal.get('title')}"
+        )
+        st.caption(
+            f"Published: {first_signal.get('published', 'Recent')} | Summary:"
+            f" {first_signal.get('summary', '')}"
+        )
+        if st.button(
+            "📰 Ingest LinkedIn Newsletter Signal", key="btn_ingest_ktn_news"
+        ):
+          st.session_state["extracted_demand_surge"] = 95000
+          st.session_state["active_risk_signal_title"] = (
+              f"[LinkedIn] {first_signal.get('title')}"
+          )
+          st.session_state["signal_category"] = "LinkedIn Feed"
+          st.toast("Ingested LinkedIn Newsletter Signal!", icon="📰")
+        st.divider()
 
-            # Real-Time Web & Macro News Stream
-            st.subheader("📡 Real-Time Web & Macro News Stream")
-            NEWS_DOMAINS = {
-                "🧱 Non-Ferrous Metals (Copper, Tin, Zinc, Aluminum)": [
-                    (
-                        "LME Copper Inventories Drop to 6-Year Lows Amid Chilean Mine Outages"
-                        " [Impact: 145,000 Units]"
-                    ),
-                    (
-                        "Indonesia Extends Unrefined Tin Export Restrictions; Spot Premiums Jump +18%"
-                        " [Impact: 92,000 Units]"
-                    ),
-                    (
-                        "European Aluminum Smelters Curtail Output Due to Energy Surcharges"
-                        " [Impact: 115,000 Units]"
-                    ),
-                ],
-                "💎 Precious Metals & Rare Earth Elements (REE)": [
-                    (
-                        "China Imposes Neodymium & Dysprosium Export Licensing Controls"
-                        " [Impact: 210,000 Units]"
-                    ),
-                    (
-                        "Platinum & Palladium Surges Threaten Auto-Catalyst Raw Material Costs"
-                        " [Impact: 88,000 Units]"
-                    ),
-                    (
-                        "Gold Spot Rally Triggers Hedging Re-evaluations Across Electronic Connectors"
-                        " [Impact: 65,000 Units]"
-                    ),
-                ],
-                "🧪 Industrial Chemicals & Base Polymers": [
-                    (
-                        "US Gulf Coast Ethylene Cracker Shutdown Triggers PVC & Resin Force Majeure"
-                        " [Impact: 130,000 Units]"
-                    ),
-                    (
-                        "European Ammonia & Nitric Acid Production Cuts Hit Fertilizer & Specialty Chem"
-                        " [Impact: 105,000 Units]"
-                    ),
-                    (
-                        "Titanium Dioxide Supply Tightens as Pigment Feedstock Costs Escalate"
-                        " [Impact: 75,000 Units]"
-                    ),
-                ],
-                "⚡ Essential Semiconductors & High-Tech Hardware": [
-                    (
-                        "TSMC Packaging Bottleneck Delays Advanced ASIC Deliveries"
-                        " [Impact: 175,000 Units]"
-                    ),
-                    (
-                        "Asahi Kasei Resin Shortage Hits Chip Substrate Supply Chain"
-                        " [Impact: 110,000 Units]"
-                    ),
-                    (
-                        "Critical Neon Gas Export Restrictions Target European Fabs"
-                        " [Impact: 140,000 Units]"
-                    ),
-                ],
-                "🛢️ Energy, Power & Petrochemicals": [
-                    (
-                        "European Natural Gas Spike (+32%) Triggers Smelter Surcharge"
-                        " [Impact: 85,000 Units]"
-                    ),
-                    (
-                        "Gulf Coast Refinery Outage Restricts Polymer Feedstock"
-                        " [Impact: 95,000 Units]"
-                    ),
-                    (
-                        "Crude Oil Benchmark Breaches $95/bbl Increasing Freight Matrix"
-                        " [Impact: 50,000 Units]"
-                    ),
-                ],
-                "🚢 Maritime Freight, Ports & Logistics": [
-                    (
-                        "Red Sea Vessel Diversions Drive +45% FBX Container Index Surge"
-                        " [Impact: 130,000 Units]"
-                    ),
-                    (
-                        "US East Coast Port Labor Negotiations Risk Q4 Stocking"
-                        " [Impact: 210,000 Units]"
-                    ),
-                    (
-                        "Singapore Transshipment Dwell Time Peaks at 4.8 Days"
-                        " [Impact: 80,000 Units]"
-                    ),
-                ],
-            }
+    # =========================================================================
+    # 📡 REAL-TIME WEB & MACRO NEWS STREAM (EXPANDED DOMAINS)
+    # =========================================================================
+    st.subheader("📡 Real-Time Web & Macro News Stream")
+    NEWS_DOMAINS = {
+        "🧱 Non-Ferrous Metals (Copper, Tin, Zinc, Aluminum)": [
+            (
+                "LME Copper Inventories Drop to 6-Year Lows Amid Chilean Mine"
+                " Outages [Impact: 145,000 Units]"
+            ),
+            (
+                "Indonesia Extends Unrefined Tin Export Restrictions; Spot"
+                " Premiums Jump +18% [Impact: 92,000 Units]"
+            ),
+            (
+                "European Aluminum Smelters Curtail Output Due to Energy"
+                " Surcharges [Impact: 115,000 Units]"
+            ),
+        ],
+        "💎 Precious Metals & Rare Earth Elements (REE)": [
+            (
+                "China Imposes Neodymium & Dysprosium Export Licensing Controls"
+                " [Impact: 210,000 Units]"
+            ),
+            (
+                "Platinum & Palladium Surges Threaten Auto-Catalyst Raw Material"
+                " Costs [Impact: 88,000 Units]"
+            ),
+            (
+                "Gold Spot Rally Triggers Hedging Re-evaluations Across"
+                " Electronic Connectors [Impact: 65,000 Units]"
+            ),
+        ],
+        "🧪 Industrial Chemicals & Base Polymers": [
+            (
+                "US Gulf Coast Ethylene Cracker Shutdown Triggers PVC & Resin"
+                " Force Majeure [Impact: 130,000 Units]"
+            ),
+            (
+                "European Ammonia & Nitric Acid Production Cuts Hit Fertilizer"
+                " & Specialty Chem [Impact: 105,000 Units]"
+            ),
+            (
+                "Titanium Dioxide Supply Tightens as Pigment Feedstock Costs"
+                " Escalate [Impact: 75,000 Units]"
+            ),
+        ],
+        "⚡ Essential Semiconductors & High-Tech Hardware": [
+            (
+                "TSMC Packaging Bottleneck Delays Advanced ASIC Deliveries"
+                " [Impact: 175,000 Units]"
+            ),
+            (
+                "Asahi Kasei Resin Shortage Hits Chip Substrate Supply Chain"
+                " [Impact: 110,000 Units]"
+            ),
+            (
+                "Critical Neon Gas Export Restrictions Target European Fabs"
+                " [Impact: 140,000 Units]"
+            ),
+        ],
+        "🛢️ Energy, Power & Petrochemicals": [
+            (
+                "European Natural Gas Spike (+32%) Triggers Smelter Surcharge"
+                " [Impact: 85,000 Units]"
+            ),
+            (
+                "Gulf Coast Refinery Outage Restricts Polymer Feedstock"
+                " [Impact: 95,000 Units]"
+            ),
+            (
+                "Crude Oil Benchmark Breaches $95/bbl Increasing Freight Matrix"
+                " [Impact: 50,000 Units]"
+            ),
+        ],
+        "🚢 Maritime Freight, Ports & Logistics": [
+            (
+                "Red Sea Vessel Diversions Drive +45% FBX Container Index Surge"
+                " [Impact: 130,000 Units]"
+            ),
+            (
+                "US East Coast Port Labor Negotiations Risk Q4 Stocking"
+                " [Impact: 210,000 Units]"
+            ),
+            (
+                "Singapore Transshipment Dwell Time Peaks at 4.8 Days [Impact:"
+                " 80,000 Units]"
+            ),
+        ],
+    }
 
-            col_w1, col_w2 = st.columns([2, 1])
-            with col_w1:
-                selected_domain = st.selectbox(
-                    "Select Commodity / Industry Sector Focus:",
-                    list(NEWS_DOMAINS.keys()),
-                    key="nlp_sector_focus",
-                )
-                active_headlines = NEWS_DOMAINS[selected_domain]
+    col_w1, col_w2 = st.columns([2, 1])
+    with col_w1:
+      selected_domain = st.selectbox(
+          "Select Commodity / Industry Sector Focus:",
+          list(NEWS_DOMAINS.keys()),
+          key="nlp_sector_focus",
+      )
+      active_headlines = NEWS_DOMAINS[selected_domain]
+      selected_headline = st.selectbox(
+          "Select AI-Scraped Headline Signal:",
+          active_headlines,
+          key="nlp_web_headline_select",
+      )
 
-                selected_headline = st.selectbox(
-                    "Select AI-Scraped Headline Signal:",
-                    active_headlines,
-                    key="nlp_web_headline_select",
-                )
+    with col_w2:
+      match = re.search(r"\[Impact:\s*([\d,]+)\s*Units\]", selected_headline)
+      extracted_default = (
+          int(match.group(1).replace(",", "")) if match else 85000
+      )
+      web_impact = st.number_input(
+          f"Extracted Signal Impact ({term_unit})",
+          value=extracted_default,
+          step=5000,
+          key="web_signal_units",
+      )
 
-            with col_w2:
-                match = re.search(r"\[Impact:\s*([\d,]+)\s*Units\]", selected_headline)
-                extracted_default = (
-                    int(match.group(1).replace(",", "")) if match else 85000
-                )
-                web_impact = st.number_input(
-                    f"Extracted Signal Impact ({term_unit})",
-                    value=extracted_default,
-                    step=5000,
-                    key="web_signal_units",
-                )
+    if st.button("📡 Ingest Scraped Domain News Signal", key="btn_ingest_web"):
+      headline_clean = selected_headline.split("[")[0].strip()
+      domain_label = (
+          selected_domain.split(" ")[1]
+          if len(selected_domain.split(" ")) > 1
+          else "Macro"
+      )
+      st.session_state["extracted_demand_surge"] = web_impact
+      st.session_state["active_risk_signal_title"] = (
+          f"[{domain_label}] {headline_clean}"
+      )
+      st.session_state["signal_category"] = "Live Web Intelligence"
+      st.toast(
+          f"Ingested '{headline_clean}' ({web_impact:,} {term_unit})", icon="📡"
+      )
+      st.success(
+          f"✅ Propagated **[{domain_label}] {headline_clean}** ({web_impact:,}"
+          f" {term_unit}) across S&OP and CTRM Desk!"
+      )
 
-            if st.button("📡 Ingest Scraped Domain News Signal", key="btn_ingest_web"):
-                headline_clean = selected_headline.split("[")[0].strip()
-                domain_label = (
-                    selected_domain.split(" ")[1]
-                    if len(selected_domain.split(" ")) > 1
-                    else "Macro"
-                )
-                st.session_state["extracted_demand_surge"] = web_impact
-                st.session_state["active_risk_signal_title"] = (
-                    f"[{domain_label}] {headline_clean}"
-                )
-                st.session_state["signal_category"] = "Live Web Intelligence"
-                st.toast(
-                    f"Ingested '{headline_clean}' ({web_impact:,} {term_unit})", icon="📡"
-                )
-                st.success(
-                    f"✅ Propagated **[{domain_label}] {headline_clean}** ({web_impact:,}"
-                    f" {term_unit}) across S&OP and CTRM Desk!"
-                )
-
-        
-
-with tab2:
-    st.subheader("📧 Unstructured Email & Sales Debrief Parser")
-    input_mode = st.radio(
-        "Select Debrief Input Mode:",
-        ["📋 Select Preset Communication", "✍️ Paste Custom Email / Debrief"],
-        horizontal=True,
-        key="email_input_mode",
+  with tab2:
+    st.subheader("📧 Email & Event Debrief Parser")
+    st.caption(
+        "Extract unstructured supplier updates, trip reports, and meeting"
+        " debriefs."
     )
 
-    if input_mode == "📋 Select Preset Communication":
-      email_selection = st.selectbox(
-          "Select Field Communication / Debrief:",
-          [
-              f"Trade Show / Sales Debrief (CES Expo 2026) - 250,000 {term_unit}"
-              " Uplift",
-              (
-                  "Q3 Distributor Stocking Order Email -"
-                  f" 150,000 {term_unit} Uplift"
-              ),
-              f"OEM Emergency Spares Requisition - 75,000 {term_unit} Uplift",
-          ],
-          key="email_debrief_select",
-      )
-      default_email_val = (
-          250000
-          if "CES" in email_selection
-          else (150000 if "Distributor" in email_selection else 75000)
-      )
-      email_text_preview = (
-          "Parsed from inbox: Rep indicates major commercial surge following"
-          f" {email_selection}. Demand spike expected to hit W38."
-      )
-      email_title_parsed = email_selection.split("-")[0].strip()
-    else:
-      custom_email_text = st.text_area(
-          "Paste Unstructured Email / Sales Rep Notes:",
-          value=(
-              "From: regional_sales_vp@enterprise.com\nSubject: URGENT: Q3 OEM"
-              " Order Expansion\n\nTeam, Key Customer Apex Motors requests"
-              " immediate supply ramp of 180,000 additional"
-              f" {term_unit.lower()} for Q3."
-          ),
-          height=120,
-          key="custom_email_text_area",
-      )
-      units_found = re.findall(
-          r"([\d,]+)\s*(?:additional\s*)?(?:units|cases|batches|lots|contracts)?",
-          custom_email_text,
-          re.IGNORECASE,
-      )
-      default_email_val = (
-          int(units_found[0].replace(",", ""))
-          if units_found and units_found[0].replace(",", "").isdigit()
-          else 180000
-      )
-      email_text_preview = custom_email_text
-      email_title_parsed = "Custom Rep Email Signal"
-
-    col_e1, col_e2 = st.columns([2, 1])
-    with col_e1:
-      st.text_area(
-          "Parsed Raw Text Preview:",
-          value=email_text_preview,
-          height=100,
-          disabled=True,
-          key="email_preview_disabled",
-      )
-    with col_e2:
-      email_impact = st.number_input(
-          f"Parsed Demand Surge Impact ({term_unit})",
-          value=default_email_val,
-          step=10000,
-          key="email_units",
-      )
-
-    if st.button(
-        "📧 Parse & Ingest Selected Email Debrief", key="btn_ingest_email"
-    ):
-      st.session_state["extracted_demand_surge"] = email_impact
-      st.session_state["active_risk_signal_title"] = (
-          f"Email Debrief: {email_title_parsed}"
-      )
-      st.session_state["signal_category"] = "Field Sales Debrief"
-      st.toast(
-          f"Parsed {email_title_parsed} ({email_impact:,} {term_unit})",
-          icon="📧",
-      )
-      st.success(
-          f"✅ Propagated **{email_title_parsed}** ({email_impact:,}"
-          f" {term_unit}) directly to S&OP Horizon & CTRM Desk!"
-      )
-
   with tab3:
-    st.subheader("⛈️ Climate, Weather & Black Swan Risk Feeds")
-    col_b1, col_b2 = st.columns([2, 1])
-    with col_b1:
-      weather_alert = st.selectbox(
-          "Select NOAA / GIS Telemetry Alert:",
-          [
-              (
-                  "NOAA Category 4 Gulf Coast Hurricane Warning (Houston Port"
-                  " Closure) [Impact: 120,000 Units]"
-              ),
-              (
-                  "Panama Canal Drought & Slot Auction Spike [Impact: 60,000"
-                  " Units]"
-              ),
-              "Midwest Inland Rail Freeze & Bottleneck [Impact: 25,000 Units]",
-          ],
-          key="nlp_weather_alert_select",
-      )
-    with col_b2:
-      default_weather_val = (
-          120000
-          if "Hurricane" in weather_alert
-          else (60000 if "Panama" in weather_alert else 25000)
-      )
-      weather_impact = st.number_input(
-          f"Climate Risk Deficit Impact ({term_unit})",
-          value=default_weather_val,
-          step=5000,
-          key="weather_signal_units",
-      )
-
-    if st.button(
-        "⛈️ Activate Black Swan Climate Risk Feed", key="btn_ingest_weather"
-    ):
-      alert_title = weather_alert.split("[")[0].strip()
-      st.session_state["extracted_demand_surge"] = weather_impact
-      st.session_state["active_risk_signal_title"] = (
-          f"GIS/NOAA Alert: {alert_title}"
-      )
-      st.session_state["signal_category"] = "Climate & GIS Telemetry"
-      st.toast(
-          f"Activated {alert_title} ({weather_impact:,} {term_unit})", icon="⛈️"
-      )
-      st.success(
-          f"✅ Propagated **{alert_title}** ({weather_impact:,} {term_unit})"
-          " directly to S&OP Workbench & CTRM Desk!"
-      )
+    st.subheader("⚓ Freight, Weather & Black Swan Feeds")
+    st.caption(
+        "Track maritime vessel AIS feeds, port dwell anomalies, and climate"
+        " disruptions."
+    )
 
 
 def render_physical_procurement(persona="Discrete & Heavy Industrial Enterprise", term_unit="Units", term_raw="Raw Material"):
