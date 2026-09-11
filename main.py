@@ -164,11 +164,23 @@ def render_nlp_intelligence(
       " show emails, and GIS weather/freight telemetry."
   )
 
-  tab1, tab2, tab3 = st.tabs([
-      "📡 Live Web Signals",
-      "📧 Email & Event Debrief Parser",
-      "🌐 Freight, Weather & Black Swan Feeds",
-  ])
+ tab1, tab2, tab3 = st.tabs([
+        "📡 Live Web Signals",
+        "📧 Email & Event Debrief Parser",
+        "🌐 Freight, Weather & Black Swan Feeds",
+    ])
+
+    with tab1:
+        # =========================================================================
+        # 🤖 AUTOMATED ROBOT FEED INGESTION BLOCK (GEP & NEWSLETTERS)
+        # =========================================================================
+        if not os.path.exists("robot_signals.json"):
+            try:
+                from robot_feeds import sync_robot_feeds
+
+                sync_robot_feeds()
+            except Exception as e:
+                st.error(f"Robot Feed Sync Error: {e}")
 
     with tab1:
       # =========================================================================
