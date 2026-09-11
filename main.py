@@ -154,12 +154,6 @@ def render_integration_architecture(persona="Discrete & Heavy Industrial Enterpr
     })
 
 
-import json
-import os
-import re
-import streamlit as st
-
-
 def render_nlp_intelligence(
     persona="Discrete & Heavy Industrial Enterprise", term_unit="Units"
 ):
@@ -176,10 +170,26 @@ def render_nlp_intelligence(
       "🌐 Freight, Weather & Black Swan Feeds",
   ])
 
-  with tab1:
-    # =========================================================================
-    # 🤖 NEW: AUTOMATED ROBOT FEED INGESTION BLOCK (GEP & NEWSLETTERS)
-    # =========================================================================
+    with tab1:
+      # =========================================================================
+      # 🤖 AUTOMATED ROBOT FEED INGESTION BLOCK (GEP & NEWSLETTERS)
+      # =========================================================================
+
+      # 1. AUTO-CREATE CACHE ON RENDER IF MISSING
+      if not os.path.exists("robot_signals.json"):
+        try:
+          from robot_feeds import sync_robot_feeds
+
+          sync_robot_feeds()
+        except Exception as e:
+          st.error(f"Robot Feed Sync Error: {e}")
+
+      # 2. DISPLAY BANNER
+      if os.path.exists("robot_signals.json"):
+        try:
+          with open("robot_signals.json", "r") as f:
+            robot_data = json.load(f)
+          # ... (your existing banner rendering code remains identical below)
     if os.path.exists("robot_signals.json"):
       try:
         with open("robot_signals.json", "r") as f:
@@ -474,7 +484,8 @@ def render_nlp_intelligence(
           f"✅ Propagated **{alert_title}** ({weather_impact:,} {term_unit})"
           " directly to S&OP Workbench & CTRM Desk!"
       )
-      
+
+
 def render_physical_procurement(persona="Discrete & Heavy Industrial Enterprise", term_unit="Units", term_raw="Raw Material"):
     st.title("📄 Physical Procurement & Master Contract Desk")
     st.caption(f"Active Persona View: **{persona}**")
