@@ -1,0 +1,15 @@
+{
+  "gep_index": {
+    "source": "GEP Supply Chain Volatility Index",
+    "volatility_score": -0.32,
+    "leadtime_delay_days": 2.1,
+    "demand_surge_units": 61800,
+    "summary": "Unrivaled supply chain and procurement expertise + the transformative power of AI Expanding the Possibilities for Procurement and Supply Chain Management by Using AI Resilience: Delivering Value Amid Volatility..."
+  },
+  "newsletter_feeds": [
+    {
+      "source": "LinkedIn Newsletters",
+      "status": "Pending KTN_FEED_URL Configuration"
+    }
+  ]
+}

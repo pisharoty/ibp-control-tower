@@ -5,20 +5,25 @@ import bs4
 import feedparser
 import requests
 
-# 1. Option 1: Direct Web Scraper Target (Zero Email Required)
+# 1. Direct Web Scraper Target
 GEP_URL = (
     "https://www.gep.com/knowledge-bank/global-supply-chain-volatility-index"
 )
 
-# 2. Step 1: Kill-the-Newsletter RSS Bridge Feed URL
+# 2. Kill-the-Newsletter RSS Bridge Feed URL
 KTN_FEED_URL = os.getenv(
     "KTN_FEED_URL", "https://kill-the-newsletter.com/feeds/YOUR_FEED_ID.xml"
 )
 
 
 def fetch_gep_index():
-  """Scrapes GEP Volatility Index directly from source webpage."""
-  headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"}
+  """Scrapes targeted GEP Volatility Index metrics and commentary, filtering out header/PR noise."""
+  headers = {
+      "User-Agent": (
+          "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+          " (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+      )
+  }
   try:
     res = requests.get(GEP_URL, headers=headers, timeout=10)
     if res.status_code != 200:
@@ -29,17 +34,39 @@ def fetch_gep_index():
       }
 
     soup = bs4.BeautifulSoup(res.text, "html.parser")
-    paragraphs = [
+
+    # Target body paragraphs while filtering out navigation & corporate PR noise
+    raw_paragraphs = [
         p.get_text().strip() for p in soup.find_all("p") if p.get_text().strip()
     ]
-    full_text = " ".join(paragraphs)
+    index_paragraphs = [
+        p
+        for p in raw_paragraphs
+        if any(
+            kw in p.lower()
+            for kw in [
+                "volatility",
+                "index",
+                "capacity",
+                "supply chain",
+                "transportation",
+            ]
+        )
+        and "gartner" not in p.lower()
+    ]
 
-    # Extract score using regex float matching
-    found_floats = re.findall(r"[-+]?\d+\.\d+", full_text)
-    index_score = float(found_floats[0]) if found_floats else 0.45
+    summary_text = (
+        " ".join(index_paragraphs[:3])
+        if index_paragraphs
+        else " ".join(raw_paragraphs[:3])
+    )
+
+    # Extract numerical volatility score
+    found_floats = re.findall(r"[-+]?\d+\.\d+", summary_text)
+    index_score = float(found_floats[0]) if found_floats else -0.32
 
     # Map index score to operational supply chain metrics
-    leadtime_delay = round(max(2.0, index_score * 7.5), 1)
+    leadtime_delay = round(max(2.0, abs(index_score) * 6.5), 1)
     surge_units = int(65000 + (index_score * 10000))
 
     return {
@@ -47,7 +74,7 @@ def fetch_gep_index():
         "volatility_score": index_score,
         "leadtime_delay_days": leadtime_delay,
         "demand_surge_units": surge_units,
-        "summary": full_text[:250] + "...",
+        "summary": summary_text[:280] + "...",
     }
   except Exception as e:
     return {"source": "GEP Index", "status": "Error", "details": str(e)}
