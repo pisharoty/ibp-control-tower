@@ -159,7 +159,7 @@ import re
 import streamlit as st
 
 
-def render_nlp_intelligence(term_unit="Units"):
+def render_nlp_intelligence(persona=None, term_unit="Units", **kwargs):
   """Complete NLP Commercial Sensing & Intelligence Module.
 
   Features:
