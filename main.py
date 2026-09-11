@@ -176,199 +176,106 @@ def render_nlp_intelligence(
       "🌐 Freight, Weather & Black Swan Feeds",
   ])
 
-  with tab1:
-    # =========================================================================
-    # 🤖 AUTOMATED ROBOT FEED INGESTION BLOCK (GEP & NEWSLETTERS)
-    # =========================================================================
+with tab1:
+      # =========================================================================
+      # 🤖 AUTOMATED ROBOT FEED INGESTION BLOCK (GEP & NEWSLETTERS)
+      # =========================================================================
 
-    # 1. Auto-create cache on Render/Server if missing
-    if not os.path.exists("robot_signals.json"):
-      try:
-        from robot_feeds import sync_robot_feeds
+      # Header & Manual Refresh Button
+      r_head1, r_head2 = st.columns([3, 1])
+      with r_head1:
+        st.caption("🤖 **Automated Data Pipelines**: GEP Index & Gmail IMAP")
+      with r_head2:
+        if st.button("🔄 Refresh Live Feeds", key="btn_refresh_robot_feeds"):
+          try:
+            from robot_feeds import sync_robot_feeds
 
-        sync_robot_feeds()
-      except Exception as e:
-        st.error(f"Robot Feed Sync Error: {e}")
+            sync_robot_feeds()
+            st.toast("Refreshed feeds from Gmail IMAP & GEP!", icon="🔄")
+            st.rerun()
+          except Exception as e:
+            st.error(f"Sync error: {e}")
 
-    # 2. Display Robot Signals (GEP + LinkedIn Newsletters)
-    if os.path.exists("robot_signals.json"):
-      try:
-        with open("robot_signals.json", "r") as f:
-          robot_data = json.load(f)
+      # 1. Auto-create cache on Render/Server if missing
+      if not os.path.exists("robot_signals.json"):
+        try:
+          from robot_feeds import sync_robot_feeds
 
-        # GEP Index Display
-        gep = robot_data.get("gep_index", {})
-        if gep and gep.get("source"):
-          st.info(
-              f"🤖 **Automated Robot Signal Detected**: {gep.get('source')}"
-          )
+          sync_robot_feeds()
+        except Exception as e:
+          st.error(f"Robot Feed Sync Error: {e}")
 
-          r_col1, r_col2, r_col3 = st.columns([2, 1, 1])
-          with r_col1:
-            st.caption(f"**Summary**: {gep.get('summary', '')[:180]}...")
-          with r_col2:
-            st.metric(
-                "Volatility Score",
-                gep.get("volatility_score", 0.0),
-                delta=f"+{gep.get('leadtime_delay_days', 2.0)}d Lead Time",
-            )
-          with r_col3:
-            robot_units = gep.get("demand_surge_units", 60000)
-            st.metric("Auto Surge", f"{robot_units:,} {term_unit}")
+      # 2. Display Robot Signals (GEP + LinkedIn Newsletters)
+      if os.path.exists("robot_signals.json"):
+        try:
+          with open("robot_signals.json", "r") as f:
+            robot_data = json.load(f)
 
-          if st.button(
-              "🤖 Ingest Live Robot GEP Signal", key="btn_ingest_robot_gep"
-          ):
-            st.session_state["extracted_demand_surge"] = robot_units
-            st.session_state["active_risk_signal_title"] = (
-                f"[Robot] {gep.get('source')}"
-            )
-            st.session_state["signal_category"] = "Automated GEP Feed"
-            st.session_state["active_leadtime_delay_days"] = gep.get(
-                "leadtime_delay_days", 2.0
-            )
-            st.toast("Ingested Live GEP Robot Feed!", icon="🤖")
-            st.success(
-                f"✅ Propagated **[Robot] {gep.get('source')}** ({robot_units:,}"
-                f" {term_unit}) across S&OP and CTRM Desk!"
+          # GEP Index Display
+          gep = robot_data.get("gep_index", {})
+          if gep and gep.get("source"):
+            st.info(
+                f"🤖 **Automated Robot Signal Detected**: {gep.get('source')}"
             )
 
-          st.divider()
-
-        # LinkedIn Newsletter Feed Display
-        newsletters = robot_data.get("newsletter_feeds", [])
-        if newsletters and isinstance(newsletters, list):
-          first_signal = newsletters[0]
-          if "title" in first_signal:
-            st.success(
-                f"📰 **LinkedIn Signal Received**: {first_signal.get('title')}"
-            )
-            st.caption(
-                f"Published: {first_signal.get('published', 'Recent')} |"
-                f" Summary: {first_signal.get('summary', '')}"
-            )
-            if st.button(
-                "📰 Ingest LinkedIn Newsletter Signal",
-                key="btn_ingest_ktn_news",
-            ):
-              st.session_state["extracted_demand_surge"] = 95000
-              st.session_state["active_risk_signal_title"] = (
-                  f"[LinkedIn] {first_signal.get('title')}"
+            r_col1, r_col2, r_col3 = st.columns([2, 1, 1])
+            with r_col1:
+              st.caption(f"**Summary**: {gep.get('summary', '')[:180]}...")
+            with r_col2:
+              st.metric(
+                  "Volatility Score",
+                  gep.get("volatility_score", 0.0),
+                  delta=f"+{gep.get('leadtime_delay_days', 2.0)}d Lead Time",
               )
-              st.session_state["signal_category"] = "LinkedIn Feed"
-              st.toast("Ingested LinkedIn Newsletter Signal!", icon="📰")
+            with r_col3:
+              robot_units = gep.get("demand_surge_units", 60000)
+              st.metric("Auto Surge", f"{robot_units:,} {term_unit}")
+
+            if st.button(
+                "🤖 Ingest Live Robot GEP Signal", key="btn_ingest_robot_gep"
+            ):
+              st.session_state["extracted_demand_surge"] = robot_units
+              st.session_state["active_risk_signal_title"] = (
+                  f"[Robot] {gep.get('source')}"
+              )
+              st.session_state["signal_category"] = "Automated GEP Feed"
+              st.session_state["active_leadtime_delay_days"] = gep.get(
+                  "leadtime_delay_days", 2.0
+              )
+              st.toast("Ingested Live GEP Robot Feed!", icon="🤖")
+              st.success(
+                  f"✅ Propagated **[Robot] {gep.get('source')}**"
+                  f" ({robot_units:,} {term_unit}) across S&OP and CTRM Desk!"
+              )
+
             st.divider()
 
-      except Exception as e:
-        st.warning(f"⚠️ Robot feed cache found but could not be parsed: {e}")
-    # =========================================================================
+          # LinkedIn Newsletter Feed Display
+          newsletters = robot_data.get("newsletter_feeds", [])
+          if newsletters and isinstance(newsletters, list):
+            first_signal = newsletters[0]
+            if "title" in first_signal:
+              st.success(
+                  f"📰 **LinkedIn Signal Received**: {first_signal.get('title')}"
+              )
+              st.caption(
+                  f"Published: {first_signal.get('published', 'Recent')} |"
+                  f" Summary: {first_signal.get('summary', '')}"
+              )
+              if st.button(
+                  "📰 Ingest LinkedIn Newsletter Signal",
+                  key="btn_ingest_ktn_news",
+              ):
+                st.session_state["extracted_demand_surge"] = 95000
+                st.session_state["active_risk_signal_title"] = (
+                    f"[LinkedIn] {first_signal.get('title')}"
+                )
+                st.session_state["signal_category"] = "LinkedIn Feed"
+                st.toast("Ingested LinkedIn Newsletter Signal!", icon="📰")
+              st.divider()
 
-    st.subheader("📡 Real-Time Web & Macro News Stream")
-    NEWS_DOMAINS = {
-        "⚡ Essential Semiconductors & High-Tech Hardware": [
-            (
-                "TSMC Packaging Bottleneck Delays Advanced ASIC Deliveries"
-                " [Impact: 175,000 Units]"
-            ),
-            (
-                "Asahi Kasei Resin Shortage Hits Chip Substrate Supply Chain"
-                " [Impact: 110,000 Units]"
-            ),
-            (
-                "Critical Neon Gas Export Restrictions Target European Fabs"
-                " [Impact: 140,000 Units]"
-            ),
-        ],
-        "🛢️ Energy, Power & Petrochemicals": [
-            (
-                "European Natural Gas Spike (+32%) Triggers Smelter Surcharge"
-                " [Impact: 85,000 Units]"
-            ),
-            (
-                "Gulf Coast Refinery Outage Restricts Polymer Feedstock [Impact:"
-                " 95,000 Units]"
-            ),
-            (
-                "Crude Oil Benchmark Breaches $95/bbl Increasing Freight Matrix"
-                " [Impact: 50,000 Units]"
-            ),
-        ],
-        "🍊 Agricultural Commodities & Cold-Chain": [
-            (
-                "Brazil & Florida Citrus Greening Deficit Drives Concentrated"
-                " OJ Spikes [Impact: 120,000 Units]"
-            ),
-            (
-                "Midwest Cold-Storage Trucking Freeze Disrupts Produce Routes"
-                " [Impact: 45,000 Units]"
-            ),
-            (
-                "Panama Canal Auction Rates Hit $3M for Refrigerated Transit"
-                " Slots [Impact: 70,000 Units]"
-            ),
-        ],
-        "🚢 Maritime Freight, Ports & Logistics": [
-            (
-                "Red Sea Vessel Diversions Drive +45% FBX Container Index Surge"
-                " [Impact: 130,000 Units]"
-            ),
-            (
-                "US East Coast Port Labor Negotiations Risk Q4 Stocking"
-                " [Impact: 210,000 Units]"
-            ),
-            (
-                "Singapore Transshipment Dwell Time Peaks at 4.8 Days [Impact:"
-                " 80,000 Units]"
-            ),
-        ],
-    }
-
-    col_w1, col_w2 = st.columns([2, 1])
-    with col_w1:
-      selected_domain = st.selectbox(
-          "Select Commodity / Industry Sector Focus:",
-          list(NEWS_DOMAINS.keys()),
-          key="nlp_sector_focus",
-      )
-      active_headlines = NEWS_DOMAINS[selected_domain]
-
-      selected_headline = st.selectbox(
-          "Select AI-Scraped Headline Signal:",
-          active_headlines,
-          key="nlp_web_headline_select",
-      )
-
-    with col_w2:
-      match = re.search(r"\[Impact:\s*([\d,]+)\s*Units\]", selected_headline)
-      extracted_default = (
-          int(match.group(1).replace(",", "")) if match else 85000
-      )
-      web_impact = st.number_input(
-          f"Extracted Signal Impact ({term_unit})",
-          value=extracted_default,
-          step=5000,
-          key="web_signal_units",
-      )
-
-    if st.button("📡 Ingest Scraped Domain News Signal", key="btn_ingest_web"):
-      headline_clean = selected_headline.split("[")[0].strip()
-      domain_label = (
-          selected_domain.split(" ")[1]
-          if len(selected_domain.split(" ")) > 1
-          else "Macro"
-      )
-      st.session_state["extracted_demand_surge"] = web_impact
-      st.session_state["active_risk_signal_title"] = (
-          f"[{domain_label}] {headline_clean}"
-      )
-      st.session_state["signal_category"] = "Live Web Intelligence"
-      st.toast(
-          f"Ingested '{headline_clean}' ({web_impact:,} {term_unit})", icon="📡"
-      )
-      st.success(
-          f"✅ Propagated **[{domain_label}] {headline_clean}** ({web_impact:,}"
-          f" {term_unit}) across S&OP and CTRM Desk!"
-      )
+        except Exception as e:
+          st.warning(f"⚠️ Robot feed cache found but could not be parsed: {e}")
 
   with tab2:
     st.subheader("📧 Unstructured Email & Sales Debrief Parser")
