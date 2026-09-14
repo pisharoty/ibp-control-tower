@@ -7,6 +7,9 @@ import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
 import streamlit as st
+import hmac
+import time
+import uuid
 
 # =====================================================================
 # HELPER FUNCTIONS & MODEL ENGINES
@@ -229,6 +232,107 @@ def render_flight_simulator(
           f" lead times expanded by **+{lead_time_shock} days**, and market"
           f" sentiment adjusted to **{st.session_state['si_composite']:.2f}**!"
       )
+
+      def render_handshake_simulator():
+  """Interactive 4-Step Handshake Simulator component for stakeholder demos."""
+  st.subheader("🤝 Enterprise Handshake Simulator")
+  st.caption(
+      "Demonstrate the bi-directional cryptographic auth, schema verification,"
+      " idempotency staging, and ACK/NACK protocol live."
+  )
+
+  sim_col1, sim_col2 = st.columns([1, 1])
+
+  with sim_col1:
+    target_endpoint = st.selectbox(
+        "Select Target Enterprise Endpoint:",
+        [
+            "SAP S/4HANA (BAPI PO Creation)",
+            "Oracle Financials (GL Journal Post)",
+            "Salesforce CRM (Demand Opportunity Sync)",
+            "Inbound Webhook (Platts/LME Market Feed)",
+        ],
+        key="sim_target",
+    )
+
+    generated_idempotency = f"idemp_{uuid.uuid4().hex[:10]}"
+    st.text_input(
+        "Active Idempotency Key",
+        value=generated_idempotency,
+        disabled=True,
+        help=(
+            "Prevents duplicate purchase orders or financial postings during"
+            " network retries."
+        ),
+    )
+
+    run_sim = st.button(
+        "⚡ Initiate Bi-Directional Handshake", key="btn_run_handshake"
+    )
+
+  with sim_col2:
+    if run_sim:
+      with st.status(
+          "Executing 4-Step Handshake Protocol...", expanded=True
+      ) as status:
+        st.write(
+            "🔒 **Step 1: Perimeter Auth** — Exchanging OAuth 2.0 Bearer tokens"
+            " over mTLS tunnel..."
+        )
+        time.sleep(0.3)
+        st.write(
+            "🔑 **Step 2: Integrity & Schema Verification** — Computing"
+            " HMAC-SHA256 signature & validating JSON schema..."
+        )
+        time.sleep(0.3)
+        st.write(
+            "📦 **Step 3: Idempotent Delivery** — Pushing payload with header"
+            f" `X-Idempotency-Key: {generated_idempotency[:14]}...`"
+        )
+        time.sleep(0.3)
+        st.write(
+            "✅ **Step 4: Non-Repudiation ACK** — Received `200 OK` with verified"
+            " document correlation ID!"
+        )
+        status.update(
+            label="Handshake Complete & Cryptographically Verified!",
+            state="complete",
+            expanded=False,
+        )
+
+      tx_id = f"TXN-{uuid.uuid4().hex[:6].upper()}"
+      correlation_id = f"corr-{uuid.uuid4().hex[:12]}"
+      timestamp_now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+      fake_sig = hmac.new(
+          b"ibp_tenant_secret", tx_id.encode(), hashlib.sha256
+      ).hexdigest()[:24]
+
+      st.markdown("**Live Handshake Telemetry Exchange**")
+      st.json({
+          "handshake_result": "HTTP 200 OK (ACCEPTED)",
+          "transaction_id": tx_id,
+          "correlation_id": correlation_id,
+          "idempotency_key": generated_idempotency,
+          "timestamp": timestamp_now,
+          "security_handshake": {
+              "protocol": "mTLS + OAuth2.0 Client Credentials",
+              "hmac_sha256_signature": f"0x{fake_sig}...",
+              "schema_validation": "PASSED (SECTOR_BENCHMARK_MAP v1.4)",
+          },
+          "acknowledged_receipt": {
+              "target_system": target_endpoint.split(" ")[0],
+              "remote_document_id": f"DOC-SYS-{uuid.uuid4().hex[:8].upper()}",
+              "roundtrip_latency": "38 ms",
+          },
+      })
+    else:
+      st.info(
+          "Click **Initiate Bi-Directional Handshake** to simulate token"
+          " acquisition, HMAC signing, idempotency verification, and system"
+          " ACK."
+      )
+
+
 # Centralized Industry Sector to Global Benchmark Index Mapping Engine
 SECTOR_BENCHMARK_MAP = {
     "Non-Ferrous Metals (Copper, Tin, Zinc, Aluminum)": {
@@ -427,6 +531,11 @@ Payload Mapping:
         language="json",
     )
 
+  # -------------------------------------------------------------------
+  # 4. HANDSHAKE SIMULATOR (PATCH)
+  # -------------------------------------------------------------------
+  st.divider()
+  render_handshake_simulator()
 
 def render_nlp_intelligence(persona=None, term_unit="Units", **kwargs):
   """Complete NLP Commercial Sensing & Intelligence Module.
