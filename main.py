@@ -233,175 +233,234 @@ def render_flight_simulator(
           f" sentiment adjusted to **{st.session_state['si_composite']:.2f}**!"
       )
 
-  def render_handshake_simulator():
-  """Interactive 4-Step Handshake Simulator component for stakeholder demos."""
-  st.subheader("🤝 Enterprise Handshake Simulator")
-  st.caption(
-      "Demonstrate the bi-directional cryptographic auth, schema verification,"
-      " idempotency staging, and ACK/NACK protocol live."
-  )
+ def render_handshake_simulator():
+    """Interactive 4-Step Handshake Simulator component for stakeholder demos."""
+    st.subheader("🤝 Enterprise Handshake Simulator")
+    st.caption(
+        "Demonstrate the bi-directional cryptographic auth, schema verification,"
+        " idempotency staging, and ACK/NACK protocol live."
+    )
 
-  sim_col1, sim_col2 = st.columns([1, 1])
+    sim_col1, sim_col2 = st.columns([1, 1])
 
-  with sim_col1:
-    target_endpoint = st.selectbox(
-        "Select Target Enterprise Endpoint:",
-        [
-            "SAP S/4HANA (BAPI PO Creation)",
-            "Oracle Financials (GL Journal Post)",
-            "Salesforce CRM (Demand Opportunity Sync)",
-            "Inbound Webhook (Platts/LME Market Feed)",
+    with sim_col1:
+        target_endpoint = st.selectbox(
+            "Select Target Enterprise Endpoint:",
+            [
+                "SAP S/4HANA (BAPI PO Creation)",
+                "Oracle Financials (GL Journal Post)",
+                "Salesforce CRM (Demand Opportunity Sync)",
+                "Inbound Webhook (Platts/LME Market Feed)",
+            ],
+            key="sim_target",
+        )
+
+        generated_idempotency = f"idemp_{uuid.uuid4().hex[:10]}"
+        st.text_input(
+            "Active Idempotency Key",
+            value=generated_idempotency,
+            disabled=True,
+            help=(
+                "Prevents duplicate purchase orders or financial postings during"
+                " network retries."
+            ),
+        )
+
+        run_sim = st.button(
+            "⚡ Initiate Bi-Directional Handshake", key="btn_run_handshake"
+        )
+
+    with sim_col2:
+        if run_sim:
+            with st.status(
+                "Executing 4-Step Handshake Protocol...", expanded=True
+            ) as status:
+                st.write(
+                    "🔒 **Step 1: Perimeter Auth** — Exchanging OAuth 2.0 Bearer tokens"
+                    " over mTLS tunnel..."
+                )
+                time.sleep(0.3)
+                st.write(
+                    "🔑 **Step 2: Integrity & Schema Verification** — Computing"
+                    " HMAC-SHA256 signature & validating JSON schema..."
+                )
+                time.sleep(0.3)
+                st.write(
+                    "📦 **Step 3: Idempotent Delivery** — Pushing payload with header"
+                    f" `X-Idempotency-Key: {generated_idempotency[:14]}...`"
+                )
+                time.sleep(0.3)
+                st.write(
+                    "✅ **Step 4: Non-Repudiation ACK** — Received `200 OK` with verified"
+                    " document correlation ID!"
+                )
+                status.update(
+                    label="Handshake Complete & Cryptographically Verified!",
+                    state="complete",
+                    expanded=False,
+                )
+
+            tx_id = f"TXN-{uuid.uuid4().hex[:6].upper()}"
+            correlation_id = f"corr-{uuid.uuid4().hex[:12]}"
+            timestamp_now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+            fake_sig = hmac.new(
+                b"ibp_tenant_secret", tx_id.encode(), hashlib.sha256
+            ).hexdigest()[:24]
+
+            st.markdown("**Live Handshake Telemetry Exchange**")
+            st.json({
+                "handshake_result": "HTTP 200 OK (ACCEPTED)",
+                "transaction_id": tx_id,
+                "correlation_id": correlation_id,
+                "idempotency_key": generated_idempotency,
+                "timestamp": timestamp_now,
+                "security_handshake": {
+                    "protocol": "mTLS + OAuth2.0 Client Credentials",
+                    "hmac_sha256_signature": f"0x{fake_sig}...",
+                    "schema_validation": "PASSED (SECTOR_BENCHMARK_MAP v1.4)",
+                },
+                "acknowledged_receipt": {
+                    "target_system": target_endpoint.split(" ")[0],
+                    "remote_document_id": f"DOC-SYS-{uuid.uuid4().hex[:8].upper()}",
+                    "roundtrip_latency": "38 ms",
+                },
+            })
+        else:
+            st.info(
+                "Click **Initiate Bi-Directional Handshake** to simulate token"
+                " acquisition, HMAC signing, idempotency verification, and system"
+                " ACK."
+            )
+
+
+def render_integration_architecture(
+    persona="Discrete & Heavy Industrial Enterprise", **kwargs
+):
+    st.title("🔌 Integration & Architecture Endpoints")
+
+    active_sector = st.session_state.get(
+        "sector_focus", "Non-Ferrous Metals (Copper, Tin, Zinc, Aluminum)"
+    )
+    sector_cfg = SECTOR_BENCHMARK_MAP.get(
+        active_sector,
+        SECTOR_BENCHMARK_MAP["Non-Ferrous Metals (Copper, Tin, Zinc, Aluminum)"],
+    )
+
+    now_iso = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+    st.info(
+        f"🌐 **Active Sector**: **{active_sector}** | Primary Benchmark:"
+        f" **{sector_cfg['primary_index']}**"
+    )
+
+    # 1. Gateway Status Matrix
+    st.subheader("📡 Real-Time Benchmark Gateway Status")
+    gateway_df = pd.DataFrame({
+        "Endpoint / Interface": [
+            f"Primary Index Feed ({sector_cfg['primary_index'].split('/')[0].strip()})",
+            f"Secondary Index ({sector_cfg['secondary_index']})",
+            "SAP S/4HANA Enterprise ERP",
+            "CME / LME FIX Gateway",
+            "Salesforce CRM API",
+            "Oracle / PeopleSoft GL Gateway",
         ],
-        key="sim_target",
+        "Mapped Asset / Protocol": [
+            sector_cfg["ticker_symbol"],
+            "Market Benchmark Index",
+            f"BAPI ({sector_cfg['sap_mat_code']})",
+            "FIX 4.4 Engine",
+            "REST / OAuth 2.0",
+            f"GL Sync ({sector_cfg['oracle_gl_account']})",
+        ],
+        "Latency": ["14 ms", "22 ms", "45 ms", "4 ms", "88 ms", "62 ms"],
+        "Status": [
+            "🟢 HEALTHY",
+            "🟢 HEALTHY",
+            "🟢 HEALTHY",
+            "🟢 HEALTHY",
+            "🟢 HEALTHY",
+            "🟢 HEALTHY",
+        ],
+    })
+    st.table(gateway_df)
+
+    st.divider()
+
+    # 2. Ingestion Webhook Schema
+    st.subheader("📡 Ingestion Webhook Schema")
+    c1, c2 = st.columns(2)
+    with c1:
+        st.markdown("**Registered Sector Data Feeds**")
+        feed_df = pd.DataFrame({
+            "Source Feed": [
+                f"{sector_cfg['primary_index'].split(' ')[0]} Direct Market Feed",
+                "LinkedIn / Market Advisory Newsletter",
+                "Global Freight & Logistics Radar",
+            ],
+            "Mapped Index": [
+                sector_cfg["primary_index"],
+                "NLP Sentiment Parser ($SI$)",
+                "Transit Lead Time (+7 Days)",
+            ],
+            "Status": ["🟢 Active", "🟢 Active", "🟢 Active"],
+        })
+        st.table(feed_df)
+
+    with c2:
+        st.markdown(
+            f"**Live API Ingestion Payload (`POST`) — {sector_cfg['ticker_symbol']}**"
+        )
+        st.code(
+            f"""POST /api/v1/ingest/unstructured-feed
+Headers: {{ "Authorization": "Bearer ibp_staging_token_******" }}
+
+Payload:
+{{
+  "sector_focus": "{active_sector}",
+  "benchmark_index": "{sector_cfg['primary_index']}",
+  "ticker_symbol": "{sector_cfg['ticker_symbol']}",
+  "payload": {{
+    "raw_text": "{sector_cfg['sample_headline']}",
+    "timestamp": "{now_iso}"
+  }}
+}}""",
+            language="json",
+        )
+
+    st.divider()
+
+    # 3. Enterprise Core Connectors
+    st.subheader("🏛️ Enterprise Core Connectors")
+    tab1, tab2 = st.tabs(
+        ["SAP S/4HANA (Dynamic Material BAPI)", "Oracle GL Financial Gateway"]
     )
 
-    generated_idempotency = f"idemp_{uuid.uuid4().hex[:10]}"
-    st.text_input(
-        "Active Idempotency Key",
-        value=generated_idempotency,
-        disabled=True,
-        help=(
-            "Prevents duplicate purchase orders or financial postings during"
-            " network retries."
-        ),
-    )
-
-    run_sim = st.button(
-        "⚡ Initiate Bi-Directional Handshake", key="btn_run_handshake"
-    )
-
-  with sim_col2:
-    if run_sim:
-      with st.status(
-          "Executing 4-Step Handshake Protocol...", expanded=True
-      ) as status:
-        st.write(
-            "🔒 **Step 1: Perimeter Auth** — Exchanging OAuth 2.0 Bearer tokens"
-            " over mTLS tunnel..."
-        )
-        time.sleep(0.3)
-        st.write(
-            "🔑 **Step 2: Integrity & Schema Verification** — Computing"
-            " HMAC-SHA256 signature & validating JSON schema..."
-        )
-        time.sleep(0.3)
-        st.write(
-            "📦 **Step 3: Idempotent Delivery** — Pushing payload with header"
-            f" `X-Idempotency-Key: {generated_idempotency[:14]}...`"
-        )
-        time.sleep(0.3)
-        st.write(
-            "✅ **Step 4: Non-Repudiation ACK** — Received `200 OK` with verified"
-            " document correlation ID!"
-        )
-        status.update(
-            label="Handshake Complete & Cryptographically Verified!",
-            state="complete",
-            expanded=False,
+    with tab1:
+        st.code(
+            f"""CALL BAPI_PO_CREATE1 (
+  Header: {{ Vendor: "VEND_SECTOR_PRIMARY", DocType: "NB", PurchOrg: "1000" }},
+  Items: [
+    {{ Material: "{sector_cfg['sap_mat_code']}", Index_Ref: "{sector_cfg['ticker_symbol']}", Quantity: 80314, Unit: "MT" }},
+    {{ Material: "{sector_cfg['sap_mat_code']}_SPOT", Index_Ref: "SPOT_PREMIUM", Quantity: 20078, Unit: "MT" }}
+  ]
+)""",
+            language="cpp",
         )
 
-      tx_id = f"TXN-{uuid.uuid4().hex[:6].upper()}"
-      correlation_id = f"corr-{uuid.uuid4().hex[:12]}"
-      timestamp_now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
-      fake_sig = hmac.new(
-          b"ibp_tenant_secret", tx_id.encode(), hashlib.sha256
-      ).hexdigest()[:24]
+    with tab2:
+        st.code(
+            f"""POST /api/v1/integrations/oracle-financials/gl-journals
+Headers: {{ "X-Oracle-App-ID": "{sector_cfg['oracle_gl_account']}" }}
 
-      st.markdown("**Live Handshake Telemetry Exchange**")
-      st.json({
-          "handshake_result": "HTTP 200 OK (ACCEPTED)",
-          "transaction_id": tx_id,
-          "correlation_id": correlation_id,
-          "idempotency_key": generated_idempotency,
-          "timestamp": timestamp_now,
-          "security_handshake": {
-              "protocol": "mTLS + OAuth2.0 Client Credentials",
-              "hmac_sha256_signature": f"0x{fake_sig}...",
-              "schema_validation": "PASSED (SECTOR_BENCHMARK_MAP v1.4)",
-          },
-          "acknowledged_receipt": {
-              "target_system": target_endpoint.split(" ")[0],
-              "remote_document_id": f"DOC-SYS-{uuid.uuid4().hex[:8].upper()}",
-              "roundtrip_latency": "38 ms",
-          },
-      })
-    else:
-      st.info(
-          "Click **Initiate Bi-Directional Handshake** to simulate token"
-          " acquisition, HMAC signing, idempotency verification, and system"
-          " ACK."
-      )
+Payload Mapping:
+  - Benchmark Index Trigger : {sector_cfg['primary_index']}
+  - Financial Gain Realized : Credit {sector_cfg['oracle_gl_account']} ($8.97M)
+  - Treasury Cash Outlay    : Debit Treasury Operations Balance""",
+            language="json",
+        )
 
-
-# Centralized Industry Sector to Global Benchmark Index Mapping Engine
-SECTOR_BENCHMARK_MAP = {
-    "Non-Ferrous Metals (Copper, Tin, Zinc, Aluminum)": {
-        "primary_index": "LME Cash Settlement Index (LME-3M)",
-        "secondary_index": "CME Copper/Aluminum Futures",
-        "ticker_symbol": "LME-CU / LME-AL",
-        "sap_mat_code": "MAT_COPPER_CATHODE_GRD_A",
-        "sample_headline": (
-            "Copper & Aluminum cash settlement premiums surge +14% following"
-            " ocean freight delay shocks."
-        ),
-        "oracle_gl_account": "GL-5100-NONFERROUS-HEDGE",
-    },
-    "Precious Metals & Rare Earth Elements (REE)": {
-        "primary_index": "LBMA London Bullion Market / Platts REE",
-        "secondary_index": "COMEX Precious Metals Spot",
-        "ticker_symbol": "LBMA-AU / REE-ND",
-        "sap_mat_code": "MAT_REE_NEODYMIUM_SPEC_A",
-        "sample_headline": (
-            "Neodymium & Lithium supply tightening drives spot pricing"
-            " above LBMA baseline."
-        ),
-        "oracle_gl_account": "GL-5120-PRECIOUS-REE-HEDGE",
-    },
-    "Industrial Chemicals & Base Polymers": {
-        "primary_index": "ICIS Petrochemical Index (IPEX)",
-        "secondary_index": "Platts Global Polymer Index",
-        "ticker_symbol": "ICIS-POLY-HDPE",
-        "sap_mat_code": "MAT_POLYETHYLENE_HDPE_GRD",
-        "sample_headline": (
-            "Ethylene feedstock disruptions trigger +8% ICIS price delta"
-            " across European hubs."
-        ),
-        "oracle_gl_account": "GL-5140-CHEM-POLYMERS-HEDGE",
-    },
-    "Essential Semiconductors & High-Tech Hardware": {
-        "primary_index": "SOX Semiconductor Index / TrendForce DRAM",
-        "secondary_index": "DXI Semiconductor Benchmark",
-        "ticker_symbol": "SOX-WAFER-300MM",
-        "sap_mat_code": "MAT_IC_WAFER_300MM_SILICON",
-        "sample_headline": (
-            "Advanced packaging capacity limits drive +12-day lead time"
-            " extension on 300mm wafers."
-        ),
-        "oracle_gl_account": "GL-5160-SEMI-HARDWARE-HEDGE",
-    },
-    "Energy, Power & Petrochemicals": {
-        "primary_index": "ICE Brent / NYMEX WTI / Henry Hub Gas",
-        "secondary_index": "S&P Global Platts Energy Benchmark",
-        "ticker_symbol": "ICE-BRENT / NYMEX-NG",
-        "sap_mat_code": "MAT_CRUDE_BRENT_BLND_BBL",
-        "sample_headline": (
-            "Refinery downtime and pipeline constraints push Brent crude crack"
-            " spreads higher."
-        ),
-        "oracle_gl_account": "GL-5180-ENERGY-POWER-HEDGE",
-    },
-    "Maritime Freight, Ports & Logistics": {
-        "primary_index": "Baltic Dry Index (BDI) / Freightos Baltic (FBX)",
-        "secondary_index": "Shanghai Containerized Freight Index (SCFI)",
-        "ticker_symbol": "FBX01-PACIFIC / BDI-BULK",
-        "sap_mat_code": "MAT_CONTAINER_FEU_LOG_SVC",
-        "sample_headline": (
-            "Port berth queueing at Rotterdam and LA increases FBX transpacific"
-            " container spot rates."
-        ),
-        "oracle_gl_account": "GL-5200-FREIGHT-LOGISTICS-HEDGE",
-    },
-}
+    st.divider()
+    render_handshake_simulator()
 
 
 def render_integration_architecture(
