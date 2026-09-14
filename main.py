@@ -235,8 +235,12 @@ def render_flight_simulator(
 
 
 def render_handshake_simulator():
-  """Interactive 4-Step Handshake Simulator component for stakeholder demos."""
-  st.subheader("🤝 Enterprise Handshake Simulator")
+    """Interactive 4-Step Handshake Simulator component for stakeholder demos."""
+    st.subheader("🤝 Enterprise Handshake Simulator")
+    st.caption(
+        "Demonstrate the bi-directional cryptographic auth, schema verification,"
+        " idempotency staging, and ACK/NACK protocol live."
+    )
 
     sim_col1, sim_col2 = st.columns([1, 1])
 
