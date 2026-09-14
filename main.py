@@ -11,6 +11,55 @@ import hmac
 import time
 import uuid
 
+
+# Global Benchmark Configuration Mapping
+SECTOR_BENCHMARK_MAP = {
+    "Non-Ferrous Metals (Copper, Tin, Zinc, Aluminum)": {
+        "primary_index": "LME Cash Settlement Index (LME-3M)",
+        "secondary_index": "CME Copper Futures",
+        "ticker_symbol": "LME-CU / LME-AL",
+        "sap_mat_code": "MAT_COPPER_CATHODE_ORD_A",
+        "oracle_gl_account": "GL-SYNC-5100-NONFERROUS-HEDGE",
+        "sample_headline": (
+            "Copper & Aluminum cash settlement premiums surged +14% due to"
+            " smelter energy curtailments."
+        ),
+    },
+    "Semiconductors & High Tech": {
+        "primary_index": "DRAMexchange Spot Index (DXI)",
+        "secondary_index": "SOX Semiconductor Benchmark",
+        "ticker_symbol": "DXI-32GB-DDR5",
+        "sap_mat_code": "MAT_WAFER_300MM_SILICON",
+        "oracle_gl_account": "GL-SYNC-5200-SEMICON-HEDGE",
+        "sample_headline": (
+            "300mm Silicon wafer lead times extended +6 weeks amid fab capacity"
+            " constraints."
+        ),
+    },
+    "Energy & Petrochemicals": {
+        "primary_index": "S&P Global Platts Brent Crude",
+        "secondary_index": "ICIS Ethylene Benchmark",
+        "ticker_symbol": "PLATTS-BRENT-CRUDE",
+        "sap_mat_code": "MAT_NAPHTHA_FEEDSTOCK_01",
+        "oracle_gl_account": "GL-SYNC-5300-ENERGY-HEDGE",
+        "sample_headline": (
+            "Gulf Coast ethylene cracker outage drives immediate spot price"
+            " surge of +18%."
+        ),
+    },
+    "Logistics & Global Freight": {
+        "primary_index": "Freightos Baltic Index (FBX)",
+        "secondary_index": "Shanghai Containerized Freight Index",
+        "ticker_symbol": "FBX-ASIA-USEC",
+        "sap_mat_code": "MAT_LOGISTICS_40FT_HC",
+        "oracle_gl_account": "GL-SYNC-5400-FREIGHT-HEDGE",
+        "sample_headline": (
+            "Suez Canal routing bottleneck causes spot container freight rates"
+            " to spike +22%."
+        ),
+    },
+}
+
 # =====================================================================
 # HELPER FUNCTIONS & MODEL ENGINES
 # =====================================================================
