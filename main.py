@@ -300,7 +300,7 @@ SECTOR_BENCHMARK_MAP = {
 }
 
 
-def render_integration_architecture_desk(
+def render_integration_architecture(
     persona="Discrete & Heavy Industrial Enterprise", **kwargs
 ):
   st.title("🔌 Integration & Architecture Endpoints")
