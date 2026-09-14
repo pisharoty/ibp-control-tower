@@ -233,7 +233,7 @@ def render_flight_simulator(
           f" sentiment adjusted to **{st.session_state['si_composite']:.2f}**!"
       )
 
-      def render_handshake_simulator():
+  def render_handshake_simulator():
   """Interactive 4-Step Handshake Simulator component for stakeholder demos."""
   st.subheader("🤝 Enterprise Handshake Simulator")
   st.caption(
