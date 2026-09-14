@@ -127,110 +127,111 @@ def render_flight_simulator(
         key="sim_dem",
     )
 
-  # ----------------------------------------------------
-  # 2. MONTE CARLO SIMULATION ENGINE
-  # ----------------------------------------------------
-  if st.button("🚀 Run Monte Carlo Stress Simulation", key="btn_run_mc"):
-    with st.spinner(f"Simulating {n_sims:,} market shocks..."):
-      base_unit_price = 150.0
+# ----------------------------------------------------
+    # 2. MONTE CARLO SIMULATION ENGINE
+    # ----------------------------------------------------
+    if st.button("🚀 Run Monte Carlo Stress Simulation", key="btn_run_mc"):
+        with st.spinner(f"Simulating {n_sims:,} market shocks..."):
+            base_unit_price = 150.0
 
-      # Log-normal spot price distribution & dynamic demand variation
-      price_shocks = np.random.lognormal(
-          mean=np.log(base_unit_price), sigma=vol_shock, size=n_sims
-      )
-      simulated_demand = surge_units * demand_multiplier * np.random.uniform(
-          0.9, 1.1, size=n_sims
-      )
+            # Log-normal spot price distribution & dynamic demand variation
+            price_shocks = np.random.lognormal(
+                mean=np.log(base_unit_price), sigma=vol_shock, size=n_sims
+            )
+            simulated_demand = surge_units * demand_multiplier * np.random.uniform(
+                0.9, 1.1, size=n_sims
+            )
 
-      # Unhedged vs Hedged Exposure Calculation
-      hedge_ratio = 0.764 if fix_executed else 0.0
-      unhedged_demand = simulated_demand * (1.0 - hedge_ratio)
-      hedged_demand = simulated_demand * hedge_ratio
+            # Unhedged vs Hedged Exposure Calculation
+            hedge_ratio = 0.764 if fix_executed else 0.0
+            unhedged_demand = simulated_demand * (1.0 - hedge_ratio)
+            hedged_demand = simulated_demand * hedge_ratio
 
-      # Financial Impact ($)
-      unhedged_cost = unhedged_demand * price_shocks
-      hedged_cost = hedged_demand * base_unit_price
-      total_simulated_cost = unhedged_cost + hedged_cost
-      net_cash_impact = cash_balance - total_simulated_cost
+            # Financial Impact ($)
+            unhedged_cost = unhedged_demand * price_shocks
+            hedged_cost = hedged_demand * base_unit_price
+            total_simulated_cost = unhedged_cost + hedged_cost
+            net_cash_impact = cash_balance - total_simulated_cost
 
-      # Risk Metrics
-      var_95 = np.percentile(total_simulated_cost, 95)
-      var_99 = np.percentile(total_simulated_cost, 99)
-      mean_cost = np.mean(total_simulated_cost)
-      insolvency_risk = np.mean(net_cash_impact < 0) * 100.0
+            # Risk Metrics
+            var_95 = np.percentile(total_simulated_cost, 95)
+            var_99 = np.percentile(total_simulated_cost, 99)
+            mean_cost = np.mean(total_simulated_cost)
+            insolvency_risk = np.mean(net_cash_impact < 0) * 100.0
 
-      st.session_state["mc_results"] = {
-          "mean_cost": mean_cost,
-          "var_95": var_95,
-          "var_99": var_99,
-          "insolvency_risk": insolvency_risk,
-          "total_cost": total_simulated_cost,
-      }
+            st.session_state["mc_results"] = {
+                "mean_cost": mean_cost,
+                "var_95": var_95,
+                "var_99": var_99,
+                "insolvency_risk": insolvency_risk,
+                "total_cost": total_simulated_cost,
+            }
 
-  # ----------------------------------------------------
-  # 3. RESULTS & VISUALIZATION
-  # ----------------------------------------------------
-  if "mc_results" in st.session_state:
-    res = st.session_state["mc_results"]
+    # ----------------------------------------------------
+    # 3. RESULTS & VISUALIZATION
+    # ----------------------------------------------------
+    if "mc_results" in st.session_state:
+        res = st.session_state["mc_results"]
 
-    st.markdown("### 📊 Simulation Outcomes & Value at Risk (VaR)")
-    col_m1, col_m2, col_m3, col_m4 = st.columns(4)
-    with col_m1:
-      st.metric("Expected Total Cost", f"${res['mean_cost']:,.2f}")
-    with col_m2:
-      st.metric("95% Value at Risk (VaR)", f"${res['var_95']:,.2f}")
-    with col_m3:
-      st.metric("99% Tail Risk (VaR)", f"${res['var_99']:,.2f}")
-    with col_m4:
-      st.metric(
-          "Treasury Insolvency Risk",
-          f"{res['insolvency_risk']:.1f}%",
-          delta="High Risk" if res["insolvency_risk"] > 5 else "Manageable",
-          delta_color="inverse" if res["insolvency_risk"] > 5 else "normal",
-      )
+        st.markdown("### 📊 Simulation Outcomes & Value at Risk (VaR)")
+        col_m1, col_m2, col_m3, col_m4 = st.columns(4)
+        with col_m1:
+            st.metric("Expected Total Cost", f"${res['mean_cost']:,.2f}")
+        with col_m2:
+            st.metric("95% Value at Risk (VaR)", f"${res['var_95']:,.2f}")
+        with col_m3:
+            st.metric("99% Tail Risk (VaR)", f"${res['var_99']:,.2f}")
+        with col_m4:
+            st.metric(
+                "Treasury Insolvency Risk",
+                f"{res['insolvency_risk']:.1f}%",
+                delta="High Risk" if res["insolvency_risk"] > 5 else "Manageable",
+                delta_color="inverse" if res["insolvency_risk"] > 5 else "normal",
+            )
 
-    # Histogram Visualization using Plotly
-    df_chart = pd.DataFrame({"Simulated Cost ($)": res["total_cost"]})
-    fig = px.histogram(
-        df_chart,
-        x="Simulated Cost ($)",
-        nbins=50,
-        title=f"Monte Carlo Risk Exposure ({n_sims:,} Iterations)",
-        color_discrete_sequence=["#0068C9" if fix_executed else "#FF2B2B"],
-    )
-    fig.add_vline(
-        x=res["var_95"],
-        line_dash="dash",
-        line_color="orange",
-        annotation_text="95% VaR",
-    )
-    fig.add_vline(
-        x=res["var_99"],
-        line_dash="dash",
-        line_color="red",
-        annotation_text="99% Tail VaR",
-    )
-    st.plotly_chart(fig, use_container_width=True)
+        # Histogram Visualization using Plotly
+        df_chart = pd.DataFrame({"Simulated Cost ($)": res["total_cost"]})
+        fig = px.histogram(
+            df_chart,
+            x="Simulated Cost ($)",
+            nbins=50,
+            title=f"Monte Carlo Risk Exposure ({n_sims:,} Iterations)",
+            color_discrete_sequence=["#0068C9" if fix_executed else "#FF2B2B"],
+        )
+        fig.add_vline(
+            x=res["var_95"],
+            line_dash="dash",
+            line_color="orange",
+            annotation_text="95% VaR",
+        )
+        fig.add_vline(
+            x=res["var_99"],
+            line_dash="dash",
+            line_color="red",
+            annotation_text="99% Tail VaR",
+        )
+        st.plotly_chart(fig, use_container_width=True)
 
-    # Direct Back-Propagation Button
-    if st.button(
-        "⚡ Inject Stressed Parameters Back into Live Operations",
-        key="btn_inject_mc",
-    ):
-      st.session_state["extracted_demand_surge"] = int(
-          surge_units * demand_multiplier
-st.session_state["active_leadtime_delay_days"] = (
-        curr_leadtime_delay + lead_time_shock
-    )
-    st.session_state["si_composite"] = max(-1.0, si_score - (vol_shock * 0.5))
+        # Direct Back-Propagation Button
+        if st.button(
+            "⚡ Inject Stressed Parameters Back into Live Operations",
+            key="btn_inject_mc",
+        ):
+            st.session_state["extracted_demand_surge"] = int(
+                surge_units * demand_multiplier
+            )
+            st.session_state["active_leadtime_delay_days"] = (
+                curr_leadtime_delay + lead_time_shock
+            )
+            st.session_state["si_composite"] = max(-1.0, si_score - (vol_shock * 0.5))
 
-    st.toast("Propagated stressed parameters across platform!", icon="⚡")
-    st.success(
-        "✅ **Live Operations Updated**: Demand surge escalated to "
-        f"**{st.session_state['extracted_demand_surge']:,} {term_unit}**, "
-        f"lead times expanded by **+{lead_time_shock} days**, and market "
-        f"sentiment adjusted to **{st.session_state['si_composite']:.2f}**!"
-    )
+            st.toast("Propagated stressed parameters across platform!", icon="⚡")
+            st.success(
+                "✅ **Live Operations Updated**: Demand surge escalated to "
+                f"**{st.session_state['extracted_demand_surge']:,} {term_unit}**, "
+                f"lead times expanded by **+{lead_time_shock} days**, and market "
+                f"sentiment adjusted to **{st.session_state['si_composite']:.2f}**!"
+            )
 
 
 def render_handshake_simulator():
