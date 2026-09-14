@@ -219,18 +219,17 @@ def render_flight_simulator(
     ):
       st.session_state["extracted_demand_surge"] = int(
           surge_units * demand_multiplier
-      )
-      st.session_state["active_leadtime_delay_days"] = (
-          curr_leadtime_delay + lead_time_shock
-      )
-      st.session_state["si_composite"] = max(-1.0, si_score - (vol_shock * 0.5))
+st.session_state["active_leadtime_delay_days"] = (
+        curr_leadtime_delay + lead_time_shock
+    )
+    st.session_state["si_composite"] = max(-1.0, si_score - (vol_shock * 0.5))
 
-     st.toast("Propagated stressed parameters across platform!", icon="⚡")
+    st.toast("Propagated stressed parameters across platform!", icon="⚡")
     st.success(
-        "✅ **Live Operations Updated**: Demand surge escalated to"
-        f" **{st.session_state['extracted_demand_surge']:,} {term_unit}**,"
-        f" lead times expanded by **+{lead_time_shock} days**, and market"
-        f" sentiment adjusted to **{st.session_state['si_composite']:.2f}**!"
+        "✅ **Live Operations Updated**: Demand surge escalated to "
+        f"**{st.session_state['extracted_demand_surge']:,} {term_unit}**, "
+        f"lead times expanded by **+{lead_time_shock} days**, and market "
+        f"sentiment adjusted to **{st.session_state['si_composite']:.2f}**!"
     )
 
 
