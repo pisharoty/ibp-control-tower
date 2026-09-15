@@ -133,6 +133,12 @@ def render_flight_simulator(
     macro_scenario = st.session_state.get(
         "macro_scenario_select", "Baseline Operations"
     )
+
+    # Reset simulation results whenever the macro scenario changes
+    if st.session_state.get("last_macro_scenario") != macro_scenario:
+        st.session_state.pop("mc_results", None)
+        st.session_state["last_macro_scenario"] = macro_scenario
+
     si_score = st.session_state.get("si_composite", -0.33)
     surge_units = st.session_state.get("extracted_demand_surge", 102968)
     cash_balance = st.session_state.get("sop_cash_balance", 5_000_000.0)
