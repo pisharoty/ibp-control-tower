@@ -134,17 +134,6 @@ def render_flight_simulator(
         "macro_scenario_select", "Baseline Operations"
     )
 
-    # Reset simulation results whenever the macro scenario changes
-    if st.session_state.get("last_macro_scenario") != macro_scenario:
-        st.session_state.pop("mc_results", None)
-        st.session_state["last_macro_scenario"] = macro_scenario
-
-    si_score = st.session_state.get("si_composite", -0.33)
-    surge_units = st.session_state.get("extracted_demand_surge", 102968)
-    cash_balance = st.session_state.get("sop_cash_balance", 5_000_000.0)
-    fix_executed = st.session_state.get("fix_executed", False)
-    curr_leadtime_delay = st.session_state.get("active_leadtime_delay_days", 2.5)
-
     # Dynamic scenario defaults based on sidebar selector
     if "Red Sea" in macro_scenario:
         def_vol, def_delay, def_surge = 0.45, 14, 1.35
@@ -152,6 +141,20 @@ def render_flight_simulator(
         def_vol, def_delay, def_surge = 0.60, 7, 1.20
     else:
         def_vol, def_delay, def_surge = 0.35, 7, 1.30
+
+    # Force reset of simulation results AND slider states when scenario changes
+    if st.session_state.get("last_macro_scenario") != macro_scenario:
+        st.session_state.pop("mc_results", None)
+        st.session_state["last_macro_scenario"] = macro_scenario
+        st.session_state["sim_vol"] = def_vol
+        st.session_state["sim_lt"] = def_delay
+        st.session_state["sim_dem"] = def_surge
+
+    si_score = st.session_state.get("si_composite", -0.33)
+    surge_units = st.session_state.get("extracted_demand_surge", 102968)
+    cash_balance = st.session_state.get("sop_cash_balance", 5_000_000.0)
+    fix_executed = st.session_state.get("fix_executed", False)
+    curr_leadtime_delay = st.session_state.get("active_leadtime_delay_days", 2.5)
 
     st.divider()
 
