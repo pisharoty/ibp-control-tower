@@ -12,6 +12,13 @@ import time
 import uuid
 import hashlib
 
+# MUST be the first Streamlit command in main.py
+st.set_page_config(
+    page_title="IBP Control Tower",
+    page_icon="⚡",
+    layout="wide",  # <--- Expands main workspace to full screen width
+    initial_sidebar_state="expanded",
+)
 
 # Global Benchmark Configuration Mapping
 SECTOR_BENCHMARK_MAP = {
