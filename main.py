@@ -117,74 +117,83 @@ def get_persona_contracts(persona: str) -> list[dict]:
 def render_flight_simulator(
     persona="Discrete & Heavy Industrial Enterprise", term_unit="Units", **kwargs
 ):
-  """Sandbox Flight Simulator & Stress Lab.
+    """Sandbox Flight Simulator & Stress Lab.
 
-  Executes multi-variable Monte Carlo shock simulations across all upstream
-  states (NLP Sentiment, CTRM Hedging, GIS Logistics, Treasury Cash).
-  """
-  st.title("🧪 Sandbox Flight Simulator & Stress Lab")
-  st.caption(f"Active Persona View: **{persona}**")
-  st.markdown(
-      "Run multi-variable Monte Carlo shock tests to stress-test cash"
-      " reserves, margin stability, and supply chain buffers."
-  )
-
-  # Read upstream states from prior modules
-  si_score = st.session_state.get("si_composite", -0.33)
-  surge_units = st.session_state.get("extracted_demand_surge", 102968)
-  cash_balance = st.session_state.get("sop_cash_balance", 5_000_000.0)
-  fix_executed = st.session_state.get("fix_executed", False)
-  curr_leadtime_delay = st.session_state.get(
-      "active_leadtime_delay_days", 2.5
-  )
-
-  st.divider()
-
-  # ----------------------------------------------------
-  # 1. SHOCK SCENARIO CONTROLS
-  # ----------------------------------------------------
-  st.subheader("⚙️ Monte Carlo Stress Test Parameters")
-
-  col_s1, col_s2, col_s3, col_s4 = st.columns(4)
-  with col_s1:
-    n_sims = st.select_slider(
-        "Simulation Runs",
-        options=[1000, 2500, 5000, 10000],
-        value=5000,
-        key="sim_runs",
+    Executes multi-variable Monte Carlo shock simulations across all upstream
+    states (NLP Sentiment, CTRM Hedging, GIS Logistics, Treasury Cash).
+    """
+    st.title("⚡ Sandbox Flight Simulator & Stress Lab")
+    st.caption(f"Active Persona View: **{persona}**")
+    st.markdown(
+        "Run multi-variable Monte Carlo shock tests to stress-test cash"
+        " reserves, margin stability, and supply chain buffers."
     )
-  with col_s2:
-    vol_shock = (
-        st.slider(
+
+    # 1. READ MACRO SIDEBAR SCENARIO & UPSTREAM STATES
+    macro_scenario = st.session_state.get(
+        "macro_scenario_select", "Baseline Operations"
+    )
+    si_score = st.session_state.get("si_composite", -0.33)
+    surge_units = st.session_state.get("extracted_demand_surge", 102968)
+    cash_balance = st.session_state.get("sop_cash_balance", 5_000_000.0)
+    fix_executed = st.session_state.get("fix_executed", False)
+    curr_leadtime_delay = st.session_state.get("active_leadtime_delay_days", 2.5)
+
+    # Dynamic scenario defaults based on sidebar selector
+    if "Red Sea" in macro_scenario:
+        def_vol, def_delay, def_surge = 0.45, 14, 1.35
+    elif "Smelter" in macro_scenario or "Curtailment" in macro_scenario:
+        def_vol, def_delay, def_surge = 0.60, 7, 1.20
+    else:
+        def_vol, def_delay, def_surge = 0.35, 7, 1.30
+
+    st.divider()
+
+    # ----------------------------------------------------
+    # 1. SHOCK SCENARIO CONTROLS
+    # ----------------------------------------------------
+    st.subheader("⚙️ Monte Carlo Stress Test Parameters")
+    st.info(f"🌐 Active Scenario Presets: **{macro_scenario}**")
+
+    col_s1, col_s2, col_s3, col_s4 = st.columns(4)
+    with col_s1:
+        n_sims = st.select_slider(
+            "Simulation Runs",
+            options=[1000, 2500, 5000, 10000, 20000],
+            value=5000,
+            key="sim_runs",
+        )
+    with col_s2:
+        vol_shock = st.slider(
             "Spot Price Volatility (σ)",
-            min_value=10,
-            max_value=60,
-            value=35,
-            step=5,
+            min_value=0.05,
+            max_value=1.00,
+            value=def_vol,
+            step=0.05,
             key="sim_vol",
         )
-        / 100.0
-    )
-  with col_s3:
-    lead_time_shock = st.slider(
-        "Lead Time Delay (Days)",
-        min_value=1,
-        max_value=21,
-        value=7,
-        step=1,
-        key="sim_lt",
-    )
-  with col_s4:
-    demand_multiplier = st.slider(
-        "Demand Surge Multiplier",
-        min_value=1.0,
-        max_value=2.5,
-        value=1.3,
-        step=0.1,
-        key="sim_dem",
-    )
+    with col_s3:
+        lead_time_shock = st.slider(
+            "Lead Time Delay (Days)",
+            min_value=1,
+            max_value=30,
+            value=def_delay,
+            step=1,
+            key="sim_lt",
+        )
+    with col_s4:
+        demand_multiplier = st.slider(
+            "Demand Surge Multiplier",
+            min_value=0.8,
+            max_value=2.5,
+            value=def_surge,
+            step=0.1,
+            key="sim_dem",
+        )
 
-# ----------------------------------------------------
+    st.divider()
+
+    # ----------------------------------------------------
     # 2. MONTE CARLO SIMULATION ENGINE
     # ----------------------------------------------------
     if st.button("🚀 Run Monte Carlo Stress Simulation", key="btn_run_mc"):
@@ -210,27 +219,22 @@ def render_flight_simulator(
             total_simulated_cost = unhedged_cost + hedged_cost
             net_cash_impact = cash_balance - total_simulated_cost
 
-            # Risk Metrics
-            var_95 = np.percentile(total_simulated_cost, 95)
-            var_99 = np.percentile(total_simulated_cost, 99)
-            mean_cost = np.mean(total_simulated_cost)
-            insolvency_risk = np.mean(net_cash_impact < 0) * 100.0
-
             st.session_state["mc_results"] = {
-                "mean_cost": mean_cost,
-                "var_95": var_95,
-                "var_99": var_99,
-                "insolvency_risk": insolvency_risk,
+                "mean_cost": np.mean(total_simulated_cost),
+                "var_95": np.percentile(total_simulated_cost, 95),
+                "var_99": np.percentile(total_simulated_cost, 99),
+                "insolvency_risk": np.mean(net_cash_impact < 0) * 100.0,
                 "total_cost": total_simulated_cost,
             }
 
     # ----------------------------------------------------
-    # 3. RESULTS & VISUALIZATION
+    # 3. RESULTS & VISUALIZATION (FULL CANVAS WIDTH)
     # ----------------------------------------------------
     if "mc_results" in st.session_state:
         res = st.session_state["mc_results"]
 
         st.markdown("### 📊 Simulation Outcomes & Value at Risk (VaR)")
+
         col_m1, col_m2, col_m3, col_m4 = st.columns(4)
         with col_m1:
             st.metric("Expected Total Cost", f"${res['mean_cost']:,.2f}")
@@ -280,7 +284,9 @@ def render_flight_simulator(
             st.session_state["active_leadtime_delay_days"] = (
                 curr_leadtime_delay + lead_time_shock
             )
-            st.session_state["si_composite"] = max(-1.0, si_score - (vol_shock * 0.5))
+            st.session_state["si_composite"] = max(
+                -1.0, si_score - (vol_shock * 0.5)
+            )
 
             st.toast("Propagated stressed parameters across platform!", icon="⚡")
             st.success(
