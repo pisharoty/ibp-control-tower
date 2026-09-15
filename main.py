@@ -134,20 +134,30 @@ def render_flight_simulator(
         "macro_scenario_select", "Baseline Operations"
     )
 
-    # Dynamic scenario defaults based on sidebar selector
+    # Map all sidebar scenario options to specific slider presets
     if "Red Sea" in macro_scenario:
         def_vol, def_delay, def_surge = 0.45, 14, 1.35
     elif "Smelter" in macro_scenario or "Curtailment" in macro_scenario:
         def_vol, def_delay, def_surge = 0.60, 7, 1.20
+    elif "Black Swan" in macro_scenario or "Spike" in macro_scenario:
+        def_vol, def_delay, def_surge = 0.85, 21, 1.80
     else:
-        def_vol, def_delay, def_surge = 0.35, 7, 1.30
+        def_vol, def_delay, def_surge = 0.15, 2, 1.00
 
-    # Force reset of simulation results AND slider states when scenario changes
+    # Force update slider keys in session state when scenario changes
     if st.session_state.get("last_macro_scenario") != macro_scenario:
         st.session_state.pop("mc_results", None)
         st.session_state["last_macro_scenario"] = macro_scenario
         st.session_state["sim_vol"] = def_vol
         st.session_state["sim_lt"] = def_delay
+        st.session_state["sim_dem"] = def_surge
+
+    # Ensure default session state keys exist on initial load
+    if "sim_vol" not in st.session_state:
+        st.session_state["sim_vol"] = def_vol
+    if "sim_lt" not in st.session_state:
+        st.session_state["sim_lt"] = def_delay
+    if "sim_dem" not in st.session_state:
         st.session_state["sim_dem"] = def_surge
 
     si_score = st.session_state.get("si_composite", -0.33)
@@ -177,7 +187,6 @@ def render_flight_simulator(
             "Spot Price Volatility (σ)",
             min_value=0.05,
             max_value=1.00,
-            value=def_vol,
             step=0.05,
             key="sim_vol",
         )
@@ -186,7 +195,6 @@ def render_flight_simulator(
             "Lead Time Delay (Days)",
             min_value=1,
             max_value=30,
-            value=def_delay,
             step=1,
             key="sim_lt",
         )
@@ -195,7 +203,6 @@ def render_flight_simulator(
             "Demand Surge Multiplier",
             min_value=0.8,
             max_value=2.5,
-            value=def_surge,
             step=0.1,
             key="sim_dem",
         )
