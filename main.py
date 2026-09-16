@@ -685,22 +685,18 @@ Payload Mapping:
 # ==============================================================================
 
 
+# Helper: Dynamic sentiment recalculation
 def update_composite_si():
-  """Dynamically recalculates Composite Market Sentiment Index (SI)."""
   surge = st.session_state.get("extracted_demand_surge", 102968)
   delay = st.session_state.get("active_leadtime_delay_days", 2.5)
-
-  # Weighted sentiment penalty based on surge and lead time expansion
   surge_penalty = (surge - 100000) / 200000.0
   delay_penalty = delay / 30.0
-
   new_si = max(-1.0, min(1.0, -0.10 - surge_penalty - delay_penalty))
   st.session_state["si_composite"] = round(new_si, 2)
 
 
+# Helper: Regex entity parser for supplier emails
 def parse_unstructured_email(text):
-  """Dynamic NLP entity extraction heuristic for raw supplier text."""
-  # Vendor extraction
   from_match = re.search(r"FROM:\s*([^\n@]+)", text, re.IGNORECASE)
   vendor = (
       from_match.group(1).replace("-", " ").title().strip()
@@ -708,26 +704,22 @@ def parse_unstructured_email(text):
       else "Global Smelting Corp"
   )
 
-  # Delay extraction (days)
   days_match = re.search(
       r"(\d+)\s*(?:to\s*\d+)?\s*(?:day|days|d)", text, re.IGNORECASE
   )
   delay_val = float(days_match.group(1)) if days_match else 14.0
 
-  # Units extraction
   units_match = re.search(
       r"(\d[\d,]*)\s*(?:unit|units|tons|MT|cat|cathodes)", text, re.IGNORECASE
   )
-  if units_match:
-    units_val = int(units_match.group(1).replace(",", ""))
-  else:
-    units_val = 45000
+  units_val = (
+      int(units_match.group(1).replace(",", "")) if units_match else 45000
+  )
 
-  # Risk Event detection
   low_text = text.lower()
   if "curtailment" in low_text or "energy" in low_text:
     event = "Energy Curtailment"
-  elif "strike" in low_text or "labor" in low_text or "union" in low_text:
+  elif "strike" in low_text or "labor" in low_text:
     event = "Port / Labor Strike"
   elif "force majeure" in low_text:
     event = "Force Majeure Event"
@@ -744,15 +736,8 @@ def parse_unstructured_email(text):
   }
 
 
-# ==============================================================================
-# MODULE RENDER FUNCTIONS
-# ==============================================================================
-
-
-def render_nlp_sensing(
-    persona="Discrete & Heavy Industrial Enterprise", term_unit="Units", **kwargs
-):
-  """NLP Commercial Sensing & Intelligence Module."""
+def render_nlp_intelligence(persona=None, term_unit="Units", **kwargs):
+  """Complete NLP Commercial Sensing & Intelligence Module."""
   st.title("🧠 NLP Commercial Sensing & Intelligence")
   st.caption(
       "Ingest unstructured signals from news feeds, social media, post-trade"
@@ -761,126 +746,292 @@ def render_nlp_sensing(
 
   tab1, tab2, tab3 = st.tabs([
       "📡 Live Web Signals",
-      "✉️ Email & Event Debrief Parser",
+      "📧 Email & Event Debrief Parser",
       "⚓ Freight, Weather & Black Swan Feeds",
   ])
 
-  # ----------------------------------------------------
-  # TAB 1: LIVE WEB SIGNALS (RESTORED FULL VIEW)
-  # ----------------------------------------------------
+  # =========================================================================
+  # TAB 1: LIVE WEB SIGNALS (ROBOT FEEDS + DOMAIN NEWS)
+  # =========================================================================
   with tab1:
-    col_t1, col_t2 = st.columns([4, 1])
-    with col_t1:
-      st.caption("Triangulated Intelligence: Macro Sentiment + Live Feeds")
-    with col_t2:
-      if st.button("🔄 Refresh Live Feeds", key="btn_refresh_feeds"):
-        st.toast("Refreshed live web feeds and API streams!", icon="📡")
+    r_head1, r_head2 = st.columns([3, 1])
+    with r_head1:
+      st.caption("🤖 **Triangulated Intelligence**: Macro Sentiment + Live Feeds")
+    with r_head2:
+      if st.button("🔄 Refresh Live Feeds", key="btn_refresh_robot_feeds"):
+        try:
+          from robot_feeds import sync_robot_feeds
 
-    si_score = st.session_state.get("si_composite", -0.33)
-    surge_units = st.session_state.get("extracted_demand_surge", 102968)
-    lead_time = st.session_state.get("active_leadtime_delay_days", 2.5)
+          sync_robot_feeds()
+          st.toast("Refreshed feeds from Gmail IMAP & GEP!", icon="🔄")
+          st.rerun()
+        except Exception as e:
+          st.error(f"Sync error: {e}")
 
-    st.markdown("### 🎯 Composite Market Sentiment Index ($SI$)")
-    col_m1, col_m2, col_m3, col_m4 = st.columns(4)
-    with col_m1:
-      st.metric("Net Sentiment Score", f"{si_score:.2f}", delta="Moderate Risk")
-    with col_m2:
-      st.metric("Quantified Demand Surge", f"+{surge_units:,} {term_unit}")
-    with col_m3:
-      st.metric("Lead Time Expansion", f"+{lead_time:.1f} Days")
-    with col_m4:
-      st.metric(
-          "CTRM Risk Status",
-          "🔴 HEDGE REQUIRED" if si_score < 0 else "🟢 OPTIMAL",
-      )
+    if not os.path.exists("robot_signals.json"):
+      try:
+        from robot_feeds import sync_robot_feeds
 
-    st.info(
-        f"**Quantified Action Plan**: ⚠️ **HIGH RISK**: Lock in 60-day raw"
-        f" material futures on CTRM Desk; extend vendor lead times by"
-        f" +{lead_time:.1f}d in ERP; trigger +{surge_units:,} unit safety"
-        " buffer in S&OP."
-    )
+        sync_robot_feeds()
+      except Exception:
+        pass
 
-    if st.button(
-        "⚡ Propagate Triangulated Composite Index across Platform",
-        key="btn_propagate_si",
-    ):
-      update_composite_si()
-      st.toast("Composite Index synchronized across all modules!", icon="⚡")
+    robot_data = {}
+    if os.path.exists("robot_signals.json"):
+      try:
+        with open("robot_signals.json", "r") as f:
+          robot_data = json.load(f)
+      except Exception:
+        pass
+
+    composite = robot_data.get("composite_sentiment", {})
+    if not composite:
+      try:
+        from robot_feeds import calculate_composite_sentiment
+
+        composite = calculate_composite_sentiment()
+      except Exception:
+        composite = {
+            "si_composite": st.session_state.get("si_composite", -0.38),
+            "demand_surge_units": st.session_state.get(
+                "extracted_demand_surge", 118750
+            ),
+            "leadtime_delay_days": st.session_state.get(
+                "active_leadtime_delay_days", 2.9
+            ),
+            "recommendation": (
+                "Lock in 60-day futures on CTRM Desk; extend vendor lead times"
+                " in ERP; trigger safety buffer in S&OP."
+            ),
+            "ctrm_hedge_required": True,
+        }
+
+    # Composite Sentiment Executive Card
+    si_score = composite.get("si_composite", -0.38)
+    surge_units = composite.get("demand_surge_units", 118750)
+    lt_days = composite.get("leadtime_delay_days", 2.9)
+    rec_text = composite.get("recommendation", "")
+
+    with st.container(border=True):
+      st.markdown("### 🎯 Composite Market Sentiment Index ($SI$)")
+      c_col1, c_col2, c_col3, c_col4 = st.columns([1.2, 1, 1, 1])
+      with c_col1:
+        st.metric(
+            "Net Sentiment Score",
+            f"{si_score:+.2f}",
+            delta="Moderate Supply Strain",
+            delta_color="inverse",
+        )
+      with c_col2:
+        st.metric("Quantified Demand Surge", f"+{surge_units:,} {term_unit}")
+      with c_col3:
+        st.metric("Lead Time Expansion", f"+{lt_days} Days")
+      with c_col4:
+        ctrm_status = (
+            "🔴 HEDGE REQUIRED"
+            if composite.get("ctrm_hedge_required", True)
+            else "🟢 STABLE"
+        )
+        st.metric("CTRM Risk Status", ctrm_status)
+
+      st.info(f"**Quantified Action Plan**: {rec_text}")
+
+      if st.button(
+          "⚡ Propagate Triangulated Composite Index across Platform",
+          key="btn_propagate_composite",
+      ):
+        st.session_state["si_composite"] = si_score
+        st.session_state["extracted_demand_surge"] = surge_units
+        st.session_state["active_leadtime_delay_days"] = lt_days
+        st.session_state["ctrm_hedge_required"] = composite.get(
+            "ctrm_hedge_required", True
+        )
+        st.session_state["active_risk_signal_title"] = (
+            f"Triangulated Sentiment Index ({si_score:+.2f})"
+        )
+        st.session_state["signal_category"] = "Macro Triangulation Engine"
+
+        st.toast("Propagated Composite Sentiment Engine!", icon="⚡")
+        st.success(
+            f"✅ Loaded **$SI = {si_score:+.2f}$** across S&OP Demand Matching,"
+            f" Lead Time Offsets (+{lt_days}d), and CTRM Desk!"
+        )
 
     st.divider()
 
-    # Robot Signal Stream
-    st.subheader("🤖 Automated Robot Signal Detected")
-    st.warning("⚡ **GEP Supply Chain Volatility Index Alert**")
-    col_r1, col_r2, col_r3 = st.columns([2, 1, 1])
-    with col_r1:
-      st.markdown(
-          "**Summary**: Unrivaled supply chain and procurement expertise + LME"
-          " Copper Inventories Drop to 6-Year Lows Amid Chilean Mine Outages."
-      )
-    with col_r2:
-      st.metric("Volatility Score", "-0.32", delta="+2.1d Lead Time")
-    with col_r3:
-      st.metric("Auto Surge", f"61,800 {term_unit}")
+    # Robot Signal Section
+    gep = robot_data.get("gep_index", {})
+    if gep and gep.get("source"):
+      st.info(f"🤖 **Automated Robot Signal Detected**: {gep.get('source')}")
+      r_col1, r_col2, r_col3 = st.columns([2, 1, 1])
+      with r_col1:
+        st.caption(f"**Summary**: {gep.get('summary', '')[:180]}...")
+      with r_col2:
+        st.metric(
+            "Volatility Score",
+            gep.get("volatility_score", -0.32),
+            delta=f"+{gep.get('leadtime_delay_days', 2.0)}d Lead Time",
+        )
+      with r_col3:
+        robot_units = gep.get("demand_surge_units", 60000)
+        st.metric("Auto Surge", f"{robot_units:,} {term_unit}")
 
-    if st.button("🤖 Ingest Live Robot GEP Signal", key="btn_ingest_robot"):
-      st.session_state["extracted_demand_surge"] = (
-          st.session_state.get("extracted_demand_surge", 102968) + 61800
-      )
-      update_composite_si()
-      st.toast("Ingested GEP signal!", icon="🤖")
+      if st.button(
+          "🤖 Ingest Live Robot GEP Signal", key="btn_ingest_robot_gep"
+      ):
+        st.session_state["extracted_demand_surge"] = robot_units
+        st.session_state["active_risk_signal_title"] = (
+            f"[Robot] {gep.get('source')}"
+        )
+        st.session_state["signal_category"] = "Automated GEP Feed"
+        st.session_state["active_leadtime_delay_days"] = gep.get(
+            "leadtime_delay_days", 2.0
+        )
+        update_composite_si()
+        st.toast("Ingested Live GEP Robot Feed!", icon="🤖")
 
-    st.divider()
+      st.divider()
 
-    # News Stream Section
+    # Domain News Feeds
     st.subheader("📡 Real-Time Web & Macro News Stream")
-    col_n1, col_n2 = st.columns([3, 1])
-    with col_n1:
-      st.selectbox(
-          "Select Commodity / Industry Sector Focus:",
-          [
-              "Non-Ferrous Metals (Copper, Tin, Zinc, Aluminum)",
-              "Energy & Natural Gas (LNG, Crude, Power)",
-              "Agricultural & Soft Commodities",
-          ],
-          key="news_sector_focus",
-      )
-    with col_n2:
-      signal_impact = st.number_input(
-          "Extracted Signal Impact (Units)",
-          value=145000,
-          step=5000,
-          key="news_impact_input",
-      )
-
-    st.selectbox(
-        "Select AI-Scraped Headline Signal:",
-        [
+    NEWS_DOMAINS = {
+        "🧱 Non-Ferrous Metals (Copper, Tin, Zinc, Aluminum)": [
             (
                 "LME Copper Inventories Drop to 6-Year Lows Amid Chilean Mine"
-                " Outages [Impact: +145,000 Units]"
+                " Outages [Impact: 145,000 Units]"
             ),
             (
-                "Red Sea Freight Diverting Around Cape of Good Hope Adding"
-                " 14-Day Delay [Impact: +10,000 Units/day]"
+                "Indonesia Extends Unrefined Tin Export Restrictions; Spot"
+                " Premiums Jump +18% [Impact: 92,000 Units]"
             ),
             (
-                "Smelter Power Rationing in Yunnan Forces 18% Output Reduction"
-                " [Impact: +85,000 Units]"
+                "European Aluminum Smelters Curtail Output Due to Energy"
+                " Surcharges [Impact: 115,000 Units]"
             ),
         ],
-        key="news_headline_select",
-    )
+        "💎 Precious Metals & Rare Earth Elements (REE)": [
+            (
+                "China Imposes Neodymium & Dysprosium Export Licensing Controls"
+                " [Impact: 210,000 Units]"
+            ),
+            (
+                "Platinum & Palladium Surges Threaten Auto-Catalyst Raw Material"
+                " Costs [Impact: 88,000 Units]"
+            ),
+            (
+                "Gold Spot Rally Triggers Hedging Re-evaluations Across"
+                " Electronic Connectors [Impact: 65,000 Units]"
+            ),
+        ],
+        "🧪 Industrial Chemicals & Base Polymers": [
+            (
+                "US Gulf Coast Ethylene Cracker Shutdown Triggers PVC & Resin"
+                " Force Majeure [Impact: 130,000 Units]"
+            ),
+            (
+                "European Ammonia & Nitric Acid Production Cuts Hit Fertilizer"
+                " & Specialty Chem [Impact: 105,000 Units]"
+            ),
+            (
+                "Titanium Dioxide Supply Tightens as Pigment Feedstock Costs"
+                " Escalate [Impact: 75,000 Units]"
+            ),
+        ],
+        "⚡ Essential Semiconductors & High-Tech Hardware": [
+            (
+                "TSMC Packaging Bottleneck Delays Advanced ASIC Deliveries"
+                " [Impact: 175,000 Units]"
+            ),
+            (
+                "Asahi Kasei Resin Shortage Hits Chip Substrate Supply Chain"
+                " [Impact: 110,000 Units]"
+            ),
+            (
+                "Critical Neon Gas Export Restrictions Target European Fabs"
+                " [Impact: 140,000 Units]"
+            ),
+        ],
+        "🛢️ Energy, Power & Petrochemicals": [
+            (
+                "European Natural Gas Spike (+32%) Triggers Smelter Surcharge"
+                " [Impact: 85,000 Units]"
+            ),
+            (
+                "Gulf Coast Refinery Outage Restricts Polymer Feedstock"
+                " [Impact: 95,000 Units]"
+            ),
+            (
+                "Crude Oil Benchmark Breaches $95/bbl Increasing Freight Matrix"
+                " [Impact: 50,000 Units]"
+            ),
+        ],
+        "🚢 Maritime Freight, Ports & Logistics": [
+            (
+                "Red Sea Vessel Diversions Drive +45% FBX Container Index Surge"
+                " [Impact: 130,000 Units]"
+            ),
+            (
+                "US East Coast Port Labor Negotiations Risk Q4 Stocking"
+                " [Impact: 210,000 Units]"
+            ),
+            (
+                "Singapore Transshipment Dwell Time Peaks at 4.8 Days [Impact:"
+                " 80,000 Units]"
+            ),
+        ],
+    }
 
-  # ----------------------------------------------------
-  # TAB 2: EMAIL & EVENT DEBRIEF PARSER (DYNAMIC NLP)
-  # ----------------------------------------------------
+    col_w1, col_w2 = st.columns([2, 1])
+    with col_w1:
+      selected_domain = st.selectbox(
+          "Select Commodity / Industry Sector Focus:",
+          list(NEWS_DOMAINS.keys()),
+          key="nlp_sector_focus",
+      )
+      active_headlines = NEWS_DOMAINS[selected_domain]
+      selected_headline = st.selectbox(
+          "Select AI-Scraped Headline Signal:",
+          active_headlines,
+          key="nlp_web_headline_select",
+      )
+
+    with col_w2:
+      match = re.search(r"\[Impact:\s*([\d,]+)\s*Units\]", selected_headline)
+      extracted_default = (
+          int(match.group(1).replace(",", "")) if match else 85000
+      )
+      web_impact = st.number_input(
+          f"Extracted Signal Impact ({term_unit})",
+          value=extracted_default,
+          step=5000,
+          key="web_signal_units",
+      )
+
+    if st.button("📡 Ingest Scraped Domain News Signal", key="btn_ingest_web"):
+      headline_clean = selected_headline.split("[")[0].strip()
+      domain_label = (
+          selected_domain.split(" ")[1]
+          if len(selected_domain.split(" ")) > 1
+          else "Macro"
+      )
+      st.session_state["extracted_demand_surge"] = web_impact
+      st.session_state["active_risk_signal_title"] = (
+          f"[{domain_label}] {headline_clean}"
+      )
+      st.session_state["signal_category"] = "Live Web Intelligence"
+      update_composite_si()
+      st.toast(
+          f"Ingested '{headline_clean}' ({web_impact:,} {term_unit})", icon="📡"
+      )
+
+  # =========================================================================
+  # TAB 2: EMAIL & EVENT DEBRIEF PARSER
+  # =========================================================================
   with tab2:
-    st.subheader("✉️ Email & Event Debrief Parser")
+    st.subheader("📧 Email & Event Debrief Parser")
     st.caption(
         "Extract unstructured supplier updates, trip reports, and meeting"
-        " debriefs in real time."
+        " debriefs."
     )
 
     default_email = (
@@ -895,11 +1046,10 @@ def render_nlp_sensing(
     raw_text = st.text_area(
         "Paste Raw Supplier Email or Meeting Debrief Text:",
         value=default_email,
-        height=160,
+        height=150,
         key="nlp_email_raw_input",
     )
 
-    # Dynamic parsing call
     if (
         st.button("🔍 Parse Email & Extract Entities", key="btn_parse_email")
         or "parsed_email_data" not in st.session_state
@@ -909,19 +1059,19 @@ def render_nlp_sensing(
     parsed = st.session_state["parsed_email_data"]
 
     st.markdown("#### 📊 Extracted Entity Analysis")
-    col_e1, col_e2, col_e3, col_e4 = st.columns(4)
-    with col_e1:
+    e_col1, e_col2, e_col3, e_col4 = st.columns(4)
+    with e_col1:
       st.metric("Detected Vendor", parsed["vendor"])
-    with col_e2:
+    with e_col2:
       st.metric("Identified Risk Event", parsed["event"])
-    with col_e3:
+    with e_col3:
       st.metric("Est. Lead Time Delay", f"+{parsed['delay_val']:.1f} Days")
-    with col_e4:
+    with e_col4:
       st.metric(
           "Recommended Safety Buffer", f"+{parsed['units_val']:,} {term_unit}"
       )
 
-    st.markdown("**NLP Confidence Score**: `94.2%` | **Sentiment**: `-0.68`")
+    st.caption("**NLP Confidence Score**: `94.2%` | **Sentiment Score**: `-0.68`")
 
     if st.button(
         "⚡ Ingest Parsed Email Intelligence into Live S&OP Engine",
@@ -935,18 +1085,12 @@ def render_nlp_sensing(
           st.session_state.get("active_leadtime_delay_days", 2.5)
           + parsed["delay_val"]
       )
-
       update_composite_si()
+      st.toast("Parsed email injected into live S&OP engine!", icon="✉️")
 
-      st.toast("Parsed email signal injected into live plan!", icon="✉️")
-      st.success(
-          f"✅ Live S&OP engine updated with **+{parsed['units_val']:,}"
-          f" {term_unit}** and **+{parsed['delay_val']:.1f}d lead time**!"
-      )
-
-  # ----------------------------------------------------
+  # =========================================================================
   # TAB 3: FREIGHT, WEATHER & BLACK SWAN FEEDS
-  # ----------------------------------------------------
+  # =========================================================================
   with tab3:
     st.subheader("⚓ Freight, Weather & Black Swan Feeds")
     st.caption(
@@ -954,26 +1098,25 @@ def render_nlp_sensing(
         " disruptions."
     )
 
-    col_w1, col_w2, col_w3 = st.columns(3)
-    with col_w1:
-      st.metric("Red Sea Canal Bottleneck Index", "HIGH RISK", delta="+42% Dwell")
-    with col_w2:
+    w_col1, w_col2, w_col3 = st.columns(3)
+    with w_col1:
+      st.metric("Red Sea Bottleneck Index", "HIGH RISK", delta="+42% Dwell")
+    with w_col2:
       st.metric(
-          "Panama Canal Water Level Draft",
+          "Panama Canal Water Draft",
           "44.0 ft (Restricted)",
           delta="-2.5 ft vs Avg",
       )
-    with col_w3:
+    with w_col3:
       st.metric(
-          "Global Maritime Freight Rate Index",
+          "Global Maritime Freight Index",
           "$3,850 / TEU",
           delta="+18.4% WoW",
       )
 
     st.divider()
-
     st.markdown("#### 🌍 Live Anomaly Feed Alerts")
-    feed_data = pd.DataFrame([
+    feed_df = pd.DataFrame([
         {
             "Region / Corridor": "Suez / Red Sea Transit",
             "Disruption Type": "Geopolitical Rerouting",
@@ -996,7 +1139,7 @@ def render_nlp_sensing(
             "Cost Impact": "+12% Inland Freight",
         },
     ])
-    st.dataframe(feed_data, use_container_width=True)
+    st.dataframe(feed_df, use_container_width=True)
 
     if st.button(
         "⚡ Ingest Freight & Weather Signals into Logistics Engine",
@@ -1005,15 +1148,12 @@ def render_nlp_sensing(
       st.session_state["active_leadtime_delay_days"] = (
           st.session_state.get("active_leadtime_delay_days", 2.5) + 10.0
       )
-
       update_composite_si()
-
       st.toast("Applied freight & climate delays to GIS network!", icon="⚓")
-      st.success("✅ Added +10.0 days transit lag across Suez corridors.")
 
 
-# Alias to match navigation router
-render_nlp_intelligence = render_nlp_sensing
+# Maintain alias to protect all navigation router calls
+render_nlp_sensing = render_nlp_intelligence
 
 
 def render_physical_procurement(
