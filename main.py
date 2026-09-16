@@ -117,11 +117,7 @@ def get_persona_contracts(persona: str) -> list[dict]:
 def render_flight_simulator(
     persona="Discrete & Heavy Industrial Enterprise", term_unit="Units", **kwargs
 ):
-    """Sandbox Flight Simulator & Stress Lab.
-
-    Executes multi-variable Monte Carlo shock simulations across all upstream
-    states (NLP Sentiment, CTRM Hedging, GIS Logistics, Treasury Cash).
-    """
+    """Sandbox Flight Simulator & Stress Lab."""
     st.title("⚡ Sandbox Flight Simulator & Stress Lab")
     st.caption(f"Active Persona View: **{persona}**")
     st.markdown(
@@ -129,36 +125,44 @@ def render_flight_simulator(
         " reserves, margin stability, and supply chain buffers."
     )
 
-    # 1. READ MACRO SIDEBAR SCENARIO & UPSTREAM STATES
+    # 1. READ SIDEBAR SCENARIO & PARAMS FROM SESSION STATE
     macro_scenario = st.session_state.get(
-        "macro_scenario_select", "Baseline Operations"
+        "sandbox_scenario",
+        st.session_state.get("sb_scenario_select", "Baseline Operations"),
     )
+    sandbox_params = st.session_state.get("sandbox_params", {})
 
-    # Map all sidebar scenario options to specific slider presets
-    if "Red Sea" in macro_scenario:
-        def_vol, def_delay, def_surge = 0.45, 14, 1.35
-    elif "Smelter" in macro_scenario or "Curtailment" in macro_scenario:
-        def_vol, def_delay, def_surge = 0.60, 7, 1.20
-    elif "Black Swan" in macro_scenario or "Spike" in macro_scenario:
-        def_vol, def_delay, def_surge = 0.85, 21, 1.80
+    # Derive baseline or scenario defaults
+    if "Freight" in macro_scenario or "Red Sea" in macro_scenario:
+        def_vol = float(sandbox_params.get("iv_multiplier", 1.4)) * 0.35
+        def_delay = int(sandbox_params.get("transit_delay_days", 8))
+        def_surge = float(sandbox_params.get("volume_multiplier", 1.10)) * 1.2
+    elif "Drought" in macro_scenario or "Crop" in macro_scenario:
+        def_vol = float(sandbox_params.get("iv_multiplier", 1.8)) * 0.35
+        def_delay = int(sandbox_params.get("transit_delay_days", 4))
+        def_surge = float(sandbox_params.get("volume_multiplier", 0.85)) * 1.3
+    elif "Volatility" in macro_scenario or "Black Swan" in macro_scenario:
+        def_vol = float(sandbox_params.get("iv_multiplier", 2.5)) * 0.35
+        def_delay = int(sandbox_params.get("transit_delay_days", 0)) + 14
+        def_surge = float(sandbox_params.get("volume_multiplier", 1.00)) * 1.5
     else:
         def_vol, def_delay, def_surge = 0.15, 2, 1.00
 
-    # Force update slider keys in session state when scenario changes
-    if st.session_state.get("last_macro_scenario") != macro_scenario:
+    # Sync slider keys and clear old calculations when scenario changes
+    if st.session_state.get("last_applied_sandbox_scenario") != macro_scenario:
+        st.session_state["last_applied_sandbox_scenario"] = macro_scenario
+        st.session_state["sim_vol"] = min(1.0, max(0.05, round(def_vol, 2)))
+        st.session_state["sim_lt"] = max(1, min(30, def_delay))
+        st.session_state["sim_dem"] = min(2.5, max(0.8, round(def_surge, 2)))
         st.session_state.pop("mc_results", None)
-        st.session_state["last_macro_scenario"] = macro_scenario
-        st.session_state["sim_vol"] = def_vol
-        st.session_state["sim_lt"] = def_delay
-        st.session_state["sim_dem"] = def_surge
 
-    # Ensure default session state keys exist on initial load
+    # Fallback initialization for first load
     if "sim_vol" not in st.session_state:
-        st.session_state["sim_vol"] = def_vol
+        st.session_state["sim_vol"] = min(1.0, max(0.05, round(def_vol, 2)))
     if "sim_lt" not in st.session_state:
-        st.session_state["sim_lt"] = def_delay
+        st.session_state["sim_lt"] = max(1, min(30, def_delay))
     if "sim_dem" not in st.session_state:
-        st.session_state["sim_dem"] = def_surge
+        st.session_state["sim_dem"] = min(2.5, max(0.8, round(def_surge, 2)))
 
     si_score = st.session_state.get("si_composite", -0.33)
     surge_units = st.session_state.get("extracted_demand_surge", 102968)
