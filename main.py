@@ -703,7 +703,7 @@ def update_composite_si():
 # ==============================================================================
 
 
-def render_nlp_sensing(persona="Discrete & Heavy Industrial Enterprise", term_unit="Units", **kwargs):
+def render_nlp_intelligence(persona="Discrete & Heavy Industrial Enterprise", term_unit="Units", **kwargs):
     """NLP Commercial Sensing & Intelligence Module."""
     st.title("🧠 NLP Commercial Sensing & Intelligence")
     st.caption("Ingest unstructured signals from news feeds, social media, post-trade show emails, and GIS telemetry.")
