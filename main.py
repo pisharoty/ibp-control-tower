@@ -1292,22 +1292,35 @@ def render_nlp_intelligence(persona=None, term_unit="Units", **kwargs):
 render_nlp_sensing = render_nlp_intelligence
 
 
-def render_demand_supply_match(persona=None, term_unit="Units", **kwargs):
+def render_demand_supply_match(
+    persona=None,
+    term_unit="Units",
+    plant1_name=None,
+    plant2_name=None,
+    toller_name=None,
+    *args,
+    **kwargs,
+):
     """Demand/Supply Match, Inventory Netting & MRP Order Offset Module."""
     st.title("⚙️ Demand/Supply Match & Plant Load Balancer")
-    st.caption("Automated inventory netting, MRP batch scheduling, and Dynamic Order Offsets.")
+    st.caption(
+        "Automated inventory netting, MRP batch scheduling, and Dynamic Order"
+        " Offsets."
+    )
 
-    tab1, tab2 = st.tabs([
-        "📊 Netting & MRP Schedule",
-        "⚙️ Dynamic Order Offsets & Production Loads"
-    ])
+    tab1, tab2 = st.tabs(
+        ["📊 Netting & MRP Schedule", "⚙️ Dynamic Order Offsets & Production Loads"]
+    )
 
     with tab1:
         # ---------------------------------------------------------------------
         # STAGE 2: DEMAND/SUPPLY MATCH & ERP ORDER OFFSET
         # ---------------------------------------------------------------------
         st.subheader("⚙️ ERP Planned Order Release (POR) Recalculation")
-        st.caption("Automatically offsets Material Requirements Planning (MRP) order release dates based on upstream physical transit telemetry.")
+        st.caption(
+            "Automatically offsets Material Requirements Planning (MRP) order"
+            " release dates based on upstream physical transit telemetry."
+        )
 
         # Read live transit delay set by render_nlp_intelligence (fallback to 8.5 days)
         delta_lt_transit = st.session_state.get("active_transit_delay", 8.5)
@@ -1315,23 +1328,31 @@ def render_demand_supply_match(persona=None, term_unit="Units", **kwargs):
 
         from robot_feeds import calculate_dynamic_erp_order_offset
 
-        por_offset = calculate_dynamic_erp_order_offset(por_baseline, delta_lt_transit)
+        por_offset = calculate_dynamic_erp_order_offset(
+            por_baseline, delta_lt_transit
+        )
 
         col1, col2, col3 = st.columns(3)
         with col1:
             st.metric("Baseline POR Date", por_baseline)
         with col2:
-            st.metric("Physical Transit Delay (ΔLT)", f"+{delta_lt_transit} Days")
+            st.metric(
+                "Physical Transit Delay (ΔLT)", f"+{delta_lt_transit} Days"
+            )
         with col3:
             st.metric("Shifted ERP Release Date", por_offset)
 
         st.success(
-            f"**ERP Action Triggered:** Planned Order Release automatically shifted backward to **`{por_offset}`** "
-            f"to absorb the **+{delta_lt_transit} day** transit bottleneck without causing stockouts."
+            "**ERP Action Triggered:** Planned Order Release automatically"
+            f" shifted backward to **`{por_offset}`** to absorb the"
+            f" **+{delta_lt_transit} day** transit bottleneck without causing"
+            " stockouts."
         )
 
     with tab2:
-        st.write("Plant load balancing and capacity allocation tables go here.")
+        st.write(
+            "Plant load balancing and capacity allocation tables go here."
+        )
 
 
 def render_physical_procurement(
