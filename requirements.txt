@@ -5,4 +5,4 @@ plotly
 requests
 scipy
 beautifulsoup4
-feedparser
+feedparserhttpx
