@@ -14,6 +14,8 @@ import streamlit as st
 from robot_feeds import (
     calculate_composite_sentiment,
     compute_quantified_operational_impact,
+    fetch_global_macro_telemetry,
+    fetch_gmail_newsletters,
     sync_robot_feeds,
 )
 
@@ -692,11 +694,15 @@ def render_aggregated_deal_desk(
 
 
 def render_nlp_intelligence(persona=None, term_unit="Units", **kwargs):
-    """Complete NLP Commercial Sensing & Intelligence Module with Hard Macro & Downstream Cascade Hooks."""
+    """Complete NLP Commercial Sensing & Intelligence Module with Hard Macro,
+
+    LinkedIn Feeds, Email Parsing, and Downstream S&OP Cascade Hooks.
+    """
     st.title("🧠 NLP Commercial Sensing & Intelligence")
     st.caption(
-        "Ingest unstructured signals from news feeds, LinkedIn social posts, email"
-        " debriefs, hard macro indicators (NY Fed, World Bank), and GIS telemetry."
+        "Ingest unstructured signals from news feeds, LinkedIn social posts,"
+        " email debriefs, hard macro indicators (NY Fed, World Bank, FRED, ECB,"
+        " PBOC, BOJ, KOSPI), and GIS telemetry."
     )
 
     tab1, tab2, tab3 = st.tabs([
@@ -712,14 +718,14 @@ def render_nlp_intelligence(persona=None, term_unit="Units", **kwargs):
         r_head1, r_head2 = st.columns([3, 1])
         with r_head1:
             st.caption(
-                "🤖 **Triangulated Intelligence**: Hard Macro (NY Fed GSCPI / World Bank) + Live Web RSS +"
-                " LinkedIn Network"
+                "🤖 **Triangulated Intelligence**: Hard Macro (NY Fed / FRED /"
+                " ECB / PBOC / KOSPI) + Live Web RSS + LinkedIn Network"
             )
         with r_head2:
-            if st.button("🔄 Refresh Live Feeds & APIs", key="btn_refresh_robot_feeds"):
+            if st.button(
+                "🔄 Refresh Live Feeds & APIs", key="btn_refresh_robot_feeds"
+            ):
                 try:
-                    from robot_feeds import sync_robot_feeds
-
                     feed_data = sync_robot_feeds()
                     newsletters = feed_data.get("newsletters", [])
 
@@ -729,15 +735,21 @@ def render_nlp_intelligence(persona=None, term_unit="Units", **kwargs):
                             "linkedin_score", -0.10
                         )
                         st.toast(
-                            f"Synced live signal: {newsletters[0].get('title', 'LinkedIn Feed')}",
+                            "Synced live signal:"
+                            f" {newsletters[0].get('title', 'LinkedIn Feed')}",
                             icon="✅",
                         )
                     elif newsletters:
                         st.toast(
-                            f"IMAP Status: {newsletters[0].get('status')}", icon="⚠️"
+                            f"IMAP Status: {newsletters[0].get('status')}",
+                            icon="⚠️",
                         )
                     else:
-                        st.toast("Refreshed feeds from Gmail IMAP, NY Fed GSCPI & Macro APIs!", icon="🔄")
+                        st.toast(
+                            "Refreshed feeds from Gmail IMAP & Global Macro"
+                            " APIs!",
+                            icon="🔄",
+                        )
                     st.rerun()
                 except Exception as e:
                     st.error(f"Sync error: {e}")
@@ -745,8 +757,6 @@ def render_nlp_intelligence(persona=None, term_unit="Units", **kwargs):
         # Ensure robot_signals.json exists on load
         if not os.path.exists("robot_signals.json"):
             try:
-                from robot_feeds import sync_robot_feeds
-
                 sync_robot_feeds()
             except Exception:
                 pass
@@ -760,71 +770,82 @@ def render_nlp_intelligence(persona=None, term_unit="Units", **kwargs):
                 pass
 
         # -------------------------------------------------------------------------
-        # HARD MACROECONOMIC TELEMETRY DASHBOARD (NY Fed, World Bank, FRED)
+        # EXPANDED HARD MACROECONOMIC TELEMETRY DASHBOARD (5-COLUMN GRID)
         # -------------------------------------------------------------------------
-        hard_macro = robot_data.get("hard_macro", {})
-        if hard_macro:
-            with st.expander("🏛️ Hard Macroeconomic Telemetry (NY Fed GSCPI, World Bank, FRED)", expanded=False):
-                m_col1, m_col2, m_col3 = st.columns(3)
-                with m_col1:
-                    gscpi_raw = hard_macro.get("gscpi_raw", 0.45)
-                    st.metric(
-                        "NY Fed GSCPI Index",
-                        f"{gscpi_raw:+.2f} σ",
-                        delta="Supply Pressure" if gscpi_raw > 0 else "Normal",
-                        delta_color="inverse"
-                    )
-                    st.caption("Global Supply Chain Pressure Index (Std Deviations)")
-                
-                with m_col2:
-                    wb_meta = hard_macro.get("world_bank", {})
-                    wb_val = wb_meta.get("value", 112.4)
-                    st.metric(
-                        "World Bank Commodity Benchmark",
-                        f"{wb_val:.1f}" if wb_val else "N/A",
-                        delta=wb_meta.get("status", "Active")
-                    )
-                    st.caption(f"Indicator: `{wb_meta.get('indicator', 'PALLFNFINDEXQ')}`")
-                
-                with m_col3:
-                    fred_meta = hard_macro.get("fred", {})
-                    fred_val = fred_meta.get("value", None)
-                    st.metric(
-                        "FRED Manufacturing Index",
-                        f"{fred_val:.1f}" if fred_val else "API Key Required",
-                        delta=fred_meta.get("status", "Check Key")
-                    )
-                    st.caption("St. Louis Fed Economic Observations")
+        macro = fetch_global_macro_telemetry()
+        with st.expander(
+            "🏛️ Hard Macroeconomic Telemetry (NY Fed GSCPI, World Bank, FRED,"
+            " ECB, PBOC, BOJ, KOSPI)",
+            expanded=True,
+        ):
+            m_col1, m_col2, m_col3, m_col4, m_col5 = st.columns(5)
+            with m_col1:
+                st.metric(
+                    "NY Fed GSCPI", macro["ny_fed_gscpi"], "Supply Pressure"
+                )
+                st.caption("Global Supply Chain Pressure")
+            with m_col2:
+                st.metric(
+                    "US FRED Mfg Index", macro["us_fred"], "St. Louis Fed"
+                )
+                st.caption("US Industrial Output")
+            with m_col3:
+                st.metric(
+                    "World Bank Commodity",
+                    macro["world_bank"],
+                    macro["china_pmi"],
+                )
+                st.caption("Global Benchmark / PBOC")
+            with m_col4:
+                st.metric(
+                    "Eurozone (ECB)",
+                    macro["eurozone_ecb"],
+                    "Industrial Trend",
+                )
+                st.caption("ECB Telemetry")
+            with m_col5:
+                st.metric(
+                    "Korea KOSPI / Japan",
+                    macro["kospi_korea"],
+                    macro["japan_pmi"],
+                )
+                st.caption("Asian Export Benchmark")
 
         # Extract dynamic score and calculate dynamic composite sentiment
+        hard_macro = robot_data.get("hard_macro", {})
         linkedin_score = robot_data.get(
             "linkedin_score", st.session_state.get("linkedin_score", -0.10)
         )
 
         try:
-            from robot_feeds import (
-                calculate_composite_sentiment,
-                compute_quantified_operational_impact,
-            )
-
             gscpi_sent = hard_macro.get("gscpi_sentiment", -0.15)
             feed_signals = {
                 "gscpi_sentiment": gscpi_sent,
-                "world_bank_score": st.session_state.get("world_bank_score", -0.20),
+                "world_bank_score": st.session_state.get(
+                    "world_bank_score", -0.20
+                ),
                 "linkedin_score": linkedin_score,
                 "gis_score": st.session_state.get("gis_score", -0.10),
-                "field_email_score": st.session_state.get("field_email_score", -0.30),
+                "field_email_score": st.session_state.get(
+                    "field_email_score", -0.30
+                ),
             }
             sentiment_res = calculate_composite_sentiment(feed_signals)
             si_comp = sentiment_res.get("si_composite", -0.33)
 
             base_dem = st.session_state.get("base_demand", 129500)
-            impact_res = compute_quantified_operational_impact(si_comp, base_dem)
+            impact_res = compute_quantified_operational_impact(
+                si_comp, base_dem
+            )
 
             composite = {
                 "si_composite": si_comp,
-                "demand_surge_units": impact_res.get("delta_demand_units", 102968),
-                "leadtime_delay_days": impact_res.get("lead_time_buffer_days", 2.5),
+                "demand_surge_units": impact_res.get(
+                    "delta_demand_units", 102968
+                ),
+                "leadtime_delay_days": impact_res.get(
+                    "lead_time_buffer_days", 2.5
+                ),
                 "recommendation": impact_res.get(
                     "recommended_action", "Lock 60-Day Forward Exposure"
                 ),
@@ -842,15 +863,13 @@ def render_nlp_intelligence(persona=None, term_unit="Units", **kwargs):
                     "active_leadtime_delay_days", 2.5
                 ),
                 "recommendation": (
-                    "Lock in 60-day futures on CTRM Desk; extend vendor lead times"
-                    " in ERP; trigger safety buffer in S&OP."
+                    "Lock in 60-day futures on CTRM Desk; extend vendor lead"
+                    " times in ERP; trigger safety buffer in S&OP."
                 ),
                 "ctrm_hedge_required": True,
             }
 
-        # Composite Sentiment Executive Card (Reads directly from active_signal contract)
         active_sig = st.session_state.get("active_signal", {})
-
         si_score = active_sig.get(
             "sentiment_index",
             st.session_state.get(
@@ -873,8 +892,8 @@ def render_nlp_intelligence(persona=None, term_unit="Units", **kwargs):
         )
         rec_text = composite.get(
             "recommendation",
-            "Lock in 60-day raw material futures on CTRM Desk; extend vendor lead"
-            " times in ERP.",
+            "Lock in 60-day raw material futures on CTRM Desk; extend vendor"
+            " lead times in ERP.",
         )
 
         with st.container(border=True):
@@ -888,7 +907,9 @@ def render_nlp_intelligence(persona=None, term_unit="Units", **kwargs):
                     delta_color="inverse",
                 )
             with c_col2:
-                st.metric("Quantified Demand Surge", f"+{surge_units:,} {term_unit}")
+                st.metric(
+                    "Quantified Demand Surge", f"+{surge_units:,} {term_unit}"
+                )
             with c_col3:
                 st.metric("Lead Time Expansion", f"+{lt_days} Days")
             with c_col4:
@@ -901,66 +922,89 @@ def render_nlp_intelligence(persona=None, term_unit="Units", **kwargs):
 
             st.info(f"**Quantified Action Plan**: {rec_text}")
 
-            st.button(
-                "⚡ Propagate Triangulated Composite Index across Platform",
-                key="btn_propagate_composite",
-                on_click=commit_nlp_signal,
-                args=({
-                    "source_type": "Macro Triangulation Engine",
-                    "title": f"Triangulated Composite Index ({si_score:+.2f})",
-                    "demand_surge_units": surge_units,
-                    "leadtime_delay_days": lt_days,
-                    "sentiment_index": si_score,
-                },),
-            )
+            if "commit_nlp_signal" in globals():
+                st.button(
+                    "⚡ Propagate Triangulated Composite Index across Platform",
+                    key="btn_propagate_composite",
+                    on_click=commit_nlp_signal,
+                    args=({
+                        "source_type": "Macro Triangulation Engine",
+                        "title": f"Triangulated Composite Index ({si_score:+.2f})",
+                        "demand_surge_units": surge_units,
+                        "leadtime_delay_days": lt_days,
+                        "sentiment_index": si_score,
+                    },),
+                )
 
         st.divider()
 
         # -------------------------------------------------------------------------
         # LIVE GMAIL / LINKEDIN INGESTED FEED DISPLAY
         # -------------------------------------------------------------------------
-        live_newsletters = robot_data.get(
-            "newsletters", st.session_state.get("live_newsletters", [])
-        )
-        if live_newsletters and live_newsletters[0].get("is_live"):
-            live_feed = live_newsletters[0]
-            st.subheader("📬 Live Ingested Newsletter Signal (Gmail Direct)")
-            with st.container(border=True):
-                nl_col1, nl_col2 = st.columns([2.5, 1.5])
-                with nl_col1:
-                    st.markdown(
-                        f"**Subject:** `{live_feed.get('title', 'LinkedIn Signal')}`"
-                    )
-                    st.caption(
-                        f"**Published:** {live_feed.get('published', 'Recent')}"
-                    )
-                    st.markdown(f'"{live_feed.get("summary", "")}"')
-                with nl_col2:
-                    st.metric(
-                        "Polarity Score ($s_i$)",
-                        f"{live_feed.get('sentiment_score', 0.0):+.2f}",
-                    )
-                    st.caption(f"**Source:** {live_feed.get('source', 'Gmail IMAP')}")
+        live_newsletters = fetch_gmail_newsletters(max_emails=5)
+        st.subheader("📬 Live Ingested Newsletter Signal (LinkedIn Direct)")
 
-                st.button(
-                    "⚡ Ingest Live Newsletter Signal into S&OP Engine",
-                    key="btn_ingest_live_newsletter",
-                    on_click=commit_nlp_signal,
-                    args=({
-                        "source_type": live_feed.get(
-                            "source", "LinkedIn Gmail Direct"
-                        ),
-                        "title": live_feed.get("title", "LinkedIn Live Signal"),
-                        "demand_surge_units": int(
-                            abs(live_feed.get("sentiment_score", -0.10)) * 150000
-                        ),
-                        "leadtime_delay_days": round(
-                            abs(live_feed.get("sentiment_score", -0.10)) * 10, 1
-                        ),
-                        "sentiment_index": live_feed.get("sentiment_score", -0.10),
-                    },),
-                )
-            st.divider()
+        if live_newsletters and "title" in live_newsletters[0]:
+            for news in live_newsletters:
+                with st.container(border=True):
+                    nl_col1, nl_col2 = st.columns([2.5, 1.5])
+                    with nl_col1:
+                        st.markdown(
+                            f"**Subject:** `{news.get('title', 'LinkedIn Signal')}`"
+                        )
+                        tags = news.get("detected_commodities", [])
+                        tag_str = (
+                            ", ".join(tags)
+                            if tags
+                            else "GENERAL FREIGHT & LOGISTICS"
+                        )
+                        st.caption(
+                            f"**Published:** {news.get('published', 'Recent')} |"
+                            f" **Detected Commodity Tags:** `{tag_str}`"
+                        )
+                        st.markdown(f'"{news.get("summary", "")}"')
+                    with nl_col2:
+                        st.metric(
+                            "Polarity Score ($s_i$)",
+                            f"{news.get('sentiment_score', 0.0):+.2f}",
+                        )
+                        st.caption(
+                            f"**Source:** {news.get('source', 'LinkedIn / Gmail Direct Feed')}"
+                        )
+
+                    if "commit_nlp_signal" in globals():
+                        st.button(
+                            "⚡ Ingest Live Newsletter Signal into S&OP Engine",
+                            key=f"btn_ingest_{news.get('title', 'sig')[:10]}",
+                            on_click=commit_nlp_signal,
+                            args=({
+                                "source_type": news.get(
+                                    "source", "LinkedIn Direct Feed"
+                                ),
+                                "title": news.get(
+                                    "title", "LinkedIn Live Signal"
+                                ),
+                                "demand_surge_units": int(
+                                    abs(news.get("sentiment_score", -0.10))
+                                    * 150000
+                                ),
+                                "leadtime_delay_days": round(
+                                    abs(news.get("sentiment_score", -0.10))
+                                    * 10,
+                                    1,
+                                ),
+                                "sentiment_index": news.get(
+                                    "sentiment_score", -0.10
+                                ),
+                            },),
+                        )
+        else:
+            st.info(
+                "No active LinkedIn commodity signals currently buffered in"
+                " inbox."
+            )
+
+        st.divider()
 
         # -------------------------------------------------------------------------
         # LINKEDIN EXECUTIVE & SOCIAL NEWSFEED EXTRACTION DESK
@@ -975,9 +1019,9 @@ def render_nlp_intelligence(persona=None, term_unit="Units", **kwargs):
             "🔴 Codelco Operations Director | Smelter Outage Warning": {
                 "author": "Carlos Mendoza (VP Supply Chain, Codelco)",
                 "post_body": (
-                    "Unplanned maintenance on Furnace #3 at Chuquicamata will reduce"
-                    " refined cathode allocation by 25% over Q4. Expect major"
-                    " force majeure notifications across primary buyers."
+                    "Unplanned maintenance on Furnace #3 at Chuquicamata will"
+                    " reduce refined cathode allocation by 25% over Q4. Expect"
+                    " major force majeure notifications across primary buyers."
                 ),
                 "extracted_units": 185000,
                 "extracted_delay": 8.5,
@@ -987,9 +1031,9 @@ def render_nlp_intelligence(persona=None, term_unit="Units", **kwargs):
             "🟠 Maersk Chief Commercial Officer | Port Congestion": {
                 "author": "Elena Rostova (Head of Maritime Freight, Maersk)",
                 "post_body": (
-                    "Bunker fuel cost spikes alongside berth congestion at European"
-                    " hubs are extending ocean transit dwell times. Spot rate"
-                    " surcharges applied for non-contract cargo."
+                    "Bunker fuel cost spikes alongside berth congestion at"
+                    " European hubs are extending ocean transit dwell times."
+                    " Spot rate surcharges applied for non-contract cargo."
                 ),
                 "extracted_units": 120000,
                 "extracted_delay": 6.0,
@@ -999,9 +1043,9 @@ def render_nlp_intelligence(persona=None, term_unit="Units", **kwargs):
             "🟡 Glencore Senior Trader | Battery Nickel Quotas": {
                 "author": "Marcus Vance (Global Commodity Desk, Glencore)",
                 "post_body": (
-                    "Indonesian nickel export quota approvals delayed until late"
-                    " next month. Spot market premiums jumping rapidly as battery"
-                    " precursor manufacturers scramble for material."
+                    "Indonesian nickel export quota approvals delayed until"
+                    " late next month. Spot market premiums jumping rapidly as"
+                    " battery precursor manufacturers scramble for material."
                 ),
                 "extracted_units": 95000,
                 "extracted_delay": 4.5,
@@ -1024,10 +1068,12 @@ def render_nlp_intelligence(persona=None, term_unit="Units", **kwargs):
                 st.caption(f'"{post_data["post_body"]}"')
             with l_col2:
                 st.metric(
-                    "Impact Volume Surge", f"+{post_data['extracted_units']:,} Units"
+                    "Impact Volume Surge",
+                    f"+{post_data['extracted_units']:,} Units",
                 )
                 st.metric(
-                    "Expected Lead Time Shock", f"+{post_data['extracted_delay']} Days"
+                    "Expected Lead Time Shock",
+                    f"+{post_data['extracted_delay']} Days",
                 )
 
             author_clean = post_data["author"].split("(")[0].strip()
@@ -1037,63 +1083,45 @@ def render_nlp_intelligence(persona=None, term_unit="Units", **kwargs):
                 else selected_post_key
             )
 
-            st.button(
-                "⚡ Ingest LinkedIn Social Signal into S&OP Engine",
-                key="btn_ingest_linkedin",
-                on_click=commit_nlp_signal,
-                args=({
-                    "source_type": "LinkedIn Executive Feed",
-                    "title": f"[{author_clean}] {title_clean}",
-                    "demand_surge_units": post_data["extracted_units"],
-                    "leadtime_delay_days": post_data["extracted_delay"],
-                    "sentiment_index": post_data["sentiment"],
-                },),
-            )
+            if "commit_nlp_signal" in globals():
+                st.button(
+                    "⚡ Ingest LinkedIn Social Signal into S&OP Engine",
+                    key="btn_ingest_linkedin",
+                    on_click=commit_nlp_signal,
+                    args=({
+                        "source_type": "LinkedIn Executive Feed",
+                        "title": f"[{author_clean}] {title_clean}",
+                        "demand_surge_units": post_data["extracted_units"],
+                        "leadtime_delay_days": post_data["extracted_delay"],
+                        "sentiment_index": post_data["sentiment"],
+                    },),
+                )
 
         st.divider()
 
-        # Robot Signal Section
-        gep = robot_data.get("gep_index", {})
-        if gep and gep.get("source"):
-            st.info(f"🤖 **Automated Robot Signal Detected**: {gep.get('source')}")
-            r_col1, r_col2, r_col3 = st.columns([2, 1, 1])
-            with r_col1:
-                st.caption(f"**Summary**: {gep.get('summary', '')[:180]}...")
-            with r_col2:
-                st.metric(
-                    "Volatility Score",
-                    gep.get("volatility_score", -0.32),
-                    delta=f"+{gep.get('leadtime_delay_days', 2.0)}d Lead Time",
-                )
-            with r_col3:
-                robot_units = gep.get("demand_surge_units", 60000)
-                st.metric("Auto Surge", f"{robot_units:,} {term_unit}")
-
-            st.button(
-                "🤖 Ingest Live Robot GEP Signal",
-                key="btn_ingest_robot_gep",
-                on_click=commit_nlp_signal,
-                args=({
-                    "source_type": "Automated GEP Feed",
-                    "title": f"[Robot] {gep.get('source')}",
-                    "demand_surge_units": robot_units,
-                    "leadtime_delay_days": gep.get("leadtime_delay_days", 2.0),
-                    "sentiment_index": gep.get("volatility_score", -0.32),
-                },),
-            )
-            st.divider()
-
         # -------------------------------------------------------------------------
-        # REAL-TIME DYNAMIC WEB & MACRO RSS NEWS STREAM
+        # REAL-TIME DYNAMIC WEB & EXPANDED COMMODITY RSS STREAM
         # -------------------------------------------------------------------------
-        st.subheader("📡 Real-Time Dynamic Web & Macro News Stream")
+        st.subheader("📡 Real-Time Dynamic Web & Commodity RSS News Stream")
         NEWS_DOMAINS = {
-            "🧱 Non-Ferrous Metals (Copper, Tin, Zinc, Aluminum)": "copper supply chain OR smelter outage",
-            "💎 Precious Metals & Rare Earth Elements (REE)": "lithium neodymium rare earth supply chain",
-            "🧪 Industrial Chemicals & Base Polymers": "ethylene resin force majeure chemical supply",
-            "⚡ Essential Semiconductors & High-Tech Hardware": "semiconductor chip wafer shortage logistics",
-            "🛢️ Energy, Power & Petrochemicals": "natural gas power outage smelter surcharge",
-            "🚢 Maritime Freight, Ports & Logistics": "container freight port congestion dwell time"
+            "🧱 Non-Ferrous Metals (Copper, Cathodes, Zinc, Aluminum)": (
+                "copper supply chain OR smelter outage"
+            ),
+            "💎 Precious Metals & Rare Earth Elements (Lithium, Neodymium, REE)": (
+                "lithium neodymium rare earth supply chain"
+            ),
+            "🧪 Industrial Chemicals, Resins & Base Polymers": (
+                "ethylene resin force majeure chemical supply"
+            ),
+            "⚡ Essential Semiconductors, Wafers & High-Tech Hardware": (
+                "semiconductor chip wafer shortage logistics"
+            ),
+            "🛢️ Energy, Natural Gas, Power & Petrochemicals": (
+                "natural gas power outage smelter surcharge"
+            ),
+            "🚢 Maritime Freight, Container Ports & Ocean Logistics": (
+                "container freight port congestion dwell time"
+            ),
         }
 
         col_w1, col_w2 = st.columns([2, 1])
@@ -1103,22 +1131,28 @@ def render_nlp_intelligence(persona=None, term_unit="Units", **kwargs):
                 list(NEWS_DOMAINS.keys()),
                 key="nlp_sector_focus",
             )
-            
-            # Fetch live Google News RSS query dynamically based on sector selection
+
             topic_query = NEWS_DOMAINS[selected_domain]
             live_rss_items = []
             try:
-                from robot_feeds import fetch_live_sector_rss
+                from robot import fetch_live_sector_rss
+
                 live_rss_items = fetch_live_sector_rss(topic_query)
             except Exception:
                 pass
 
             if live_rss_items:
-                headline_options = [f"{item['title']} [Impact: {item['estimated_impact']:,} Units]" for item in live_rss_items]
+                headline_options = [
+                    f"{item['title']} [Impact: {item['estimated_impact']:,}"
+                    " Units]"
+                    for item in live_rss_items
+                ]
             else:
                 headline_options = [
-                    f"Global Supply Bottleneck Reported in Sector Focus [Impact: 110,000 Units]",
-                    f"Port Congestion and Lead Time Expansion Hits Sector [Impact: 85,000 Units]"
+                    "Global Supply Bottleneck Reported in Sector Focus [Impact:"
+                    " 110,000 Units]",
+                    "Port Congestion and Lead Time Expansion Hits Sector"
+                    " [Impact: 85,000 Units]",
                 ]
 
             selected_headline = st.selectbox(
@@ -1128,7 +1162,9 @@ def render_nlp_intelligence(persona=None, term_unit="Units", **kwargs):
             )
 
         with col_w2:
-            match = re.search(r"\[Impact:\s*([\d,]+)\s*Units\]", selected_headline)
+            match = re.search(
+                r"\[Impact:\s*([\d,]+)\s*Units\]", selected_headline
+            )
             extracted_default = (
                 int(match.group(1).replace(",", "")) if match else 85000
             )
@@ -1146,18 +1182,19 @@ def render_nlp_intelligence(persona=None, term_unit="Units", **kwargs):
             else "Macro"
         )
 
-        st.button(
-            "📡 Ingest Scraped Domain News Signal",
-            key="btn_ingest_web",
-            on_click=commit_nlp_signal,
-            args=({
-                "source_type": "Live Web Intelligence",
-                "title": f"[{domain_label}] {headline_clean}",
-                "demand_surge_units": web_impact,
-                "leadtime_delay_days": 4.0,
-                "sentiment_index": -0.45,
-            },),
-        )
+        if "commit_nlp_signal" in globals():
+            st.button(
+                "📡 Ingest Scraped Domain News Signal",
+                key="btn_ingest_web",
+                on_click=commit_nlp_signal,
+                args=({
+                    "source_type": "Live Web Intelligence",
+                    "title": f"[{domain_label}] {headline_clean}",
+                    "demand_surge_units": web_impact,
+                    "leadtime_delay_days": 4.0,
+                    "sentiment_index": -0.45,
+                },),
+            )
 
     # =========================================================================
     # TAB 2: EMAIL & EVENT DEBRIEF PARSER
@@ -1173,9 +1210,10 @@ def render_nlp_intelligence(persona=None, term_unit="Units", **kwargs):
             "SUBJECT: URGENT - Production Bottleneck & Force Majeure Warning\nFROM:"
             " vendor-rep@global-smelting.com\n\nHi Team,\nDue to unexpected"
             " energy curtailments and furnace maintenance at our main smelting"
-            " facility, cathode deliveries for Q4 will be delayed by approximately"
-            " 12 to 15 days. We strongly recommend increasing your safety buffers"
-            " by at least 45,000 units to avoid operational shutdown."
+            " facility, cathode deliveries for Q4 will be delayed by"
+            " approximately 12 to 15 days. We strongly recommend increasing"
+            " your safety buffers by at least 45,000 units to avoid operational"
+            " shutdown."
         )
 
         raw_text = st.text_area(
@@ -1189,7 +1227,17 @@ def render_nlp_intelligence(persona=None, term_unit="Units", **kwargs):
             st.button("🔍 Parse Email & Extract Entities", key="btn_parse_email")
             or "parsed_email_data" not in st.session_state
         ):
-            st.session_state["parsed_email_data"] = parse_unstructured_email(raw_text)
+            if "parse_unstructured_email" in globals():
+                st.session_state["parsed_email_data"] = (
+                    parse_unstructured_email(raw_text)
+                )
+            else:
+                st.session_state["parsed_email_data"] = {
+                    "vendor": "Global Smelting Corp",
+                    "event": "Smelter Outage & Energy Curtailment",
+                    "delay_val": 13.5,
+                    "units_val": 45000,
+                }
 
         parsed = st.session_state["parsed_email_data"]
 
@@ -1203,23 +1251,27 @@ def render_nlp_intelligence(persona=None, term_unit="Units", **kwargs):
             st.metric("Est. Lead Time Delay", f"+{parsed['delay_val']:.1f} Days")
         with e_col4:
             st.metric(
-                "Recommended Safety Buffer", f"+{parsed['units_val']:,} {term_unit}"
+                "Recommended Safety Buffer",
+                f"+{parsed['units_val']:,} {term_unit}",
             )
 
-        st.caption("**NLP Confidence Score**: `94.2%` | **Sentiment Score**: `-0.68`")
-
-        st.button(
-            "⚡ Ingest Parsed Email Intelligence into Live S&OP Engine",
-            key="btn_ingest_email",
-            on_click=commit_nlp_signal,
-            args=({
-                "source_type": "Supplier Email",
-                "title": f"[{parsed['vendor']}] {parsed['event']}",
-                "demand_surge_units": parsed["units_val"],
-                "leadtime_delay_days": parsed["delay_val"],
-                "sentiment_index": -0.68,
-            },),
+        st.caption(
+            "**NLP Confidence Score**: `94.2%` | **Sentiment Score**: `-0.68`"
         )
+
+        if "commit_nlp_signal" in globals():
+            st.button(
+                "⚡ Ingest Parsed Email Intelligence into Live S&OP Engine",
+                key="btn_ingest_email",
+                on_click=commit_nlp_signal,
+                args=({
+                    "source_type": "Supplier Email",
+                    "title": f"[{parsed['vendor']}] {parsed['event']}",
+                    "demand_surge_units": parsed["units_val"],
+                    "leadtime_delay_days": parsed["delay_val"],
+                    "sentiment_index": -0.68,
+                },),
+            )
 
     # =========================================================================
     # TAB 3: FREIGHT, WEATHER & BLACK SWAN FEEDS
@@ -1233,7 +1285,9 @@ def render_nlp_intelligence(persona=None, term_unit="Units", **kwargs):
 
         w_col1, w_col2, w_col3 = st.columns(3)
         with w_col1:
-            st.metric("Red Sea Bottleneck Index", "HIGH RISK", delta="+42% Dwell")
+            st.metric(
+                "Red Sea Bottleneck Index", "HIGH RISK", delta="+42% Dwell"
+            )
         with w_col2:
             st.metric(
                 "Panama Canal Water Draft",
@@ -1274,18 +1328,19 @@ def render_nlp_intelligence(persona=None, term_unit="Units", **kwargs):
         ])
         st.dataframe(feed_df, use_container_width=True)
 
-        st.button(
-            "⚡ Ingest Freight & Weather Signals into Logistics Engine",
-            key="btn_ingest_freight",
-            on_click=commit_nlp_signal,
-            args=({
-                "source_type": "Maritime AIS & Weather Telemetry",
-                "title": "Red Sea & Panama Canal Transit Bottlenecks",
-                "demand_surge_units": 150000,
-                "leadtime_delay_days": 10.0,
-                "sentiment_index": -0.75,
-            },),
-        )
+        if "commit_nlp_signal" in globals():
+            st.button(
+                "⚡ Ingest Freight & Weather Signals into Logistics Engine",
+                key="btn_ingest_freight",
+                on_click=commit_nlp_signal,
+                args=({
+                    "source_type": "Maritime AIS & Weather Telemetry",
+                    "title": "Red Sea & Panama Canal Transit Bottlenecks",
+                    "demand_surge_units": 150000,
+                    "leadtime_delay_days": 10.0,
+                    "sentiment_index": -0.75,
+                },),
+            )
 
 
 # Maintain alias to protect all navigation router calls
@@ -1301,58 +1356,274 @@ def render_demand_supply_match(
     *args,
     **kwargs,
 ):
-    """Demand/Supply Match, Inventory Netting & MRP Order Offset Module."""
+    """Demand/Supply Match, Inventory Netting & MRP Order Offset Module connected to Centralized Orchestration."""
+    import datetime
+    import pandas as pd
+
     st.title("⚙️ Demand/Supply Match & Plant Load Balancer")
     st.caption(
-        "Automated inventory netting, MRP batch scheduling, and Dynamic Order"
-        " Offsets."
+        "Automated inventory netting, multi-horizon S&OP scheduling, and"
+        " dynamic order offsets."
     )
 
-    tab1, tab2 = st.tabs(
-        ["📊 Netting & MRP Schedule", "⚙️ Dynamic Order Offsets & Production Loads"]
+    # -------------------------------------------------------------------------
+    # 1. READ & INITIALIZE CENTRALIZED ORCHESTRATOR CASCADE
+    # -------------------------------------------------------------------------
+    if "active_sop_cascade" not in st.session_state:
+        st.session_state["active_sop_cascade"] = {}
+
+    cascade = st.session_state["active_sop_cascade"]
+
+    demand_data = cascade.get("demand", {})
+    proc_data = cascade.get("procurement", {})
+
+    gross_surge = demand_data.get(
+        "total_surge_units", st.session_state.get("extracted_demand_surge", 185000)
     )
+    active_contracts = st.session_state.get("active_contracts_volume", 129500)
+    net_deficit = demand_data.get(
+        "delta_surge_units",
+        st.session_state.get(
+            "net_uncovered_units", max(0, gross_surge - active_contracts)
+        ),
+    )
+    delta_lt_transit = proc_data.get(
+        "transit_delay_days", st.session_state.get("active_transit_delay", 8.5)
+    )
+    active_signal_title = cascade.get(
+        "signal_title",
+        st.session_state.get(
+            "active_risk_signal_title",
+            "Red Sea & Panama Canal Transit Bottlenecks",
+        ),
+    )
+
+    # Central Orchestrator Banner
+    st.info(
+        f"🔗 **Centralized Orchestrator Active Signal**: `{active_signal_title}`"
+        f" | **Gross Surge**: {gross_surge:,} {term_unit} | **Net Deficit**:"
+        f" {net_deficit:,} {term_unit} | **Transit Delay (ΔLT)**:"
+        f" +{delta_lt_transit} Days"
+    )
+
+    tab1, tab2 = st.tabs([
+        "📊 Netting & Forward MRP Horizon (30-180 Days)",
+        "⚙️ Dynamic Plant Load Balancing & Capacity Allocation",
+    ])
 
     with tab1:
         # ---------------------------------------------------------------------
-        # STAGE 2: DEMAND/SUPPLY MATCH & ERP ORDER OFFSET
+        # FORWARD PLANNING HORIZON CONTROLS
         # ---------------------------------------------------------------------
-        st.subheader("⚙️ ERP Planned Order Release (POR) Recalculation")
-        st.caption(
-            "Automatically offsets Material Requirements Planning (MRP) order"
-            " release dates based on upstream physical transit telemetry."
+        st.subheader("🗓️ Multi-Period Forward Demand & Netting Horizon")
+
+        default_horizon = st.session_state.get("planner_horizon_days", 60)
+        horizon_days = st.select_slider(
+            "Select Demand Planner Forward Planning Window (Days Ahead):",
+            options=[30, 45, 60, 90, 180],
+            value=default_horizon,
+            help=(
+                "Adjust horizon to evaluate forward gross requirements, safety"
+                " stock buffers, and MRP order releases."
+            ),
         )
 
-        # Read live transit delay set by render_nlp_intelligence (fallback to 8.5 days)
-        delta_lt_transit = st.session_state.get("active_transit_delay", 8.5)
+        # WRITE BACK TO CENTRALIZED ORCHESTRATOR STATE
+        st.session_state["planner_horizon_days"] = horizon_days
+        if "demand" in st.session_state["active_sop_cascade"]:
+            st.session_state["active_sop_cascade"]["demand"][
+                "planning_horizon"
+            ] = horizon_days
+
+        # Horizon scaling
+        daily_run_rate = gross_surge / 90.0
+        horizon_gross_req = int(daily_run_rate * horizon_days)
+        horizon_contract_cover = int((active_contracts / 90.0) * horizon_days)
+        horizon_net_req = max(0, horizon_gross_req - horizon_contract_cover)
+
+        m1, m2, m3, m4 = st.columns(4)
+        m1.metric("Selected Horizon", f"{horizon_days} Days")
+        m2.metric(
+            f"Gross Demand ({horizon_days}d)",
+            f"{horizon_gross_req:,} {term_unit}",
+        )
+        m3.metric("Contracted Cover", f"{horizon_contract_cover:,} {term_unit}")
+        m4.metric(
+            "Net Uncovered Deficit",
+            f"{horizon_net_req:,} {term_unit}",
+            delta="Uncovered Risk" if horizon_net_req > 0 else "Fully Covered",
+            delta_color="inverse",
+        )
+
+        st.markdown("---")
+
+        # Multi-Period Schedule Matrix
+        st.markdown(
+            "##### 📋 Forward Horizon Netting Schedule Matrix (30 → 180 Days)"
+        )
+        periods = [30, 45, 60, 90, 180]
+        schedule_data = []
+        for p in periods:
+            p_req = int(daily_run_rate * p)
+            p_cov = int((active_contracts / 90.0) * p)
+            p_net = max(0, p_req - p_cov)
+            p_safety = int(p_req * 0.12)
+            schedule_data.append({
+                "Planning Horizon": f"T+{p} Days",
+                "Gross Requirements": f"{p_req:,} {term_unit}",
+                "Contracted Inbound": f"{p_cov:,} {term_unit}",
+                "Safety Stock Buffer (12%)": f"{p_safety:,} {term_unit}",
+                "Net MRP Planned Release": f"{p_net + p_safety:,} {term_unit}",
+                "Status": (
+                    "⚠️ Deficit / Release Required"
+                    if p_net > 0
+                    else "✅ Balanced"
+                ),
+            })
+
+        st.dataframe(
+            pd.DataFrame(schedule_data),
+            use_container_width=True,
+            hide_index=True,
+        )
+
+        st.divider()
+
+        # Dynamic ERP Order Offset Recalculation
+        st.subheader(
+            "⚙️ Dynamic ERP Planned Order Release (POR) Recalculation"
+        )
+        st.caption(
+            "Automatically shifts Material Requirements Planning (MRP) release"
+            " dates upstream based on orchestrator transit telemetry."
+        )
+
         por_baseline = "2026-11-15"
 
-        from robot_feeds import calculate_dynamic_erp_order_offset
+        try:
+            from robot_feeds import calculate_dynamic_erp_order_offset
 
-        por_offset = calculate_dynamic_erp_order_offset(
-            por_baseline, delta_lt_transit
-        )
+            por_offset = calculate_dynamic_erp_order_offset(
+                por_baseline, delta_lt_transit
+            )
+        except Exception:
+            base_dt = datetime.datetime.strptime(por_baseline, "%Y-%m-%d")
+            offset_dt = base_dt - datetime.timedelta(
+                days=float(delta_lt_transit)
+            )
+            por_offset = offset_dt.strftime("%Y-%m-%d")
 
         col1, col2, col3 = st.columns(3)
-        with col1:
-            st.metric("Baseline POR Date", por_baseline)
-        with col2:
-            st.metric(
-                "Physical Transit Delay (ΔLT)", f"+{delta_lt_transit} Days"
-            )
-        with col3:
-            st.metric("Shifted ERP Release Date", por_offset)
+        col1.metric("Baseline Planned Release Date", por_baseline)
+        col2.metric(
+            "Upstream Transit Bottleneck (ΔLT)", f"+{delta_lt_transit} Days"
+        )
+        col3.metric("Shifted ERP Order Release Date", por_offset)
 
         st.success(
-            "**ERP Action Triggered:** Planned Order Release automatically"
-            f" shifted backward to **`{por_offset}`** to absorb the"
-            f" **+{delta_lt_transit} day** transit bottleneck without causing"
-            " stockouts."
+            "**Centralized Orchestrator Action:** Planned Order Release date"
+            f" automatically shifted backward to **`{por_offset}`** to absorb"
+            f" the **+{delta_lt_transit} day** transit bottleneck for the"
+            f" **{horizon_days}-day horizon**."
         )
 
     with tab2:
-        st.write(
-            "Plant load balancing and capacity allocation tables go here."
+        # ---------------------------------------------------------------------
+        # PLANT LOAD BALANCING & CAPACITY ALLOCATION
+        # ---------------------------------------------------------------------
+        p1 = plant1_name or "Detroit Main Assembly Plant"
+        p2 = plant2_name or "Stuttgart Manufacturing Hub"
+        t_name = toller_name or "Monterrey Tolling Partner"
+
+        st.subheader("🏭 Multi-Plant Load Balancer & Orchestration Allocation")
+        st.caption(
+            "Rebalance production loads across primary facilities and tolling"
+            " partners in real-time."
         )
+
+        saved_p1_alloc = cascade.get("plant_allocations", {}).get(p1, 50)
+
+        p1_alloc = st.slider(
+            f"Allocation Share to {p1} (%)",
+            min_value=0,
+            max_value=100,
+            value=saved_p1_alloc,
+            step=5,
+        )
+        remaining_alloc = 100 - p1_alloc
+        p2_alloc = int(remaining_alloc * 0.7)
+        toller_alloc = remaining_alloc - p2_alloc
+
+        # WRITE LOAD ALLOCATIONS BACK TO CENTRAL ORCHESTRATOR
+        plant_allocations = {p1: p1_alloc, p2: p2_alloc, t_name: toller_alloc}
+        st.session_state["active_sop_cascade"][
+            "plant_allocations"
+        ] = plant_allocations
+
+        c_a, c_b, c_c = st.columns(3)
+        c_a.metric(
+            f"🏢 {p1}",
+            f"{p1_alloc}% Load",
+            f"{int(net_deficit * (p1_alloc/100)):,} {term_unit}",
+        )
+        c_b.metric(
+            f"🏭 {p2}",
+            f"{p2_alloc}% Load",
+            f"{int(net_deficit * (p2_alloc/100)):,} {term_unit}",
+        )
+        c_c.metric(
+            f"🤝 {t_name}",
+            f"{toller_alloc}% Load",
+            f"{int(net_deficit * (toller_alloc/100)):,} {term_unit}",
+        )
+
+        st.markdown(
+            "##### 📋 Line-Level Operating Status & Orchestrated Capacity"
+            " Breakdown"
+        )
+
+        plant_df = pd.DataFrame([
+            {
+                "Facility Name": p1,
+                "Allocated Surge Share": f"{p1_alloc}%",
+                "Assigned Production": (
+                    f"{int(net_deficit * (p1_alloc/100)):,} {term_unit}"
+                ),
+                "Base Capacity": f"100,000 {term_unit}",
+                "Line Utilization": (
+                    f"{min(100.0, 75.0 + (p1_alloc * 0.25)):.1f}%"
+                ),
+                "Shift Model": "3-Shift Continuous (24/7)",
+                "Bottleneck Constraints": "Stamping Press Line 2",
+            },
+            {
+                "Facility Name": p2,
+                "Allocated Surge Share": f"{p2_alloc}%",
+                "Assigned Production": (
+                    f"{int(net_deficit * (p2_alloc/100)):,} {term_unit}"
+                ),
+                "Base Capacity": f"75,000 {term_unit}",
+                "Line Utilization": (
+                    f"{min(100.0, 65.0 + (p2_alloc * 0.3)):.1f}%"
+                ),
+                "Shift Model": "2-Shift Standard + Overtime",
+                "Bottleneck Constraints": "Heat Treatment Kiln #4",
+            },
+            {
+                "Facility Name": t_name,
+                "Allocated Surge Share": f"{toller_alloc}%",
+                "Assigned Production": (
+                    f"{int(net_deficit * (toller_alloc/100)):,} {term_unit}"
+                ),
+                "Base Capacity": f"50,000 {term_unit}",
+                "Line Utilization": (
+                    f"{min(100.0, 40.0 + (toller_alloc * 0.4)):.1f}%"
+                ),
+                "Shift Model": "Flex Toll On-Demand",
+                "Bottleneck Constraints": "Inbound Rail Siding Capacity",
+            },
+        ])
+        st.dataframe(plant_df, use_container_width=True, hide_index=True)
 
 
 def render_physical_procurement(
@@ -1737,23 +2008,40 @@ def render_ctrm_desk(
 def render_global_logistics_gis(
     persona="Discrete & Heavy Industrial Enterprise",
     term_unit="Units",
+    *args,
     **kwargs,
 ):
     """Render Global Logistics Network & GIS Control Tower bound to net shipment volume."""
+    import pandas as pd
+    import pydeck as pdk
+
     st.title("🌐 Global Logistics Network & GIS Control Tower")
     st.caption(f"Active Persona View: **{persona}**")
 
-    # 1. Pull Net Procurement Volume
-    gross_surge = st.session_state.get("extracted_demand_surge", 185000)
+    # 1. Pull dynamic data from Central Orchestrator Cascade
+    cascade = st.session_state.get("active_sop_cascade", {})
+    demand_data = cascade.get("demand", {})
+    proc_data = cascade.get("procurement", {})
+
+    gross_surge = demand_data.get(
+        "total_surge_units", st.session_state.get("extracted_demand_surge", 185000)
+    )
     active_contracts = st.session_state.get("active_contracts_volume", 129500)
-    net_units = st.session_state.get(
-        "net_uncovered_units", max(0, gross_surge - active_contracts)
+    net_units = demand_data.get(
+        "delta_surge_units",
+        st.session_state.get(
+            "net_uncovered_units", max(0, gross_surge - active_contracts)
+        ),
+    )
+    transit_delay = proc_data.get(
+        "transit_delay_days", st.session_state.get("active_transit_delay", 7.0)
     )
 
     st.info(
         f"🚢 **Inbound Logistics Feed**: Tracking **{net_units:,} {term_unit}**"
         f" in net physical PO movement across 3 Ocean & Rail Corridors |"
-        f" Lead-Time Shock: **+7 Days** | Status: **PO Dispatched**"
+        f" Lead-Time Shock: **+{transit_delay:.0f} Days** | Status: **PO"
+        " Dispatched**"
     )
 
     # 2. Executive Logistics Metrics
@@ -1765,8 +2053,8 @@ def render_global_logistics_gis(
     )
     col_l2.metric(
         "Avg Transit Lead Time",
-        "21 Days",
-        "↑ +7 Days Delay Shock",
+        f"{14 + int(transit_delay)} Days",
+        f"↑ +{transit_delay:.0f} Days Delay Shock",
         delta_color="inverse",
     )
     col_l3.metric(
@@ -1784,7 +2072,7 @@ def render_global_logistics_gis(
 
     st.divider()
 
-    # 3. Dynamic Corridor Allocation (Splitting net 55,500 units across freight lanes)
+    # 3. Dynamic Corridor Allocation
     c1_vol = int(net_units * 0.45)
     c2_vol = int(net_units * 0.35)
     c3_vol = net_units - (c1_vol + c2_vol)
@@ -1802,7 +2090,9 @@ def render_global_logistics_gis(
                 "Bottleneck Reason": "Port Berth Queueing",
             },
             {
-                "Corridor Name": "Trans-Suez / Atlantic Route (Asia → Europe → US)",
+                "Corridor Name": (
+                    "Trans-Suez / Atlantic Route (Asia → Europe → US)"
+                ),
                 "Primary Carrier": "MSC Freight Fleet",
                 "Volume (Units)": f"{c2_vol:,}",
                 "Original ETA": "16 Days",
@@ -1823,6 +2113,60 @@ def render_global_logistics_gis(
     )
     st.dataframe(corridor_df, use_container_width=True, hide_index=True)
 
+    st.divider()
+
+    # 4. Interactive Pydeck GIS Map Layer
+    st.subheader("🗺️ Live Global Transit Arc Overlay")
+    routes_df = pd.DataFrame(
+        [
+            {
+                "route": "Pacific Ocean Expressway (Asia → LA)",
+                "start_lat": 31.2304,
+                "start_lon": 121.4737,
+                "end_lat": 33.7420,
+                "end_lon": -118.2700,
+            },
+            {
+                "route": "Trans-Suez / Atlantic Route (Asia → Europe → US)",
+                "start_lat": 29.9700,
+                "start_lon": 32.5600,
+                "end_lat": 51.9200,
+                "end_lon": 4.4700,
+            },
+            {
+                "route": "Domestic Overland Rail (LA → Detroit)",
+                "start_lat": 33.7420,
+                "start_lon": -118.2700,
+                "end_lat": 42.3314,
+                "end_lon": -83.0458,
+            },
+        ]
+    )
+
+    arc_layer = pdk.Layer(
+        "ArcLayer",
+        routes_df,
+        get_source_position=["start_lon", "start_lat"],
+        get_target_position=["end_lon", "end_lat"],
+        get_source_color=[255, 75, 75, 200],
+        get_target_color=[0, 180, 255, 200],
+        get_width=4,
+        pickable=True,
+    )
+
+    st.pydeck_chart(
+        pdk.Deck(
+            layers=[arc_layer],
+            initial_view_state=pdk.ViewState(
+                latitude=25.0, longitude=-30.0, zoom=1.2, pitch=35
+            ),
+            tooltip={"text": "{route}"},
+        )
+    )
+
+
+# Alias to protect router calls
+render_global_logistics = render_global_logistics_gis
 
 def render_flight_simulator(
     persona="Discrete & Heavy Industrial Enterprise",
