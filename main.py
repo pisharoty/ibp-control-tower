@@ -727,25 +727,6 @@ def render_aggregated_deal_desk(
     st.dataframe(pd.DataFrame(deal_records), use_container_width=True)
 
 
-import json
-import os
-import re
-import pandas as pd
-import streamlit as st
-
-# Direct module imports from robot_feed engine
-from robot_feed import (
-    calculate_composite_sentiment,
-    compute_quantified_operational_impact,
-    fetch_baltic_indices,
-    fetch_global_macro_telemetry,
-    fetch_gmail_newsletters,
-    fetch_live_sector_rss,
-    get_freight_telemetry_sync,
-    run_end_to_end_sop_cascade,
-    sync_robot_feeds,
-)
-
 
 def _propagate_signal_to_sop_cascade(signal_data: dict):
     """Helper to commit signal state and trigger end-to-end S&OP cascade execution."""
