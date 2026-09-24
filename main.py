@@ -10,6 +10,7 @@ import numpy as np
 import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
+import pydeck as pdk  # Added for GIS / Global Logistics map layers
 import streamlit as st
 from robot_feeds import (
     calculate_composite_sentiment,
@@ -1690,15 +1691,26 @@ def render_physical_procurement(
     term_unit="Units",
     **kwargs,
 ):
-    """Render Physical Procurement & Master Contract Desk bound to net uncovered volume."""
+    """Render Physical Procurement & Master Contract Desk bound to central S&OP cascade."""
     st.title("📦 Physical Procurement & Master Contract Desk")
     st.caption(f"Active Persona View: **{persona}**")
 
-    # 1. Pull Net Uncovered Deficit
-    gross_surge = st.session_state.get("extracted_demand_surge", 185000)
+    # 1. Pull dynamic state from Central Orchestrator Cascade
+    cascade = st.session_state.get("active_sop_cascade", {})
+    demand_data = cascade.get("demand", {})
+    proc_data = cascade.get("procurement", {})
+    ctrm_data = cascade.get("ctrm", {})
+
+    gross_surge = demand_data.get(
+        "total_surge_units",
+        st.session_state.get("extracted_demand_surge", 241000),
+    )
     active_contracts = st.session_state.get("active_contracts_volume", 129500)
-    net_units = st.session_state.get(
-        "net_uncovered_units", max(0, gross_surge - active_contracts)
+    net_units = demand_data.get(
+        "delta_surge_units",
+        st.session_state.get(
+            "net_uncovered_units", max(0, gross_surge - active_contracts)
+        ),
     )
 
     fix_executed = st.session_state.get("fix_executed", False)
@@ -1706,24 +1718,30 @@ def render_physical_procurement(
         3200.0 if "Merchant" in persona else (45.0 if "FMCG" in persona else 780.0)
     )
 
-    # Calculate net invoice and hedge subsidy
-    hedge_subsidy = (net_units * unit_base_price * 0.042) if fix_executed else 0.0
-    gross_invoice = net_units * (unit_base_price * 1.02)  # Blended spot premium
-    net_outlay = gross_invoice - hedge_subsidy
+    # Calculate net invoice and hedge subsidy dynamically
+    hedge_subsidy = ctrm_data.get(
+        "realized_hedge_cashflow_usd",
+        (net_units * unit_base_price * 0.042) if fix_executed else 0.0,
+    )
+    gross_invoice = proc_data.get(
+        "gross_procurement_cost_usd",
+        net_units * (unit_base_price * 1.02),  # 2.0% Blended spot market premium
+    )
+    net_outlay = max(0.0, gross_invoice - hedge_subsidy)
 
+    # 2. Status Info Banner
     st.info(
-        f"🔗 **Physical Demand Signal Ingested**: Required Net Procurement"
-        f" Volume: **{net_units:,} {term_unit}** (Gross Surge: {gross_surge:,} less"
-        f" Baseline Contracts: {active_contracts:,}) | Financial Hedge Cash"
-        f" Subsidy Available: **${hedge_subsidy:,.2f}**"
+        f"🔗 **Physical Demand Signal Ingested**: Required Net Procurement Volume: **{net_units:,} {term_unit}** "
+        f"(Gross Surge: **{gross_surge:,}** less Baseline Contracts: **{active_contracts:,}**) | "
+        f"Financial Hedge Cash Subsidy Available: **${hedge_subsidy:,.2f}**"
     )
 
-    # 2. Key Procurement Metrics
+    # 3. Key Procurement Metrics
     col_p1, col_p2, col_p3, col_p4 = st.columns(4)
     col_p1.metric(
         "Gross Material Need",
         f"{net_units:,} {term_unit}",
-        f"Uncovered Deficit Only",
+        "Uncovered Deficit Only",
     )
     col_p2.metric(
         "Gross Supplier Invoice",
@@ -1746,10 +1764,9 @@ def render_physical_procurement(
 
     st.divider()
 
-    # 3. Master Contract Sourcing Matrix (Splitting strictly the NET volume)
+    # 4. Master Contract Sourcing Matrix (Splitting strictly the NET volume)
     st.subheader("📋 Master Contract Sourcing Matrix")
 
-    # Allocations based on net deficit requirement
     tier1_vol = int(net_units * 0.60)
     tier2_vol = int(net_units * 0.25)
     spot_vol = net_units - (tier1_vol + tier2_vol)
@@ -1789,18 +1806,39 @@ def render_physical_procurement(
 
     st.divider()
 
-    # 4. Execution Gateway
+    # 5. Physical PO Execution Gateway
     st.subheader("🏭 Physical PO Execution Gateway")
     col_g1, col_g2 = st.columns(2)
     with col_g1:
-        st.selectbox("Primary Delivery Destination", ["Detroit Main Plant", "Munich Precision Stamping"])
-        st.selectbox("Vendor Payment Terms", ["Net 60 Days", "Net 30 Days", "Letter of Credit"])
+        dest = st.selectbox(
+            "Primary Delivery Destination",
+            ["Detroit Main Plant", "Munich Precision Stamping"],
+            key="proc_dest",
+        )
+        terms = st.selectbox(
+            "Vendor Payment Terms",
+            ["Net 60 Days", "Net 30 Days", "Letter of Credit"],
+            key="proc_terms",
+        )
     with col_g2:
-        st.selectbox("Inbound Logistics Mode", ["Standard Multi-Modal Rail & Truck", "Air Freight Expedited"])
-        st.selectbox("Quality Standard", ["ISO 9001 Heavy Industrial", "Automotive IATF 16949"])
+        logistics = st.selectbox(
+            "Inbound Logistics Mode",
+            ["Standard Multi-Modal Rail & Truck", "Air Freight Expedited"],
+            key="proc_logistics",
+        )
+        quality = st.selectbox(
+            "Quality Standard",
+            ["ISO 9001 Heavy Industrial", "Automotive IATF 16949"],
+            key="proc_quality",
+        )
 
-    if st.button("📦 Issue Physical Purchase Orders & Lock Schedules", type="primary"):
-        st.success(f"✅ Physical POs successfully generated for {net_units:,} {term_unit} across 3 supplier tiers.")
+    if st.button("📦 Issue Physical Purchase Orders & Lock Schedules", type="primary", key="btn_issue_pos"):
+        st.session_state["pos_issued"] = True
+        st.toast(f"POs issued for {net_units:,} {term_unit} to {dest}!", icon="✅")
+        st.success(
+            f"✅ **Physical Purchase Orders Issued**: Successfully generated PO batch for **{net_units:,} {term_unit}** "
+            f"routed to **{dest}** under **{terms}** payment terms."
+        )
 
 
 def render_ctrm_desk(
@@ -1808,166 +1846,218 @@ def render_ctrm_desk(
     term_unit="Units",
     **kwargs,
 ):
-    """Render CTRM Commodity Risk & Derivatives Desk with dynamic net exposure execution."""
-    st.title("⚖️ CTRM Derivatives & Commodity Risk Desk")
+    """Render CTRM Event-Driven Hedging Desk with FIX 4.4 Gateway & Synthetic Structurer."""
+    st.title("🛡️ CTRM Event-Driven Hedging Desk")
     st.caption(f"Active Persona View: **{persona}**")
 
-    # 1. Pull Global Session State & Calculate Net Deficit
-    gross_surge = st.session_state.get("extracted_demand_surge", 185000)
-    active_contracts_volume = st.session_state.get(
-        "active_contracts_volume", 129500
-    )
+    # 1. Pull dynamic state from Central Orchestrator Cascade
+    cascade = st.session_state.get("active_sop_cascade", {})
+    demand_data = cascade.get("demand", {})
+    ctrm_data = cascade.get("ctrm", {})
 
-    # Net Uncovered Deficit (Only hedge what isn't already covered by baseline contracts)
-    net_units = st.session_state.get(
-        "net_uncovered_units", max(0, gross_surge - active_contracts_volume)
+    gross_surge = demand_data.get(
+        "total_surge_units",
+        st.session_state.get("extracted_demand_surge", 241000),
+    )
+    active_contracts = st.session_state.get("active_contracts_volume", 129500)
+    net_units = demand_data.get(
+        "delta_surge_units",
+        st.session_state.get(
+            "net_uncovered_units", max(0, gross_surge - active_contracts)
+        ),
     )
 
     sig_title = st.session_state.get(
         "active_risk_signal_title", "Baseline Operations Target"
     )
-    si_score = st.session_state.get("si_composite", -0.33)
+    si_score = st.session_state.get("si_composite", -0.82)
     fix_executed = st.session_state.get("fix_executed", False)
 
-    # Base price setup per persona
+    # Base price per persona
     unit_base_price = (
         3200.0 if "Merchant" in persona else (45.0 if "FMCG" in persona else 780.0)
     )
 
-    # 2. Render Functional Tabs
-    tab_std, tab_synth = st.tabs(
-        [
-            "⚖️ Standard Desk & FIX Execution",
-            "🧪 Synthetic Derivative Builder & Model Lab",
-        ]
+    # 2. Derive Event-Driven CTRM Metrics
+    # Target Hedge Ratio (HR) expands dynamically as sentiment worsens (more negative SI)
+    target_hr = min(0.95, max(0.40, 0.50 - (si_score * 0.35)))
+    required_hedged_vol = int(gross_surge * target_hr)
+    unhedged_shortfall = max(0, required_hedged_vol - active_contracts)
+    risk_margin_buffer = unhedged_shortfall * unit_base_price * 0.08
+    auto_horizon_days = 90 if si_score < -0.5 else (60 if si_score < 0 else 30)
+
+    # 3. Top Banner
+    st.info(
+        f"⚡ **Active Risk Signal Ingested**: Triangulated Sentiment Index (**{si_score:.2f}**) [`{sig_title}`] | "
+        f"**Target Hedge Ratio: {target_hr * 100:.1f}%** | Unhedged Shortfall: **{unhedged_shortfall:,} {term_unit}** | "
+        f"Auto Horizon: **{auto_horizon_days} Days**"
     )
 
-    # --- TAB 1: STANDARD DESK & FIX EXECUTION ---
+    # 4. Top Executive Metrics (Matching FIX 4.4 Gateway View)
+    col_m1, col_m2, col_m3, col_m4 = st.columns(4)
+    col_m1.metric(
+        "Gross Demand Surge",
+        f"{gross_surge:,} {term_unit}",
+        f"+{gross_surge - 200000:,} MT Metal" if "Heavy" in persona else "+Volume Surge",
+    )
+    col_m2.metric(
+        "Target Hedge Ratio (HR)",
+        f"{target_hr * 100:.1f}%",
+        f"+ Sentiment SI ({si_score:.2f})",
+        delta_color="inverse" if si_score < 0 else "normal",
+    )
+    col_m3.metric(
+        "Net Shortfall to Hedge",
+        f"{unhedged_shortfall:,} {term_unit}",
+        f"{target_hr * 100:.0f}% Target Cover Gap",
+        delta_color="inverse",
+    )
+    col_m4.metric(
+        "Required Risk Margin Buffer",
+        f"${risk_margin_buffer:,.2f}",
+        "+23.0% Volatility Load",
+        delta_color="inverse",
+    )
+
+    st.divider()
+
+    # 5. Functional Tabs
+    tab_std, tab_synth = st.tabs([
+        "📊 Standard Desk & FIX Execution",
+        "🧪 Synthetic Derivative Builder & Model Lab",
+    ])
+
+    # --- TAB 1: FIX 4.4 ORDER EXECUTION GATEWAY ---
     with tab_std:
-        st.info(
-            f"🚩 **Active Risk Signal**: `{sig_title}` | Upstream Sentiment **$SI"
-            f" = {si_score:+.2f}$** | Gross Surge: **{gross_surge:,}"
-            f" {term_unit}** | Contracted Baseline: **{active_contracts_volume:,}"
-            f" {term_unit}** | **Net Open Deficit: {net_units:,} {term_unit}**"
+        st.subheader("⚡ FIX 4.4 Order Execution Gateway")
+
+        col_f1, col_f2, col_f3 = st.columns(3)
+        with col_f1:
+            intent = st.selectbox(
+                "Execution Intent",
+                ["Hedge Risk (Cover Shortfall)", "Speculative Delta", "Yield Capture"],
+                key="fix_intent",
+            )
+        with col_f2:
+            time_period = st.selectbox(
+                "Time Period / Expiration",
+                [
+                    f"Auto-Matched ({auto_horizon_days} Days)",
+                    "30 Days",
+                    "60 Days",
+                    "90 Days",
+                    "180 Days",
+                ],
+                key="fix_time_period",
+            )
+        with col_f3:
+            est_premium = st.number_input(
+                "Est. Premium ($/Unit)",
+                value=4.25,
+                step=0.25,
+                key="fix_est_premium",
+            )
+
+        col_g1, col_g2, col_g3 = st.columns(3)
+        with col_g1:
+            order_structure = st.selectbox(
+                "Order Structure",
+                ["Asian Call Collar", "European Swap", "Zero-Cost Collar", "Put Option Floor"],
+                key="fix_order_structure",
+            )
+        with col_g2:
+            exchange = st.selectbox(
+                "Execution Exchange",
+                ["LME (London Metal Exchange)", "CME Group", "NYMEX", "ICE"],
+                key="fix_exchange",
+            )
+        with col_g3:
+            # 1 LME Contract Lot = 25 MT / Units
+            default_lots = max(1, int(unhedged_shortfall / 25)) if unhedged_shortfall > 0 else 285
+            lots = st.number_input(
+                "Lots / Contracts (LME 25 MT)",
+                value=default_lots,
+                step=1,
+                key="fix_lots",
+            )
+
+        total_hedge_volume = lots * 25
+        total_premium_required = total_hedge_volume * est_premium
+
+        st.caption(
+            f"💰 **Total Premium Required**: **${total_premium_required:,.2f}** "
+            f"(Covering **{total_hedge_volume:,} {term_unit}** | Will be debited from Exec S&OP Cash Treasury)"
         )
 
-        # Top Executive Metrics
-        hedged_pct = 85.0 if fix_executed else 15.0
-        open_volume = int(net_units * (1.0 - (hedged_pct / 100.0)))
-        open_exposure_usd = open_volume * unit_base_price
-        mtm_pnl = (
-            (net_units * unit_base_price * 0.042)
-            if fix_executed
-            else (-net_units * unit_base_price * 0.028)
-        )
+        if st.button(
+            "🚀 Execute & Route FIX 4.4 Paper Order",
+            type="primary",
+            key="btn_execute_fix_44",
+            disabled=fix_executed,
+        ):
+            st.session_state["fix_executed"] = True
+            st.session_state["fix_executed_details"] = {
+                "structure": order_structure,
+                "lots": lots,
+                "volume": total_hedge_volume,
+                "premium": total_premium_required,
+                "exchange": exchange,
+            }
 
-        col_m1, col_m2, col_m3, col_m4 = st.columns(4)
-        col_m1.metric(
-            "Net Open Physical Risk",
-            f"{open_volume:,} {term_unit}",
-            f"${open_exposure_usd / 1e6:.2f}M Floating Risk",
-            delta_color="inverse",
-        )
-        col_m2.metric(
-            "Current Benchmark Forward",
-            f"${unit_base_price * 1.03:,.2f}",
-            "+3.0% Volatility Surge",
-        )
-        col_m3.metric(
-            "Net Deficit Hedge Coverage",
-            f"{hedged_pct:.0f}%",
-            "Target: 80% Net Coverage",
-            delta_color="normal" if hedged_pct >= 80 else "inverse",
-        )
-        col_m4.metric(
-            "Mark-to-Market (MtM) P&L",
-            f"${mtm_pnl / 1e6:+.2f}M",
-            "FIX Bound" if fix_executed else "Unhedged Floating Drag",
-            delta_color="normal" if mtm_pnl >= 0 else "inverse",
-        )
+            # Trigger orchestrator cascade update if available
+            if "run_end_to_end_sop_cascade" in globals():
+                st.session_state["active_sop_cascade"] = run_end_to_end_sop_cascade(
+                    base_demand_units=st.session_state.get("base_demand", 200000)
+                )
+
+            st.toast(
+                f"FIX 4.4 Order Routed: {lots} Lots ({total_hedge_volume:,} {term_unit}) via {exchange}.",
+                icon="✅",
+            )
+            st.rerun()
+
+        if fix_executed:
+            st.success(
+                f"🟢 **FIX Protocol Status: EXECUTED & BOUND** — Bound "
+                f"`{total_hedge_volume:,} {term_unit}` via `{exchange}` under Order ID `#FIX-44-LME-99428`."
+            )
+            if st.button("Reset FIX Hedge Position", key="btn_reset_fix"):
+                st.session_state["fix_executed"] = False
+                st.session_state.pop("fix_executed_details", None)
+                st.rerun()
 
         st.divider()
 
-        # FIX Protocol Order Execution Console
-        col_c1, col_c2 = st.columns([1.2, 1])
+        # Active Commodity Contracts & Hedge Book
+        st.subheader("📋 Active Commodity Contracts & Net Hedge Book")
+        hedge_status = "ACTIVE (HEDGED)" if fix_executed else "OPEN (UNCOVERED)"
 
-        with col_c1:
-            st.subheader("⚡ FIX Protocol Order Ticket (Net Hedge Execution)")
-            order_type = st.selectbox(
-                "Order Type",
-                [
-                    "Limit Order (Zero-Cost Collar)",
-                    "Market Sweep (Fixed Forward Swap)",
-                    "Asian Call Option Cap",
-                ],
-            )
-
-            # Default order slider strictly to the Net Uncovered Deficit
-            order_qty = st.slider(
-                f"Hedge Volume ({term_unit}):",
-                min_value=1000,
-                max_value=max(100000, int(net_units * 1.5)),
-                value=int(net_units),
-                step=2500,
-            )
-            limit_price = st.number_input(
-                "Limit Strike / Forward Fixed Price ($)",
-                value=float(unit_base_price * 1.01),
-            )
-
-            if st.button(
-                "🚀 Execute FIX Protocol Hedging Order",
-                type="primary",
-                disabled=fix_executed,
-            ):
-                st.session_state["fix_executed"] = True
-                st.toast(
-                    f"FIX Order Executed: {order_qty:,} {term_unit} @"
-                    f" ${limit_price:,.2f}",
-                    icon="✅",
-                )
-                st.rerun()
-
-            if fix_executed:
-                st.success(
-                    f"🟢 **FIX Protocol Status: EXECUTED & BOUND** — Bound"
-                    f" `{order_qty:,} {term_unit}` under Order ID"
-                    " `#FIX-99428-NYMEX`."
-                )
-                if st.button("Reset FIX Hedge Position"):
-                    st.session_state["fix_executed"] = False
-                    st.rerun()
-
-        with col_c2:
-            st.subheader("📋 Active Commodity Contracts & Net Hedge Book")
-            contracts_df = pd.DataFrame(
-                [
-                    {
-                        "Contract ID": "CT-2026-Q4-01",
-                        "Type": "Baseline Fixed Swap",
-                        "Volume": f"74,000 {term_unit}",
-                        "Strike": f"${unit_base_price:,.2f}",
-                        "Status": "ACTIVE (CONTRACTED)",
-                    },
-                    {
-                        "Contract ID": "CT-2026-Q4-02",
-                        "Type": "Baseline Option Cap",
-                        "Volume": f"55,500 {term_unit}",
-                        "Strike": f"${unit_base_price * 1.05:,.2f}",
-                        "Status": "ACTIVE (CONTRACTED)",
-                    },
-                    {
-                        "Contract ID": "FIX-99428-NYMEX",
-                        "Type": f"Net Hedge ({order_type.split(' ')[0]})",
-                        "Volume": f"{order_qty:,} {term_unit}",
-                        "Strike": f"${limit_price:,.2f}",
-                        "Status": (
-                            "EXECUTED" if fix_executed else "OPEN (UNCOVERED)"
-                        ),
-                    },
-                ]
-            )
-            st.dataframe(contracts_df, use_container_width=True, hide_index=True)
+        contracts_df = pd.DataFrame(
+            [
+                {
+                    "Contract ID": "CT-2026-Q4-01",
+                    "Type": "Baseline Fixed Swap",
+                    "Volume": f"74,000 {term_unit}",
+                    "Strike": f"${unit_base_price:,.2f}",
+                    "Status": "ACTIVE (CONTRACTED)",
+                },
+                {
+                    "Contract ID": "CT-2026-Q4-02",
+                    "Type": "Baseline Option Cap",
+                    "Volume": f"55,500 {term_unit}",
+                    "Strike": f"${unit_base_price * 1.05:,.2f}",
+                    "Status": "ACTIVE (CONTRACTED)",
+                },
+                {
+                    "Contract ID": "FIX-44-LME-99428",
+                    "Type": f"Net Hedge ({order_structure})",
+                    "Volume": f"{total_hedge_volume:,} {term_unit}",
+                    "Strike / Premium": f"${est_premium:.2f} Premium",
+                    "Status": hedge_status,
+                },
+            ]
+        )
+        st.dataframe(contracts_df, use_container_width=True, hide_index=True)
 
     # --- TAB 2: SYNTHETIC DERIVATIVE BUILDER & MODEL LAB ---
     with tab_synth:
@@ -1988,14 +2078,15 @@ def render_ctrm_desk(
                     "Asian Call Option (Average Price)",
                     "3-Way Collar with Knock-Out",
                 ],
+                key="synth_struct_type",
             )
             cap_strike_pct = st.slider(
-                "Cap Strike % (Upper Protection)", 100, 130, 110, 1
+                "Cap Strike % (Upper Protection)", 100, 130, 110, 1, key="synth_cap_pct"
             )
             floor_strike_pct = st.slider(
-                "Floor Strike % (Lower Subsidization)", 70, 100, 90, 1
+                "Floor Strike % (Lower Subsidization)", 70, 100, 90, 1, key="synth_floor_pct"
             )
-            implied_vol = st.slider("Implied Volatility (σ %)", 10, 60, 28, 1)
+            implied_vol = st.slider("Implied Volatility (σ %)", 10, 60, 28, 1, key="synth_vol")
 
             cap_val = unit_base_price * (cap_strike_pct / 100.0)
             floor_val = unit_base_price * (floor_strike_pct / 100.0)
@@ -2063,16 +2154,6 @@ def render_ctrm_desk(
             )
             st.plotly_chart(fig_payoff, use_container_width=True)
 
-
-import json
-import numpy as np
-import pandas as pd
-import plotly.express as px
-import pydeck as pdk
-import streamlit as st
-
-# Direct import from live data engine
-from robot_feeds import run_end_to_end_sop_cascade
 
 
 def render_global_logistics_gis(
