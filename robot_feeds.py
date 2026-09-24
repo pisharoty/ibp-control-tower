@@ -1,3 +1,4 @@
+import asyncio
 from datetime import datetime, timedelta
 import email
 from email.header import decode_header
@@ -9,10 +10,11 @@ import urllib.parse
 import urllib.request
 import xml.etree.ElementTree as ET
 import bs4
+import httpx
 import numpy as np
 
 # ---------------------------------------------------------------------------
-# Focus Sector & Commodity Keywords
+# 1. Focus Sector & Commodity Keywords & Exclusion Filters
 # ---------------------------------------------------------------------------
 SUPPLY_CHAIN_KEYWORDS = [
     "supply chain", "logistics", "freight", "shipping", "container", "port",
@@ -32,10 +34,10 @@ POLITICAL_EXCLUSIONS = [
 
 
 # ---------------------------------------------------------------------------
-# Lazy Runtime Credential Resolution
+# 2. Lazy Runtime Credential & Secret Resolution
 # ---------------------------------------------------------------------------
 def _get_gmail_credentials():
-    """Safely retrieves credentials at runtime without top-level import deadlocks."""
+    """Safely retrieves Gmail credentials at runtime without import deadlocks."""
     user = os.getenv("GMAIL_USER", "pisharoty1@gmail.com")
     app_pass = os.getenv("GMAIL_APP_PASS", "")
 
@@ -51,7 +53,7 @@ def _get_gmail_credentials():
 
 
 def _get_secret(key_name: str, default_val: str = "") -> str:
-    """Helper to fetch optional API keys dynamically."""
+    """Helper to fetch dynamic environment variables or Streamlit secrets."""
     val = os.getenv(key_name, default_val)
     if not val:
         try:
@@ -63,7 +65,7 @@ def _get_secret(key_name: str, default_val: str = "") -> str:
 
 
 # ---------------------------------------------------------------------------
-# Sector Relevance & Dynamic Sentiment Analysis Engine
+# 3. Sector Relevance & Dynamic Sentiment Analysis Engine
 # ---------------------------------------------------------------------------
 def is_supply_chain_relevant(text: str) -> bool:
     """Returns True if content matches SC keywords AND does not contain political noise."""
@@ -71,7 +73,6 @@ def is_supply_chain_relevant(text: str) -> bool:
         return False
     lower_text = text.lower()
 
-    # Reject political and general editorial noise
     if any(noise in lower_text for noise in POLITICAL_EXCLUSIONS):
         return False
 
@@ -114,7 +115,92 @@ def analyze_text_sentiment(text: str) -> float:
 
 
 # ---------------------------------------------------------------------------
-# Specialized Industry Feed Calls (GEP, Baltic Freight, Expeditors)
+# 4. Async Live Freight Ingestion Engine (Sea Freight, Air Freight, Vessel GIS)
+# ---------------------------------------------------------------------------
+async def fetch_live_sea_and_air_telemetry() -> dict:
+    """
+    Fetches real-time ocean and air freight rates and active vessel tracking.
+    Falls back gracefully to baseline metrics if API keys are missing or requests time out.
+    """
+    fbx_key = _get_secret("FBX_API_KEY")
+    tac_key = _get_secret("TAC_API_KEY")
+    p44_token = _get_secret("P44_API_TOKEN")
+
+    ocean_rate = 3850.0  # Baseline $/FEU
+    air_rate = 2.48      # Baseline $/kg
+    active_vessels = []
+    status_flags = []
+
+    async with httpx.AsyncClient(timeout=8.0) as client:
+        # 1. Fetch Ocean Freight Benchmarks (FBX API)
+        if fbx_key:
+            try:
+                resp = await client.get(
+                    "https://api.freightos.com/v1/fbx/index",
+                    headers={"Authorization": f"Bearer {fbx_key}"}
+                )
+                if resp.status_code == 200:
+                    ocean_rate = float(resp.json().get("fbx_global_value", ocean_rate))
+                    status_flags.append("FBX_LIVE")
+            except Exception as e:
+                status_flags.append(f"FBX_FALLBACK ({str(e)})")
+        else:
+            status_flags.append("FBX_SIMULATED")
+
+        # 2. Fetch Air Freight Benchmarks (TAC Index API)
+        if tac_key:
+            try:
+                resp = await client.get(
+                    "https://api.tacindex.com/v1/air/rates",
+                    headers={"X-API-KEY": tac_key}
+                )
+                if resp.status_code == 200:
+                    air_rate = float(resp.json().get("shanghai_chicago_usd_kg", air_rate))
+                    status_flags.append("TAC_LIVE")
+            except Exception as e:
+                status_flags.append(f"TAC_FALLBACK ({str(e)})")
+        else:
+            status_flags.append("TAC_SIMULATED")
+
+        # 3. Fetch Active Vessel/Container Tracking (Project44 API)
+        if p44_token:
+            try:
+                resp = await client.get(
+                    "https://na12.api.project44.com/api/v4/shipments/tracking",
+                    headers={"Authorization": f"Bearer {p44_token}"}
+                )
+                if resp.status_code == 200:
+                    active_vessels = resp.json().get("shipments", [])
+                    status_flags.append("P44_LIVE")
+            except Exception as e:
+                status_flags.append(f"P44_FALLBACK ({str(e)})")
+        else:
+            status_flags.append("P44_SIMULATED")
+
+    return {
+        "ocean_freight_usd_feu": ocean_rate,
+        "air_freight_usd_kg": air_rate,
+        "active_vessels_count": len(active_vessels) if active_vessels else 3,
+        "vessel_telemetry": active_vessels,
+        "telemetry_status": " | ".join(status_flags)
+    }
+
+
+def get_freight_telemetry_sync() -> dict:
+    """Synchronous wrapper for fetch_live_sea_and_air_telemetry."""
+    try:
+        return asyncio.run(fetch_live_sea_and_air_telemetry())
+    except Exception:
+        return {
+            "ocean_freight_usd_feu": 3850.0,
+            "air_freight_usd_kg": 2.48,
+            "active_vessels_count": 3,
+            "telemetry_status": "FALLBACK_MODE"
+        }
+
+
+# ---------------------------------------------------------------------------
+# 5. Specialized Industry Feed Calls (GEP, Baltic Freight, Expeditors)
 # ---------------------------------------------------------------------------
 def fetch_gep_index() -> dict:
     """Fetches GEP Global Supply Chain Volatility Index status."""
@@ -131,10 +217,20 @@ def fetch_gep_index() -> dict:
 
 def fetch_baltic_indices() -> dict:
     """Fetches Baltic Dry Index (BDI), Freightos Baltic (FBX), and Baltic Air Freight (TAC Index)."""
+    freight_live = get_freight_telemetry_sync()
+    
     return {
         "baltic_dry_bdi": {"value": 1845, "unit": "pts", "change": "+3.2%"},
-        "freightos_fbx_ocean": {"value": 3850, "unit": "USD/FEU", "change": "+14.8%"},
-        "baltic_air_tac": {"value": 2.48, "unit": "USD/kg", "change": "+5.4%"},
+        "freightos_fbx_ocean": {
+            "value": freight_live.get("ocean_freight_usd_feu", 3850.0),
+            "unit": "USD/FEU",
+            "status": freight_live.get("telemetry_status")
+        },
+        "baltic_air_tac": {
+            "value": freight_live.get("air_freight_usd_kg", 2.48),
+            "unit": "USD/kg",
+            "status": freight_live.get("telemetry_status")
+        },
         "status": "Active Feed"
     }
 
@@ -152,9 +248,9 @@ def fetch_expeditors_signals() -> dict:
 
 
 # ---------------------------------------------------------------------------
-# 1. IMAP Live Email Ingestion Engine (LinkedIn Direct Target Filter)
+# 6. IMAP Live Email Ingestion Engine (LinkedIn & Expeditors Target Filter)
 # ---------------------------------------------------------------------------
-def fetch_gmail_newsletters(max_emails: int = 15):
+def fetch_gmail_newsletters(max_emails: int = 15) -> list:
     """Connects to Gmail via IMAP, targets LinkedIn & Expeditors updates, and extracts commodity signals."""
     gmail_user, gmail_pass = _get_gmail_credentials()
 
@@ -163,7 +259,7 @@ def fetch_gmail_newsletters(max_emails: int = 15):
             "source": "LinkedIn Newsletters",
             "status": "GMAIL_APP_PASS is missing in secrets or environment.",
             "is_live": False,
-            "sentiment_score": 0.0,
+            "sentiment_score": -0.10,
         }]
 
     try:
@@ -173,7 +269,6 @@ def fetch_gmail_newsletters(max_emails: int = 15):
 
         email_ids = []
 
-        # Target search specifically for LinkedIn or Expeditors newsletters
         try:
             status, messages = mail.search(None, 'X-GM-RAW', 'from:linkedin OR subject:linkedin OR subject:expeditors')
             if status == 'OK' and messages[0]:
@@ -181,7 +276,6 @@ def fetch_gmail_newsletters(max_emails: int = 15):
         except Exception:
             pass
 
-        # Fallback search if X-GM-RAW isn't supported
         if not email_ids:
             status, messages = mail.search(None, 'TEXT "linkedin"')
             if status == 'OK' and messages[0]:
@@ -234,7 +328,6 @@ def fetch_gmail_newsletters(max_emails: int = 15):
                     clean_text = bs4.BeautifulSoup(body, 'html.parser').get_text()
                     full_content = f"{subject} {clean_text}"
 
-                    # Strict commodity & non-political filter check
                     if not is_supply_chain_relevant(full_content):
                         continue
 
@@ -264,30 +357,27 @@ def fetch_gmail_newsletters(max_emails: int = 15):
 
         mail.logout()
 
-        if parsed_newsletters:
-            return parsed_newsletters
-        else:
-            return [{
-                'source': 'LinkedIn / Expeditors Direct Feed',
-                'title': 'No Targeted Commodity Match',
-                'summary': 'Retrieved messages were evaluated, but none matched active supply chain criteria.',
-                'is_live': False,
-                'sentiment_score': 0.0,
-                'detected_commodities': []
-            }]
+        return parsed_newsletters if parsed_newsletters else [{
+            'source': 'LinkedIn / Expeditors Direct Feed',
+            'title': 'No Targeted Commodity Match',
+            'summary': 'Retrieved messages were evaluated, but none matched active supply chain criteria.',
+            'is_live': False,
+            'sentiment_score': 0.0,
+            'detected_commodities': []
+        }]
 
     except Exception as e:
         return [{
             'source': 'LinkedIn / Gmail Direct Feed',
             'status': f'IMAP Connection Error: {str(e)}',
             'is_live': False,
-            'sentiment_score': 0.0,
+            'sentiment_score': -0.10,
             'detected_commodities': []
         }]
 
 
 # ---------------------------------------------------------------------------
-# 2. Expanded Macroeconomic Telemetry Engine (US, EU, China, Japan, Korea)
+# 7. Expanded Macroeconomic Telemetry Engine (US, EU, China, Japan, Korea)
 # ---------------------------------------------------------------------------
 def fetch_ny_fed_gscpi() -> float:
     """Fetches live Global Supply Chain Pressure Index (GSCPI) from NY Fed public API."""
@@ -378,9 +468,9 @@ def fetch_global_macro_telemetry() -> dict:
 
 
 # ---------------------------------------------------------------------------
-# 3. Dynamic Live RSS Web Stream Fetcher
+# 8. Dynamic Live RSS Web Stream Fetcher
 # ---------------------------------------------------------------------------
-def fetch_live_sector_rss(topic_query: str = "copper supply chain"):
+def fetch_live_sector_rss(topic_query: str = "copper supply chain") -> list:
     """Fetches live RSS search results dynamically for selected commodities."""
     try:
         query = urllib.parse.quote(topic_query)
@@ -411,10 +501,11 @@ def fetch_live_sector_rss(topic_query: str = "copper supply chain"):
 
 
 # ---------------------------------------------------------------------------
-# 4. Synchronizer Function
+# 9. Main Feed Synchronizer Function
 # ---------------------------------------------------------------------------
-def sync_robot_feeds():
-    """Executes full cross-validation engine across Macro APIs & LinkedIn Feeds."""
+def sync_robot_feeds() -> dict:
+    """Executes full cross-validation engine across Sea/Air APIs, Macro APIs & LinkedIn Feeds."""
+    freight_telemetry = get_freight_telemetry_sync()
     newsletters = fetch_gmail_newsletters(max_emails=15)
     gscpi_val = fetch_ny_fed_gscpi()
     world_bank_meta = fetch_world_bank_commodity_pink_sheet("PALLFNFINDEXQ")
@@ -428,6 +519,8 @@ def sync_robot_feeds():
 
     feed_data = {
         "status": "synced",
+        "sync_timestamp": datetime.now().isoformat(),
+        "freight_telemetry": freight_telemetry,
         "newsletters": newsletters,
         "linkedin_score": linkedin_score,
         "global_telemetry": global_telemetry,
@@ -452,7 +545,7 @@ def sync_robot_feeds():
 
 
 # ---------------------------------------------------------------------------
-# 5. Multi-Source Composite Sentiment Calculation
+# 10. Multi-Source Composite Sentiment Calculation
 # ---------------------------------------------------------------------------
 def calculate_composite_sentiment(feed_signals: dict = None) -> dict:
     """Calculates weighted composite sentiment SI_composite across global sources."""
@@ -467,8 +560,9 @@ def calculate_composite_sentiment(feed_signals: dict = None) -> dict:
         "field_emails": 0.10,
     }
 
+    hard_macro = feed_signals.get("hard_macro", {})
     scores = {
-        "gscpi_index": float(feed_signals.get("gscpi_sentiment", -0.15)),
+        "gscpi_index": float(hard_macro.get("gscpi_sentiment", -0.15)),
         "world_bank_pinksheet": float(feed_signals.get("world_bank_score", -0.20)),
         "linkedin_feed": float(feed_signals.get("linkedin_score", -0.10)),
         "gis_telemetry": float(feed_signals.get("gis_score", -0.10)),
@@ -486,10 +580,10 @@ def calculate_composite_sentiment(feed_signals: dict = None) -> dict:
 
 
 # ---------------------------------------------------------------------------
-# 6. Operational Quantification Engine
+# 11. Operational Quantification & ERP Order Offsetting
 # ---------------------------------------------------------------------------
 def compute_quantified_operational_impact(
-    si_composite: float, base_demand: int, k_demand: float = 0.25
+    si_composite: float, base_demand: int = 185000, k_demand: float = 0.25
 ) -> dict:
     """Quantifies S&OP and CTRM operational levers dynamically based on SI_composite."""
     surge_multiplier = 1.0 + (abs(si_composite) * k_demand)
@@ -520,7 +614,7 @@ def compute_quantified_operational_impact(
 
 
 def calculate_dynamic_erp_order_offset(por_baseline_date_str: str, transit_delay_days: float) -> str:
-    """Executes ERP Dynamic Order Offset: POR_offset = POR_baseline - Delta_LT_transit"""
+    """Executes ERP Dynamic Order Offset: POR_offset = POR_baseline - Delta_LT_transit."""
     try:
         base_date = datetime.strptime(por_baseline_date_str, "%Y-%m-%d")
         offset_date = base_date - timedelta(days=transit_delay_days)
@@ -530,7 +624,7 @@ def calculate_dynamic_erp_order_offset(por_baseline_date_str: str, transit_delay
 
 
 # ---------------------------------------------------------------------------
-# 7. End-to-End S&OP Cascade Orchestrator
+# 12. End-to-End S&OP Cascade Orchestrator
 # ---------------------------------------------------------------------------
 def run_end_to_end_sop_cascade(
     base_demand_units: int = 200000,
@@ -538,7 +632,7 @@ def run_end_to_end_sop_cascade(
     current_spot_price: float = 4.15,
     por_baseline_date: str = "2026-11-15"
 ) -> dict:
-    """Central Orchestrator: Passes live feed outputs through S&OP and CTRM modules."""
+    """Central Orchestrator: Passes live feed outputs through S&OP, CTRM, and Logistics modules."""
     si_composite = -0.28
     
     try:
@@ -569,7 +663,7 @@ def run_end_to_end_sop_cascade(
     incremental_volume_to_hedge_lbs = incremental_raw_material_lbs * target_hedge_ratio
     capital_to_commit_hedge = incremental_volume_to_hedge_lbs * current_spot_price
 
-    # Stage 5: Global Logistics Surcharges
+    # Stage 5: Global Logistics Surcharges & Air Freight Shift
     is_air_freight_modal_shift = transit_delay_days > 7.0
     freight_surcharge_per_unit = 2.45 if is_air_freight_modal_shift else 0.65
     total_freight_surcharge_cost = quantified_demand_surge * freight_surcharge_per_unit
@@ -620,3 +714,17 @@ def run_end_to_end_sop_cascade(
         pass
 
     return cascade_results
+
+
+# ---------------------------------------------------------------------------
+# CLI Execution & Verification Test
+# ---------------------------------------------------------------------------
+if __name__ == "__main__":
+    print("--- Executing Robot Feed Data Synchronization ---")
+    sync_output = sync_robot_feeds()
+    print("Sync Result Keys:", list(sync_output.keys()))
+    print("Freight Telemetry:", sync_output.get("freight_telemetry"))
+    
+    print("\n--- Running End-to-End S&OP Cascade Test ---")
+    cascade_out = run_end_to_end_sop_cascade()
+    print(json.dumps(cascade_out, indent=2))

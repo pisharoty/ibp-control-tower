@@ -11,11 +11,14 @@ import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
 import streamlit as st
-from robot_feeds import (
+from robot_feed import (
     calculate_composite_sentiment,
     compute_quantified_operational_impact,
+    fetch_baltic_indices,            # Exports live ocean FBX & air TAC rates
     fetch_global_macro_telemetry,
     fetch_gmail_newsletters,
+    get_freight_telemetry_sync,      # Direct sync wrapper for live sea & air APIs
+    run_end_to_end_sop_cascade,      # Orchestrates full S&OP, CTRM & Logistics impacts
     sync_robot_feeds,
 )
 
@@ -322,12 +325,16 @@ import plotly.graph_objects as go
 import streamlit as st
 
 
+import plotly.graph_objects as go
+import streamlit as st
+
+
 def render_executive_sop(
     persona="Discrete & Heavy Industrial Enterprise",
     term_unit="Units",
     **kwargs,
 ):
-    """Render Executive S&OP Control Tower with dynamic persona baselines & Plotly waterfall."""
+    """Render Executive S&OP Control Tower with dynamic persona baselines, live sea/air telemetry, & Plotly waterfall."""
     st.title("📈 Executive S&OP Control Tower")
     st.caption(f"Active Persona View: **{persona}**")
     st.markdown(
@@ -349,18 +356,27 @@ def render_executive_sop(
         unit_price = 780.0
         cogs_pct = 0.65
 
-    # 2. Extract Central Cascade State
+    # 2. Extract Central Cascade State & Live Signals
     cascade = st.session_state.get("active_sop_cascade", {})
+    robot_signals = st.session_state.get("latest_robot_signals", {})
+
     demand_data = cascade.get("demand", {})
     exec_data = cascade.get("exec_sop", {})
     ctrm_data = cascade.get("ctrm", {})
     logistics_data = cascade.get("logistics", {})
+    baltic_data = robot_signals.get("baltic_indices", {})
 
     si_score = cascade.get(
         "si_composite", st.session_state.get("si_composite", -0.28)
     )
     surge_units = demand_data.get("total_surge_units", 102968)
     delta_units = demand_data.get("delta_surge_units", 0)
+
+    # Extract Live Sea & Air Telemetry + Modal Shift Details
+    modal_shift_air = logistics_data.get("modal_shift_air", False)
+    freight_surcharge = logistics_data.get("total_freight_surcharge_usd", 0.0)
+    fbx_sea_rate = baltic_data.get("freightos_fbx_ocean", {}).get("value", 3850)
+    tac_air_rate = baltic_data.get("baltic_air_tac", {}).get("value", 2.48)
 
     # Financial inputs derived from Orchestrator Cascade
     revenue_upside = exec_data.get(
@@ -375,9 +391,7 @@ def render_executive_sop(
         cogs_drag = mc_res["mean_cost"]
         var_95_drag = mc_res["var_95"]
     else:
-        cogs_drag = exec_data.get("delta_cogs_usd", 0.0) + logistics_data.get(
-            "total_freight_surcharge_usd", 0.0
-        )
+        cogs_drag = exec_data.get("delta_cogs_usd", 0.0) + freight_surcharge
         if cogs_drag == 0.0:
             cogs_drag = (base_aop_rev * 0.025) * (1.0 + abs(si_score) * 2.5)
         var_95_drag = cogs_drag * 1.4
@@ -443,6 +457,7 @@ def render_executive_sop(
     col_p1, col_p2 = st.columns([1.3, 1])
     with col_p1:
         st.subheader("💵 Financial P&L Margin Waterfall")
+        # Mathematically reconciled P&L waterfall
         fig = go.Figure(
             go.Waterfall(
                 name="P&L Reconciliation",
@@ -452,18 +467,21 @@ def render_executive_sop(
                     "relative",
                     "relative",
                     "relative",
+                    "relative",
                     "total",
                 ],
                 x=[
-                    "Base AOP",
+                    "Base AOP Rev",
+                    "Base COGS",
                     "Demand Upside",
-                    "COGS Drag",
+                    "Cost & Freight Drag",
                     "Hedge Benefit",
                     "Net EBITDA",
                 ],
                 textposition="outside",
                 text=[
                     f"${base_aop_rev / 1e6:.1f}M",
+                    f"-${base_cogs / 1e6:.1f}M",
                     f"+${revenue_upside / 1e6:.2f}M",
                     f"-${cogs_drag / 1e6:.2f}M",
                     f"+${ctrm_hedge_benefit / 1e6:.2f}M",
@@ -471,6 +489,7 @@ def render_executive_sop(
                 ],
                 y=[
                     base_aop_rev / 1e6,
+                    -base_cogs / 1e6,
                     revenue_upside / 1e6,
                     -cogs_drag / 1e6,
                     ctrm_hedge_benefit / 1e6,
@@ -484,7 +503,7 @@ def render_executive_sop(
         )
         fig.update_layout(
             margin=dict(l=20, r=20, t=20, b=20),
-            height=320,
+            height=340,
             yaxis_title="USD ($ Millions)",
             showlegend=False,
         )
@@ -499,6 +518,21 @@ def render_executive_sop(
         st.info(
             f"🔹 **Active NLP Signal**: `{sig_title}` ($SI = {si_score:+.2f}$)"
         )
+
+        # Air vs. Ocean Logistics Desk Indicator
+        if modal_shift_air:
+            st.warning(
+                "✈️ **Logistics Desk**: **AIR FREIGHT MODAL SHIFT ACTIVE**\n\n"
+                f"FBX Sea: **${fbx_sea_rate:,.0f}/FEU** | TAC Air:"
+                f" **${tac_air_rate:.2f}/kg**\n\nSurcharge Impact:"
+                f" **+${freight_surcharge / 1e6:.2f}M**"
+            )
+        else:
+            st.caption(
+                f"🚢 **Logistics Desk**: Standard Sea/Rail Corridor | FBX:"
+                f" **${fbx_sea_rate:,.0f}/FEU** | TAC Air:"
+                f" **${tac_air_rate:.2f}/kg**"
+            )
 
         if fix_executed:
             st.success(
@@ -693,16 +727,57 @@ def render_aggregated_deal_desk(
     st.dataframe(pd.DataFrame(deal_records), use_container_width=True)
 
 
+import json
+import os
+import re
+import pandas as pd
+import streamlit as st
+
+# Direct module imports from robot_feed engine
+from robot_feed import (
+    calculate_composite_sentiment,
+    compute_quantified_operational_impact,
+    fetch_baltic_indices,
+    fetch_global_macro_telemetry,
+    fetch_gmail_newsletters,
+    fetch_live_sector_rss,
+    get_freight_telemetry_sync,
+    run_end_to_end_sop_cascade,
+    sync_robot_feeds,
+)
+
+
+def _propagate_signal_to_sop_cascade(signal_data: dict):
+    """Helper to commit signal state and trigger end-to-end S&OP cascade execution."""
+    st.session_state["active_signal"] = signal_data
+    st.session_state["active_risk_signal_title"] = signal_data.get(
+        "title", "Market Signal Update"
+    )
+    st.session_state["si_composite"] = signal_data.get(
+        "sentiment_index", -0.28
+    )
+
+    # Run End-to-End Operational & Financial Cascade Engine
+    cascade_output = run_end_to_end_sop_cascade(
+        base_demand_units=st.session_state.get("base_demand", 200000)
+    )
+    st.session_state["active_sop_cascade"] = cascade_output
+    st.toast(
+        f"✅ Signal propagated to Executive Control Tower: {signal_data.get('title')[:30]}...",
+        icon="🚀",
+    )
+
+
 def render_nlp_intelligence(persona=None, term_unit="Units", **kwargs):
     """Complete NLP Commercial Sensing & Intelligence Module with Hard Macro,
 
-    LinkedIn Feeds, Email Parsing, and Downstream S&OP Cascade Hooks.
+    LinkedIn Feeds, Email Parsing, Live Sea/Air Telemetry, and S&OP Cascade Hooks.
     """
     st.title("🧠 NLP Commercial Sensing & Intelligence")
     st.caption(
         "Ingest unstructured signals from news feeds, LinkedIn social posts,"
         " email debriefs, hard macro indicators (NY Fed, World Bank, FRED, ECB,"
-        " PBOC, BOJ, KOSPI), and GIS telemetry."
+        " PBOC, BOJ, KOSPI), and ocean/air freight telemetry."
     )
 
     tab1, tab2, tab3 = st.tabs([
@@ -922,19 +997,18 @@ def render_nlp_intelligence(persona=None, term_unit="Units", **kwargs):
 
             st.info(f"**Quantified Action Plan**: {rec_text}")
 
-            if "commit_nlp_signal" in globals():
-                st.button(
-                    "⚡ Propagate Triangulated Composite Index across Platform",
-                    key="btn_propagate_composite",
-                    on_click=commit_nlp_signal,
-                    args=({
-                        "source_type": "Macro Triangulation Engine",
-                        "title": f"Triangulated Composite Index ({si_score:+.2f})",
-                        "demand_surge_units": surge_units,
-                        "leadtime_delay_days": lt_days,
-                        "sentiment_index": si_score,
-                    },),
-                )
+            st.button(
+                "⚡ Propagate Triangulated Composite Index across Platform",
+                key="btn_propagate_composite",
+                on_click=_propagate_signal_to_sop_cascade,
+                args=({
+                    "source_type": "Macro Triangulation Engine",
+                    "title": f"Triangulated Composite Index ({si_score:+.2f})",
+                    "demand_surge_units": surge_units,
+                    "leadtime_delay_days": lt_days,
+                    "sentiment_index": si_score,
+                },),
+            )
 
         st.divider()
 
@@ -972,32 +1046,31 @@ def render_nlp_intelligence(persona=None, term_unit="Units", **kwargs):
                             f"**Source:** {news.get('source', 'LinkedIn / Gmail Direct Feed')}"
                         )
 
-                    if "commit_nlp_signal" in globals():
-                        st.button(
-                            "⚡ Ingest Live Newsletter Signal into S&OP Engine",
-                            key=f"btn_ingest_{news.get('title', 'sig')[:10]}",
-                            on_click=commit_nlp_signal,
-                            args=({
-                                "source_type": news.get(
-                                    "source", "LinkedIn Direct Feed"
-                                ),
-                                "title": news.get(
-                                    "title", "LinkedIn Live Signal"
-                                ),
-                                "demand_surge_units": int(
-                                    abs(news.get("sentiment_score", -0.10))
-                                    * 150000
-                                ),
-                                "leadtime_delay_days": round(
-                                    abs(news.get("sentiment_score", -0.10))
-                                    * 10,
-                                    1,
-                                ),
-                                "sentiment_index": news.get(
-                                    "sentiment_score", -0.10
-                                ),
-                            },),
-                        )
+                    st.button(
+                        "⚡ Ingest Live Newsletter Signal into S&OP Engine",
+                        key=f"btn_ingest_{news.get('title', 'sig')[:10]}",
+                        on_click=_propagate_signal_to_sop_cascade,
+                        args=({
+                            "source_type": news.get(
+                                "source", "LinkedIn Direct Feed"
+                            ),
+                            "title": news.get(
+                                "title", "LinkedIn Live Signal"
+                            ),
+                            "demand_surge_units": int(
+                                abs(news.get("sentiment_score", -0.10))
+                                * 150000
+                            ),
+                            "leadtime_delay_days": round(
+                                abs(news.get("sentiment_score", -0.10))
+                                * 10,
+                                1,
+                            ),
+                            "sentiment_index": news.get(
+                                "sentiment_score", -0.10
+                            ),
+                        },),
+                    )
         else:
             st.info(
                 "No active LinkedIn commodity signals currently buffered in"
@@ -1083,19 +1156,18 @@ def render_nlp_intelligence(persona=None, term_unit="Units", **kwargs):
                 else selected_post_key
             )
 
-            if "commit_nlp_signal" in globals():
-                st.button(
-                    "⚡ Ingest LinkedIn Social Signal into S&OP Engine",
-                    key="btn_ingest_linkedin",
-                    on_click=commit_nlp_signal,
-                    args=({
-                        "source_type": "LinkedIn Executive Feed",
-                        "title": f"[{author_clean}] {title_clean}",
-                        "demand_surge_units": post_data["extracted_units"],
-                        "leadtime_delay_days": post_data["extracted_delay"],
-                        "sentiment_index": post_data["sentiment"],
-                    },),
-                )
+            st.button(
+                "⚡ Ingest LinkedIn Social Signal into S&OP Engine",
+                key="btn_ingest_linkedin",
+                on_click=_propagate_signal_to_sop_cascade,
+                args=({
+                    "source_type": "LinkedIn Executive Feed",
+                    "title": f"[{author_clean}] {title_clean}",
+                    "demand_surge_units": post_data["extracted_units"],
+                    "leadtime_delay_days": post_data["extracted_delay"],
+                    "sentiment_index": post_data["sentiment"],
+                },),
+            )
 
         st.divider()
 
@@ -1135,8 +1207,6 @@ def render_nlp_intelligence(persona=None, term_unit="Units", **kwargs):
             topic_query = NEWS_DOMAINS[selected_domain]
             live_rss_items = []
             try:
-                from robot import fetch_live_sector_rss
-
                 live_rss_items = fetch_live_sector_rss(topic_query)
             except Exception:
                 pass
@@ -1182,19 +1252,18 @@ def render_nlp_intelligence(persona=None, term_unit="Units", **kwargs):
             else "Macro"
         )
 
-        if "commit_nlp_signal" in globals():
-            st.button(
-                "📡 Ingest Scraped Domain News Signal",
-                key="btn_ingest_web",
-                on_click=commit_nlp_signal,
-                args=({
-                    "source_type": "Live Web Intelligence",
-                    "title": f"[{domain_label}] {headline_clean}",
-                    "demand_surge_units": web_impact,
-                    "leadtime_delay_days": 4.0,
-                    "sentiment_index": -0.45,
-                },),
-            )
+        st.button(
+            "📡 Ingest Scraped Domain News Signal",
+            key="btn_ingest_web",
+            on_click=_propagate_signal_to_sop_cascade,
+            args=({
+                "source_type": "Live Web Intelligence",
+                "title": f"[{domain_label}] {headline_clean}",
+                "demand_surge_units": web_impact,
+                "leadtime_delay_days": 4.0,
+                "sentiment_index": -0.45,
+            },),
+        )
 
     # =========================================================================
     # TAB 2: EMAIL & EVENT DEBRIEF PARSER
@@ -1259,47 +1328,57 @@ def render_nlp_intelligence(persona=None, term_unit="Units", **kwargs):
             "**NLP Confidence Score**: `94.2%` | **Sentiment Score**: `-0.68`"
         )
 
-        if "commit_nlp_signal" in globals():
-            st.button(
-                "⚡ Ingest Parsed Email Intelligence into Live S&OP Engine",
-                key="btn_ingest_email",
-                on_click=commit_nlp_signal,
-                args=({
-                    "source_type": "Supplier Email",
-                    "title": f"[{parsed['vendor']}] {parsed['event']}",
-                    "demand_surge_units": parsed["units_val"],
-                    "leadtime_delay_days": parsed["delay_val"],
-                    "sentiment_index": -0.68,
-                },),
-            )
+        st.button(
+            "⚡ Ingest Parsed Email Intelligence into Live S&OP Engine",
+            key="btn_ingest_email",
+            on_click=_propagate_signal_to_sop_cascade,
+            args=({
+                "source_type": "Supplier Email",
+                "title": f"[{parsed['vendor']}] {parsed['event']}",
+                "demand_surge_units": parsed["units_val"],
+                "leadtime_delay_days": parsed["delay_val"],
+                "sentiment_index": -0.68,
+            },),
+        )
 
     # =========================================================================
-    # TAB 3: FREIGHT, WEATHER & BLACK SWAN FEEDS
+    # TAB 3: LIVE FREIGHT, WEATHER & BLACK SWAN FEEDS (UPGRADED WITH LIVE APIS)
     # =========================================================================
     with tab3:
         st.subheader("⚓ Freight, Weather & Black Swan Feeds")
         st.caption(
-            "Track maritime vessel AIS feeds, port dwell anomalies, and climate"
-            " disruptions."
+            "Track live sea freight (FBX / Freightos), air freight (TAC Index), AIS vessel tracking, and climate disruptions."
         )
+
+        # Pull Live Sea/Air Telemetry from robot_feed API
+        freight_live = get_freight_telemetry_sync()
+        ocean_price = freight_live.get("ocean_freight_usd_feu", 3850.0)
+        air_price = freight_live.get("air_freight_usd_kg", 2.48)
+        vessel_count = freight_live.get("active_vessels_count", 3)
+        telemetry_status = freight_live.get("telemetry_status", "ACTIVE")
 
         w_col1, w_col2, w_col3 = st.columns(3)
         with w_col1:
             st.metric(
-                "Red Sea Bottleneck Index", "HIGH RISK", delta="+42% Dwell"
+                "FBX Ocean Spot Rate",
+                f"${ocean_price:,.0f} / FEU",
+                delta="+14.8% WoW",
             )
+            st.caption(f"Status: `{telemetry_status}`")
         with w_col2:
             st.metric(
-                "Panama Canal Water Draft",
-                "44.0 ft (Restricted)",
-                delta="-2.5 ft vs Avg",
+                "TAC Air Freight Benchmark",
+                f"${air_price:.2f} / kg",
+                delta="+5.4% WoW",
             )
+            st.caption("Asia-North America Freight Corridor")
         with w_col3:
             st.metric(
-                "Global Maritime Freight Index",
-                "$3,850 / TEU",
-                delta="+18.4% WoW",
+                "Active AIS Vessels Tracked",
+                f"{vessel_count} Containers",
+                delta="Project44 Live Telemetry",
             )
+            st.caption("Real-Time GIS Vessel Ping")
 
         st.divider()
         st.markdown("#### 🌍 Live Anomaly Feed Alerts")
@@ -1309,38 +1388,37 @@ def render_nlp_intelligence(persona=None, term_unit="Units", **kwargs):
                 "Disruption Type": "Geopolitical Rerouting",
                 "Severity": "Critical",
                 "Transit Delay Impact": "+10 to 14 Days",
-                "Cost Impact": "+35% Spot Freight",
+                "Cost Impact": f"${ocean_price:,.0f} / FEU Spot Premium",
             },
             {
                 "Region / Corridor": "Panama Canal Transit",
                 "Disruption Type": "Low Water Level / Drought",
                 "Severity": "Elevated",
                 "Transit Delay Impact": "+5 to 7 Days",
-                "Cost Impact": "+20% Booking Premium",
+                "Cost Impact": "+20% Booking Surcharge",
             },
             {
-                "Region / Corridor": "US Gulf Coast / Mississippi",
-                "Disruption Type": "Barge Draft Restrictions",
+                "Region / Corridor": "Transpacific Air Corridor",
+                "Disruption Type": "Peak Season Modal Shift",
                 "Severity": "Moderate",
-                "Transit Delay Impact": "+3 to 4 Days",
-                "Cost Impact": "+12% Inland Freight",
+                "Transit Delay Impact": "+2 to 3 Days",
+                "Cost Impact": f"${air_price:.2f} / kg Air Surcharge",
             },
         ])
         st.dataframe(feed_df, use_container_width=True)
 
-        if "commit_nlp_signal" in globals():
-            st.button(
-                "⚡ Ingest Freight & Weather Signals into Logistics Engine",
-                key="btn_ingest_freight",
-                on_click=commit_nlp_signal,
-                args=({
-                    "source_type": "Maritime AIS & Weather Telemetry",
-                    "title": "Red Sea & Panama Canal Transit Bottlenecks",
-                    "demand_surge_units": 150000,
-                    "leadtime_delay_days": 10.0,
-                    "sentiment_index": -0.75,
-                },),
-            )
+        st.button(
+            "⚡ Ingest Freight & Weather Signals into Logistics Engine",
+            key="btn_ingest_freight",
+            on_click=_propagate_signal_to_sop_cascade,
+            args=({
+                "source_type": "Maritime AIS & Weather Telemetry",
+                "title": "Red Sea & Transpacific Transit Bottlenecks",
+                "demand_surge_units": 150000,
+                "leadtime_delay_days": 10.0,
+                "sentiment_index": -0.75,
+            },),
+        )
 
 
 # Maintain alias to protect all navigation router calls
@@ -2005,26 +2083,39 @@ def render_ctrm_desk(
             st.plotly_chart(fig_payoff, use_container_width=True)
 
 
+import json
+import numpy as np
+import pandas as pd
+import plotly.express as px
+import pydeck as pdk
+import streamlit as st
+
+# Direct import from live data engine
+from robot_feed import run_end_to_end_sop_cascade
+
+
 def render_global_logistics_gis(
     persona="Discrete & Heavy Industrial Enterprise",
     term_unit="Units",
     *args,
     **kwargs,
 ):
-    """Render Global Logistics Network & GIS Control Tower bound to net shipment volume."""
-    import pandas as pd
-    import pydeck as pdk
-
+    """Render Global Logistics Network & GIS Control Tower bound to net shipment volume & live freight telemetry."""
     st.title("🌐 Global Logistics Network & GIS Control Tower")
     st.caption(f"Active Persona View: **{persona}**")
 
-    # 1. Pull dynamic data from Central Orchestrator Cascade
+    # 1. Pull dynamic data from Central Orchestrator Cascade & Live Signals
     cascade = st.session_state.get("active_sop_cascade", {})
+    robot_signals = st.session_state.get("latest_robot_signals", {})
+
     demand_data = cascade.get("demand", {})
     proc_data = cascade.get("procurement", {})
+    logistics_data = cascade.get("logistics", {})
+    baltic_data = robot_signals.get("baltic_indices", {})
 
     gross_surge = demand_data.get(
-        "total_surge_units", st.session_state.get("extracted_demand_surge", 185000)
+        "total_surge_units",
+        st.session_state.get("extracted_demand_surge", 185000),
     )
     active_contracts = st.session_state.get("active_contracts_volume", 129500)
     net_units = demand_data.get(
@@ -2037,14 +2128,27 @@ def render_global_logistics_gis(
         "transit_delay_days", st.session_state.get("active_transit_delay", 7.0)
     )
 
-    st.info(
-        f"🚢 **Inbound Logistics Feed**: Tracking **{net_units:,} {term_unit}**"
-        f" in net physical PO movement across 3 Ocean & Rail Corridors |"
-        f" Lead-Time Shock: **+{transit_delay:.0f} Days** | Status: **PO"
-        " Dispatched**"
-    )
+    # Extract Live Sea & Air Telemetry
+    fbx_sea_rate = baltic_data.get("freightos_fbx_ocean", {}).get("value", 3850)
+    tac_air_rate = baltic_data.get("baltic_air_tac", {}).get("value", 2.48)
+    modal_shift_air = logistics_data.get("modal_shift_air", False)
+    freight_surcharge = logistics_data.get("total_freight_surcharge_usd", 0.0)
 
-    # 2. Executive Logistics Metrics
+    # 2. Status Banners & Modal Shift Warnings
+    if modal_shift_air:
+        st.warning(
+            f"✈️ **CRITICAL LOGISTICS SHIFT**: Lead-time shock (+{transit_delay:.0f} Days) forced an "
+            f"**Air Freight Modal Shift**. Surcharge Drag: **+${freight_surcharge / 1e6:.2f}M** "
+            f"(TAC Air Rate: **${tac_air_rate:.2f}/kg** vs. Ocean FBX: **${fbx_sea_rate:,.0f}/FEU**)."
+        )
+    else:
+        st.info(
+            f"🚢 **Inbound Logistics Feed**: Tracking **{net_units:,} {term_unit}** "
+            f"in net PO movement across 3 Ocean & Rail Corridors | "
+            f"Lead-Time Shock: **+{transit_delay:.0f} Days** | FBX Spot: **${fbx_sea_rate:,.0f}/FEU**"
+        )
+
+    # 3. Executive Logistics Metrics
     col_l1, col_l2, col_l3, col_l4 = st.columns(4)
     col_l1.metric(
         "Active Inbound Volume",
@@ -2058,89 +2162,94 @@ def render_global_logistics_gis(
         delta_color="inverse",
     )
     col_l3.metric(
-        "Global Route Risk Level",
-        "ELEVATED",
-        "↑ Port Congestion",
-        delta_color="inverse",
+        "Freight Mode Status",
+        "AIR FREIGHT SHIFT" if modal_shift_air else "OCEAN / RAIL STANDARD",
+        f"+${freight_surcharge / 1e6:.2f}M Cost Drag"
+        if modal_shift_air
+        else "Baseline Tariffs",
+        delta_color="inverse" if modal_shift_air else "normal",
     )
     col_l4.metric(
-        "On-Time In-Full (OTIF) Target",
-        "88.4%",
-        "↓ -6.2% Stressed",
+        "On-Time In-Full (OTIF)",
+        f"{max(65.0, 94.6 - transit_delay * 1.8):.1f}%",
+        f"↓ -{transit_delay * 1.8:.1f}% Stressed",
         delta_color="inverse",
     )
 
     st.divider()
 
-    # 3. Dynamic Corridor Allocation
+    # 4. Dynamic Corridor Allocation
     c1_vol = int(net_units * 0.45)
     c2_vol = int(net_units * 0.35)
     c3_vol = net_units - (c1_vol + c2_vol)
 
     st.subheader("📦 Transit Corridor Health & Arrival Timeline")
-    corridor_df = pd.DataFrame(
-        [
-            {
-                "Corridor Name": "Pacific Ocean Expressway (Asia → LA)",
-                "Primary Carrier": "Maersk Ocean Line",
-                "Volume (Units)": f"{c1_vol:,}",
-                "Original ETA": "14 Days",
-                "Delay Shock": "+3 Days",
-                "Adjusted ETA": "17 Days",
-                "Bottleneck Reason": "Port Berth Queueing",
-            },
-            {
-                "Corridor Name": (
-                    "Trans-Suez / Atlantic Route (Asia → Europe → US)"
-                ),
-                "Primary Carrier": "MSC Freight Fleet",
-                "Volume (Units)": f"{c2_vol:,}",
-                "Original ETA": "16 Days",
-                "Delay Shock": "+4 Days",
-                "Adjusted ETA": "20 Days",
-                "Bottleneck Reason": "Canal Capacity Constraints",
-            },
-            {
-                "Corridor Name": "Domestic Overland Heavy Rail",
-                "Primary Carrier": "BNSF Railway Co",
-                "Volume (Units)": f"{c3_vol:,}",
-                "Original ETA": "5 Days",
-                "Delay Shock": "+0 Days",
-                "Adjusted ETA": "5 Days (On Schedule)",
-                "Bottleneck Reason": "Normal Operations",
-            },
-        ]
-    )
+    corridor_df = pd.DataFrame([
+        {
+            "Corridor Name": "Pacific Ocean Expressway (Asia → LA)",
+            "Primary Carrier": "Maersk Ocean Line",
+            "Transport Mode": "Air Express" if modal_shift_air else "Ocean Container",
+            "Volume (Units)": f"{c1_vol:,}",
+            "Original ETA": "14 Days",
+            "Delay Shock": f"+{transit_delay:.0f} Days",
+            "Adjusted ETA": f"{14 + int(transit_delay)} Days",
+            "Bottleneck Reason": "Port Berth Queueing / Modal Shift"
+            if modal_shift_air
+            else "Port Berth Queueing",
+        },
+        {
+            "Corridor Name": "Trans-Suez / Atlantic Route (Asia → Europe → US)",
+            "Primary Carrier": "MSC Freight Fleet",
+            "Transport Mode": "Ocean Container",
+            "Volume (Units)": f"{c2_vol:,}",
+            "Original ETA": "16 Days",
+            "Delay Shock": f"+{transit_delay + 1:.0f} Days",
+            "Adjusted ETA": f"{17 + int(transit_delay)} Days",
+            "Bottleneck Reason": "Canal Capacity Constraints",
+        },
+        {
+            "Corridor Name": "Domestic Overland Heavy Rail",
+            "Primary Carrier": "BNSF Railway Co",
+            "Transport Mode": "Class I Intermodal Rail",
+            "Volume (Units)": f"{c3_vol:,}",
+            "Original ETA": "5 Days",
+            "Delay Shock": "+0 Days",
+            "Adjusted ETA": "5 Days (On Schedule)",
+            "Bottleneck Reason": "Normal Operations",
+        },
+    ])
     st.dataframe(corridor_df, use_container_width=True, hide_index=True)
 
     st.divider()
 
-    # 4. Interactive Pydeck GIS Map Layer
+    # 5. Interactive Pydeck GIS Map Layer
     st.subheader("🗺️ Live Global Transit Arc Overlay")
-    routes_df = pd.DataFrame(
-        [
-            {
-                "route": "Pacific Ocean Expressway (Asia → LA)",
-                "start_lat": 31.2304,
-                "start_lon": 121.4737,
-                "end_lat": 33.7420,
-                "end_lon": -118.2700,
-            },
-            {
-                "route": "Trans-Suez / Atlantic Route (Asia → Europe → US)",
-                "start_lat": 29.9700,
-                "start_lon": 32.5600,
-                "end_lat": 51.9200,
-                "end_lon": 4.4700,
-            },
-            {
-                "route": "Domestic Overland Rail (LA → Detroit)",
-                "start_lat": 33.7420,
-                "start_lon": -118.2700,
-                "end_lat": 42.3314,
-                "end_lon": -83.0458,
-            },
-        ]
+    routes_df = pd.DataFrame([
+        {
+            "route": "Pacific Ocean Expressway (Asia → LA)",
+            "start_lat": 31.2304,
+            "start_lon": 121.4737,
+            "end_lat": 33.7420,
+            "end_lon": -118.2700,
+        },
+        {
+            "route": "Trans-Suez / Atlantic Route (Asia → Europe → US)",
+            "start_lat": 29.9700,
+            "start_lon": 32.5600,
+            "end_lat": 51.9200,
+            "end_lon": 4.4700,
+        },
+        {
+            "route": "Domestic Overland Rail (LA → Detroit)",
+            "start_lat": 33.7420,
+            "start_lon": -118.2700,
+            "end_lat": 42.3314,
+            "end_lon": -83.0458,
+        },
+    ])
+
+    arc_color = (
+        [255, 140, 0, 220] if modal_shift_air else [255, 75, 75, 200]
     )
 
     arc_layer = pdk.Layer(
@@ -2148,7 +2257,7 @@ def render_global_logistics_gis(
         routes_df,
         get_source_position=["start_lon", "start_lat"],
         get_target_position=["end_lon", "end_lat"],
-        get_source_color=[255, 75, 75, 200],
+        get_source_color=arc_color,
         get_target_color=[0, 180, 255, 200],
         get_width=4,
         pickable=True,
@@ -2168,199 +2277,225 @@ def render_global_logistics_gis(
 # Alias to protect router calls
 render_global_logistics = render_global_logistics_gis
 
+
 def render_flight_simulator(
     persona="Discrete & Heavy Industrial Enterprise",
     term_unit="Units",
     **kwargs,
 ):
-  st.title("⚡ Sandbox Flight Simulator & Stress Lab")
-  st.caption(f"Active Persona View: **{persona}**")
+    """Sandbox Flight Simulator & Monte Carlo Stress Testing Lab."""
+    st.title("⚡ Sandbox Flight Simulator & Stress Lab")
+    st.caption(f"Active Persona View: **{persona}**")
 
-  macro_scenario = st.session_state.get(
-      "sandbox_scenario",
-      st.session_state.get("sb_scenario_select", "Baseline Operations"),
-  )
-  sandbox_params = st.session_state.get("sandbox_params", {})
-
-  if "Freight" in macro_scenario or "Red Sea" in macro_scenario:
-    def_vol = float(sandbox_params.get("iv_multiplier", 1.4)) * 0.35
-    def_delay = int(sandbox_params.get("transit_delay_days", 8))
-    def_surge = float(sandbox_params.get("volume_multiplier", 1.10)) * 1.2
-  elif "Drought" in macro_scenario or "Crop" in macro_scenario:
-    def_vol = float(sandbox_params.get("iv_multiplier", 1.8)) * 0.35
-    def_delay = int(sandbox_params.get("transit_delay_days", 4))
-    def_surge = float(sandbox_params.get("volume_multiplier", 0.85)) * 1.3
-  elif "Volatility" in macro_scenario or "Black Swan" in macro_scenario:
-    def_vol = float(sandbox_params.get("iv_multiplier", 2.5)) * 0.35
-    def_delay = int(sandbox_params.get("transit_delay_days", 0)) + 14
-    def_surge = float(sandbox_params.get("volume_multiplier", 1.00)) * 1.5
-  else:
-    def_vol, def_delay, def_surge = 0.15, 2, 1.00
-
-  if st.session_state.get("last_applied_sandbox_scenario") != macro_scenario:
-    st.session_state["last_applied_sandbox_scenario"] = macro_scenario
-    st.session_state["sim_vol"] = min(1.0, max(0.05, round(def_vol, 2)))
-    st.session_state["sim_lt"] = max(1, min(30, def_delay))
-    st.session_state["sim_dem"] = min(2.5, max(0.8, round(def_surge, 2)))
-    st.session_state.pop("mc_results", None)
-
-  st.session_state.setdefault("sim_vol", min(1.0, max(0.05, round(def_vol, 2))))
-  st.session_state.setdefault("sim_lt", max(1, min(30, def_delay)))
-  st.session_state.setdefault(
-      "sim_dem", min(2.5, max(0.8, round(def_surge, 2)))
-  )
-
-  # Pull session state including baseline contract volume
-  si_score = st.session_state.get("si_composite", -0.33)
-  gross_surge = st.session_state.get("extracted_demand_surge", 185000)
-  active_contracts = st.session_state.get("active_contracts_volume", 129500)
-  cash_balance = st.session_state.get("sop_cash_balance", 5_000_000.0)
-  fix_executed = st.session_state.get("fix_executed", False)
-  curr_leadtime_delay = st.session_state.get("active_leadtime_delay_days", 2.5)
-
-  # Compute current net uncovered open deficit
-  net_units = st.session_state.get(
-      "net_uncovered_units", max(0, gross_surge - active_contracts)
-  )
-
-  st.divider()
-  st.subheader("⚙️ Monte Carlo Stress Test Parameters")
-  st.info(
-      f"🌐 Active Scenario Presets: **{macro_scenario}** | Gross Demand Surge:"
-      f" **{gross_surge:,} {term_unit}** | Baseline Contracts:"
-      f" **{active_contracts:,} {term_unit}** | **Net Deficit Exposure:"
-      f" {net_units:,} {term_unit}**"
-  )
-
-  col_s1, col_s2, col_s3, col_s4 = st.columns(4)
-  with col_s1:
-    n_sims = st.select_slider(
-        "Simulation Runs",
-        options=[1000, 2500, 5000, 10000, 20000],
-        value=5000,
-        key="sim_runs",
+    macro_scenario = st.session_state.get(
+        "sandbox_scenario",
+        st.session_state.get("sb_scenario_select", "Baseline Operations"),
     )
-  with col_s2:
-    vol_shock = st.slider(
-        "Spot Price Volatility (σ)",
-        min_value=0.05,
-        max_value=1.00,
-        step=0.05,
-        key="sim_vol",
+    sandbox_params = st.session_state.get("sandbox_params", {})
+
+    if "Freight" in macro_scenario or "Red Sea" in macro_scenario:
+        def_vol = float(sandbox_params.get("iv_multiplier", 1.4)) * 0.35
+        def_delay = int(sandbox_params.get("transit_delay_days", 8))
+        def_surge = float(sandbox_params.get("volume_multiplier", 1.10)) * 1.2
+    elif "Drought" in macro_scenario or "Crop" in macro_scenario:
+        def_vol = float(sandbox_params.get("iv_multiplier", 1.8)) * 0.35
+        def_delay = int(sandbox_params.get("transit_delay_days", 4))
+        def_surge = float(sandbox_params.get("volume_multiplier", 0.85)) * 1.3
+    elif "Volatility" in macro_scenario or "Black Swan" in macro_scenario:
+        def_vol = float(sandbox_params.get("iv_multiplier", 2.5)) * 0.35
+        def_delay = int(sandbox_params.get("transit_delay_days", 0)) + 14
+        def_surge = float(sandbox_params.get("volume_multiplier", 1.00)) * 1.5
+    else:
+        def_vol, def_delay, def_surge = 0.15, 2, 1.00
+
+    if st.session_state.get("last_applied_sandbox_scenario") != macro_scenario:
+        st.session_state["last_applied_sandbox_scenario"] = macro_scenario
+        st.session_state["sim_vol"] = min(1.0, max(0.05, round(def_vol, 2)))
+        st.session_state["sim_lt"] = max(1, min(30, def_delay))
+        st.session_state["sim_dem"] = min(2.5, max(0.8, round(def_surge, 2)))
+        st.session_state.pop("mc_results", None)
+
+    st.session_state.setdefault(
+        "sim_vol", min(1.0, max(0.05, round(def_vol, 2)))
     )
-  with col_s3:
-    lead_time_shock = st.slider(
-        "Lead Time Delay (Days)",
-        min_value=1,
-        max_value=30,
-        step=1,
-        key="sim_lt",
-    )
-  with col_s4:
-    demand_multiplier = st.slider(
-        "Demand Surge Multiplier",
-        min_value=0.8,
-        max_value=2.5,
-        step=0.1,
-        key="sim_dem",
+    st.session_state.setdefault("sim_lt", max(1, min(30, def_delay)))
+    st.session_state.setdefault(
+        "sim_dem", min(2.5, max(0.8, round(def_surge, 2)))
     )
 
-  st.divider()
+    # Pull session state including baseline contract volume
+    si_score = st.session_state.get("si_composite", -0.33)
+    gross_surge = st.session_state.get("extracted_demand_surge", 185000)
+    active_contracts = st.session_state.get("active_contracts_volume", 129500)
+    cash_balance = st.session_state.get("sop_cash_balance", 5_000_000.0)
+    fix_executed = st.session_state.get("fix_executed", False)
+    curr_leadtime_delay = st.session_state.get("active_leadtime_delay_days", 2.5)
 
-  if st.button("🚀 Run Monte Carlo Stress Simulation", key="btn_run_mc"):
-    with st.spinner(f"Simulating {n_sims:,} market shocks..."):
-      base_unit_price = 780.0 if "Heavy" in persona else 150.0
-      price_shocks = np.random.lognormal(
-          mean=np.log(base_unit_price), sigma=vol_shock, size=n_sims
-      )
-
-      # Simulate gross demand surge across iterations
-      simulated_gross = gross_surge * demand_multiplier * np.random.uniform(
-          0.9, 1.1, size=n_sims
-      )
-
-      # Subtract baseline contracted volume to evaluate floating net deficit
-      simulated_net_deficit = np.maximum(0, simulated_gross - active_contracts)
-
-      # FIX hedge reduces open floating exposure on the net deficit
-      hedge_ratio = 0.85 if fix_executed else 0.0
-      unhedged_deficit = simulated_net_deficit * (1.0 - hedge_ratio)
-      hedged_deficit = simulated_net_deficit * hedge_ratio
-
-      # Financial cost = floating market shocks on unhedged net volume + locked cost on hedged net volume
-      unhedged_cost = unhedged_deficit * price_shocks
-      hedged_cost = hedged_deficit * base_unit_price
-      total_simulated_cost = unhedged_cost + hedged_cost
-      net_cash_impact = cash_balance - total_simulated_cost
-
-      st.session_state["mc_results"] = {
-          "mean_cost": np.mean(total_simulated_cost),
-          "var_95": np.percentile(total_simulated_cost, 95),
-          "var_99": np.percentile(total_simulated_cost, 99),
-          "insolvency_risk": np.mean(net_cash_impact < 0) * 100.0,
-          "total_cost": total_simulated_cost,
-      }
-
-  if "mc_results" in st.session_state:
-    res = st.session_state["mc_results"]
-    st.markdown("### 📊 Simulation Outcomes & Value at Risk (VaR)")
-
-    col_m1, col_m2, col_m3, col_m4 = st.columns(4)
-    with col_m1:
-      st.metric("Expected Net Deficit Cost", f"${res['mean_cost']:,.2f}")
-    with col_m2:
-      st.metric("95% Value at Risk (VaR)", f"${res['var_95']:,.2f}")
-    with col_m3:
-      st.metric("99% Tail Risk (VaR)", f"${res['var_99']:,.2f}")
-    with col_m4:
-      st.metric(
-          "Treasury Insolvency Risk",
-          f"{res['insolvency_risk']:.1f}%",
-          delta="High Risk" if res["insolvency_risk"] > 5 else "Manageable",
-          delta_color="inverse" if res["insolvency_risk"] > 5 else "normal",
-      )
-
-    df_chart = pd.DataFrame({"Simulated Cost ($)": res["total_cost"]})
-    fig = px.histogram(
-        df_chart,
-        x="Simulated Cost ($)",
-        nbins=50,
-        title=f"Monte Carlo Net Deficit Risk Exposure ({n_sims:,} Iterations)",
-        color_discrete_sequence=["#0068C9" if fix_executed else "#FF2B2B"],
+    # Compute current net uncovered open deficit
+    net_units = st.session_state.get(
+        "net_uncovered_units", max(0, gross_surge - active_contracts)
     )
-    fig.add_vline(
-        x=res["var_95"],
-        line_dash="dash",
-        line_color="orange",
-        annotation_text="95% VaR",
-    )
-    fig.add_vline(
-        x=res["var_99"],
-        line_dash="dash",
-        line_color="red",
-        annotation_text="99% Tail VaR",
-    )
-    st.plotly_chart(fig, use_container_width=True)
 
-    if st.button(
-        "⚡ Inject Stressed Parameters Back into Live Operations",
-        key="btn_inject_mc",
-    ):
-      new_gross_surge = int(gross_surge * demand_multiplier)
-      new_net_deficit = max(0, new_gross_surge - active_contracts)
+    st.divider()
+    st.subheader("⚙️ Monte Carlo Stress Test Parameters")
+    st.info(
+        f"🌐 Active Scenario Presets: **{macro_scenario}** | Gross Demand Surge:"
+        f" **{gross_surge:,} {term_unit}** | Baseline Contracts:"
+        f" **{active_contracts:,} {term_unit}** | **Net Deficit Exposure:"
+        f" {net_units:,} {term_unit}**"
+    )
 
-      st.session_state["extracted_demand_surge"] = new_gross_surge
-      st.session_state["net_uncovered_units"] = new_net_deficit
-      st.session_state["active_leadtime_delay_days"] = (
-          curr_leadtime_delay + lead_time_shock
-      )
-      st.session_state["si_composite"] = max(-1.0, si_score - (vol_shock * 0.5))
-      st.toast(
-          f"Propagated! New Gross Surge: {new_gross_surge:,} | New Net Deficit:"
-          f" {new_net_deficit:,}",
-          icon="⚡",
-      )
-      st.rerun()
+    col_s1, col_s2, col_s3, col_s4 = st.columns(4)
+    with col_s1:
+        n_sims = st.select_slider(
+            "Simulation Runs",
+            options=[1000, 2500, 5000, 10000, 20000],
+            value=5000,
+            key="sim_runs",
+        )
+    with col_s2:
+        vol_shock = st.slider(
+            "Spot Price Volatility (σ)",
+            min_value=0.05,
+            max_value=1.00,
+            step=0.05,
+            key="sim_vol",
+        )
+    with col_s3:
+        lead_time_shock = st.slider(
+            "Lead Time Delay (Days)",
+            min_value=1,
+            max_value=30,
+            step=1,
+            key="sim_lt",
+        )
+    with col_s4:
+        demand_multiplier = st.slider(
+            "Demand Surge Multiplier",
+            min_value=0.8,
+            max_value=2.5,
+            step=0.1,
+            key="sim_dem",
+        )
+
+    st.divider()
+
+    if st.button("🚀 Run Monte Carlo Stress Simulation", key="btn_run_mc"):
+        with st.spinner(f"Simulating {n_sims:,} market shocks..."):
+            base_unit_price = (
+                780.0
+                if "Heavy" in persona
+                else (3200.0 if "Merchant" in persona else 45.0)
+            )
+            price_shocks = np.random.lognormal(
+                mean=np.log(base_unit_price), sigma=vol_shock, size=n_sims
+            )
+
+            # Simulate gross demand surge across iterations
+            simulated_gross = (
+                gross_surge
+                * demand_multiplier
+                * np.random.uniform(0.9, 1.1, size=n_sims)
+            )
+
+            # Subtract baseline contracted volume to evaluate floating net deficit
+            simulated_net_deficit = np.maximum(
+                0, simulated_gross - active_contracts
+            )
+
+            # FIX hedge reduces open floating exposure on the net deficit
+            hedge_ratio = 0.85 if fix_executed else 0.0
+            unhedged_deficit = simulated_net_deficit * (1.0 - hedge_ratio)
+            hedged_deficit = simulated_net_deficit * hedge_ratio
+
+            # Financial cost = floating market shocks on unhedged net volume + locked cost on hedged net volume
+            unhedged_cost = unhedged_deficit * price_shocks
+            hedged_cost = hedged_deficit * base_unit_price
+            total_simulated_cost = unhedged_cost + hedged_cost
+            net_cash_impact = cash_balance - total_simulated_cost
+
+            st.session_state["mc_results"] = {
+                "mean_cost": float(np.mean(total_simulated_cost)),
+                "var_95": float(np.percentile(total_simulated_cost, 95)),
+                "var_99": float(np.percentile(total_simulated_cost, 99)),
+                "insolvency_risk": float(
+                    np.mean(net_cash_impact < 0) * 100.0
+                ),
+                "total_cost": total_simulated_cost,
+            }
+
+    if "mc_results" in st.session_state:
+        res = st.session_state["mc_results"]
+        st.markdown("### 📊 Simulation Outcomes & Value at Risk (VaR)")
+
+        col_m1, col_m2, col_m3, col_m4 = st.columns(4)
+        with col_m1:
+            st.metric("Expected Net Deficit Cost", f"${res['mean_cost']:,.2f}")
+        with col_m2:
+            st.metric("95% Value at Risk (VaR)", f"${res['var_95']:,.2f}")
+        with col_m3:
+            st.metric("99% Tail Risk (VaR)", f"${res['var_99']:,.2f}")
+        with col_m4:
+            st.metric(
+                "Treasury Insolvency Risk",
+                f"{res['insolvency_risk']:.1f}%",
+                delta="High Risk" if res["insolvency_risk"] > 5 else "Manageable",
+                delta_color="inverse"
+                if res["insolvency_risk"] > 5
+                else "normal",
+            )
+
+        df_chart = pd.DataFrame({"Simulated Cost ($)": res["total_cost"]})
+        fig = px.histogram(
+            df_chart,
+            x="Simulated Cost ($)",
+            nbins=50,
+            title=(
+                f"Monte Carlo Net Deficit Risk Exposure ({n_sims:,}"
+                " Iterations)"
+            ),
+            color_discrete_sequence=["#0068C9" if fix_executed else "#FF2B2B"],
+        )
+        fig.add_vline(
+            x=res["var_95"],
+            line_dash="dash",
+            line_color="orange",
+            annotation_text="95% VaR",
+        )
+        fig.add_vline(
+            x=res["var_99"],
+            line_dash="dash",
+            line_color="red",
+            annotation_text="99% Tail VaR",
+        )
+        st.plotly_chart(fig, use_container_width=True)
+
+        if st.button(
+            "⚡ Inject Stressed Parameters Back into Live Operations",
+            key="btn_inject_mc",
+        ):
+            new_gross_surge = int(gross_surge * demand_multiplier)
+            new_net_deficit = max(0, new_gross_surge - active_contracts)
+            new_lt_delay = curr_leadtime_delay + lead_time_shock
+            new_si = max(-1.0, si_score - (vol_shock * 0.5))
+
+            st.session_state["extracted_demand_surge"] = new_gross_surge
+            st.session_state["net_uncovered_units"] = new_net_deficit
+            st.session_state["active_leadtime_delay_days"] = new_lt_delay
+            st.session_state["si_composite"] = new_si
+
+            # Trigger Full Platform S&OP Re-Calculation
+            updated_cascade = run_end_to_end_sop_cascade(
+                base_demand_units=st.session_state.get("base_demand", 200000)
+            )
+            st.session_state["active_sop_cascade"] = updated_cascade
+
+            st.toast(
+                f"Propagated! New Gross Surge: {new_gross_surge:,} | Net Deficit:"
+                f" {new_net_deficit:,} | Lead Time: +{new_lt_delay} Days",
+                icon="⚡",
+            )
+            st.rerun()
 
 
 def render_handshake_simulator():
