@@ -371,7 +371,6 @@ import streamlit as st
 import plotly.graph_objects as go
 import streamlit as st
 
-
 def render_executive_sop(
     persona="Discrete & Heavy Industrial Enterprise",
     term_unit="Units",
@@ -399,15 +398,20 @@ def render_executive_sop(
         unit_price = 780.0
         cogs_pct = 0.65
 
-    # 2. Extract Central Cascade State & Live Signals
+    # 2. Extract Central Cascade State, Live Signals & Propagated Commodity Data
     cascade = st.session_state.get("active_sop_cascade", {})
     robot_signals = st.session_state.get("latest_robot_signals", {})
+    prop_data = st.session_state.get("propagated_commodity_data")
 
     demand_data = cascade.get("demand", {})
     exec_data = cascade.get("exec_sop", {})
     ctrm_data = cascade.get("ctrm", {})
     logistics_data = cascade.get("logistics", {})
     baltic_data = robot_signals.get("baltic_indices", {})
+
+    # Ingest spot price from commodity propagation if active
+    if prop_data and "spot_price" in prop_data:
+        unit_price = prop_data["spot_price"]
 
     si_score = cascade.get(
         "si_composite", st.session_state.get("si_composite", -0.28)
@@ -430,6 +434,7 @@ def render_executive_sop(
     fix_executed = st.session_state.get("fix_executed", False)
     mc_res = st.session_state.get("mc_results", None)
 
+    # Dynamic COGS drag calculation
     if mc_res:
         cogs_drag = mc_res["mean_cost"]
         var_95_drag = mc_res["var_95"]
@@ -437,17 +442,24 @@ def render_executive_sop(
         cogs_drag = exec_data.get("delta_cogs_usd", 0.0) + freight_surcharge
         if cogs_drag == 0.0:
             cogs_drag = (base_aop_rev * 0.025) * (1.0 + abs(si_score) * 2.5)
+        
+        # Scale drag if commodity forecast extrapolation is propagated
+        if prop_data:
+            cogs_drag *= (1.0 + max(0.0, prop_data.get("price_delta_pct", 0.0)))
+
         var_95_drag = cogs_drag * 1.4
 
-    # CTRM Hedge Benefit
-    ctrm_hedge_benefit = (
-        ctrm_data.get(
+    # Dynamic CTRM Hedge Benefit
+    if fix_executed:
+        ctrm_hedge_benefit = ctrm_data.get(
             "capital_committed_usd",
-            cogs_drag * 0.42 if fix_executed else 0.0,
+            cogs_drag * 0.42,
         )
-        if fix_executed
-        else 0.0
-    )
+    elif prop_data:
+        # Extrapolated hedge benefit calculation under active commodity signal
+        ctrm_hedge_benefit = cogs_drag * 0.35 * (1.0 + prop_data.get("price_delta_pct", 0.0))
+    else:
+        ctrm_hedge_benefit = 0.0
 
     net_cogs_drag = cogs_drag - ctrm_hedge_benefit
     base_cogs = base_aop_rev * cogs_pct
@@ -472,8 +484,8 @@ def render_executive_sop(
         st.metric(
             "CTRM Hedge Benefit",
             f"+${ctrm_hedge_benefit / 1e6:.2f}M",
-            "FIX Covered" if fix_executed else "0% Cover (Floating Risk)",
-            delta_color="normal" if fix_executed else "inverse",
+            "FIX Covered" if fix_executed else ("Signal Propagated" if prop_data else "0% Cover (Floating Risk)"),
+            delta_color="normal" if (fix_executed or prop_data) else "inverse",
         )
     with col_m4:
         st.metric(
@@ -557,6 +569,16 @@ def render_executive_sop(
         sig_title = st.session_state.get(
             "active_risk_signal_title", "Baseline Operations Target"
         )
+
+        # Ingested Commodity Extrapolation Feed
+        if prop_data:
+            st.success(
+                f"⚡ **Predictive Commodity Engine Feed Active**\n\n"
+                f"**Ingested Commodity:** {prop_data['commodity_name']} [{prop_data.get('ticker', 'LME_CU')}]\n\n"
+                f"**Spot:** ${prop_data['spot_price']:,.2f} ➔ **60D Target:** ${prop_data['forecast_60d']:,.2f} "
+                f"({prop_data['price_delta_pct']:+.2%})\n\n"
+                f"*Margin Waterfall & CTRM Desk updated.*"
+            )
 
         st.info(
             f"🔹 **Active NLP Signal**: `{sig_title}` ($SI = {si_score:+.2f}$)"
@@ -2506,10 +2528,10 @@ def render_ctrm_desk(
     st.title("🛡️ CTRM Event-Driven Hedging Desk")
     st.caption(f"Active Persona View: **{persona}**")
 
-    # 1. Pull dynamic state from Central Orchestrator Cascade
+    # 1. Pull dynamic state from Central Orchestrator & Propagated Commodity State
     cascade = st.session_state.get("active_sop_cascade", {})
     demand_data = cascade.get("demand", {})
-    ctrm_data = cascade.get("ctrm", {})
+    prop_data = st.session_state.get("propagated_commodity_data")
 
     gross_surge = demand_data.get(
         "total_surge_units",
@@ -2529,27 +2551,46 @@ def render_ctrm_desk(
     si_score = st.session_state.get("si_composite", -0.82)
     fix_executed = st.session_state.get("fix_executed", False)
 
-    # Base price per persona
-    unit_base_price = (
-        3200.0 if "Merchant" in persona else (45.0 if "FMCG" in persona else 780.0)
-    )
+    # Base price derived from persona or injected commodity spot price
+    if prop_data and "spot_price" in prop_data:
+        unit_base_price = prop_data["spot_price"]
+    else:
+        unit_base_price = (
+            3200.0 if "Merchant" in persona else (45.0 if "FMCG" in persona else 780.0)
+        )
 
     # 2. Derive Event-Driven CTRM Metrics
-    # Target Hedge Ratio (HR) expands dynamically as sentiment worsens (more negative SI)
+    # Target Hedge Ratio (HR) expands dynamically as sentiment worsens
     target_hr = min(0.95, max(0.40, 0.50 - (si_score * 0.35)))
     required_hedged_vol = int(gross_surge * target_hr)
     unhedged_shortfall = max(0, required_hedged_vol - active_contracts)
-    risk_margin_buffer = unhedged_shortfall * unit_base_price * 0.08
+
+    # Scale risk margin buffer if commodity extrapolation is active
+    base_buffer = unhedged_shortfall * unit_base_price * 0.08
+    if prop_data:
+        delta_pct = prop_data.get("price_delta_pct", 0.0)
+        risk_margin_buffer = base_buffer * (1.0 + delta_pct)
+    else:
+        risk_margin_buffer = base_buffer
+
     auto_horizon_days = 90 if si_score < -0.5 else (60 if si_score < 0 else 30)
 
-    # 3. Top Banner
-    st.info(
-        f"⚡ **Active Risk Signal Ingested**: Triangulated Sentiment Index (**{si_score:.2f}**) [`{sig_title}`] | "
-        f"**Target Hedge Ratio: {target_hr * 100:.1f}%** | Unhedged Shortfall: **{unhedged_shortfall:,} {term_unit}** | "
-        f"Auto Horizon: **{auto_horizon_days} Days**"
-    )
+    # 3. Top Banner (Dynamically updates when commodity propagation is active)
+    if prop_data:
+        st.success(
+            f"⚡ **Propagated Commodity Signal Active**: Ingested **{prop_data['commodity_name']}** "
+            f"[{prop_data.get('ticker', 'LME_CU')}] | Spot: **${prop_data['spot_price']:,.2f}** ➔ "
+            f"60D Forecast: **${prop_data['forecast_60d']:,.2f}** ({prop_data['price_delta_pct']:+.2%}) | "
+            f"**Target Hedge Ratio: {target_hr * 100:.1f}%** | Unhedged Shortfall: **{unhedged_shortfall:,} {term_unit}**"
+        )
+    else:
+        st.info(
+            f"⚡ **Active Risk Signal Ingested**: Triangulated Sentiment Index (**{si_score:.2f}**) [`{sig_title}`] | "
+            f"**Target Hedge Ratio: {target_hr * 100:.1f}%** | Unhedged Shortfall: **{unhedged_shortfall:,} {term_unit}** | "
+            f"Auto Horizon: **{auto_horizon_days} Days**"
+        )
 
-    # 4. Top Executive Metrics (Matching FIX 4.4 Gateway View)
+    # 4. Top Executive Metrics
     col_m1, col_m2, col_m3, col_m4 = st.columns(4)
     col_m1.metric(
         "Gross Demand Surge",
@@ -2571,7 +2612,7 @@ def render_ctrm_desk(
     col_m4.metric(
         "Required Risk Margin Buffer",
         f"${risk_margin_buffer:,.2f}",
-        "+23.0% Volatility Load",
+        delta=f"{prop_data['price_delta_pct']:+.2%} Commodity Impact" if prop_data else "+23.0% Volatility Load",
         delta_color="inverse",
     )
 
@@ -2660,7 +2701,6 @@ def render_ctrm_desk(
                 "exchange": exchange,
             }
 
-            # Trigger orchestrator cascade update if available
             if "run_end_to_end_sop_cascade" in globals():
                 st.session_state["active_sop_cascade"] = run_end_to_end_sop_cascade(
                     base_demand_units=st.session_state.get("base_demand", 200000)
@@ -2761,7 +2801,6 @@ def render_ctrm_desk(
         with col_s2:
             st.markdown("**2. Net Payoff Profile Simulation at Expiry**")
 
-            # Calculate Net Payoff Curve
             spot_range = np.linspace(
                 unit_base_price * 0.7, unit_base_price * 1.3, 50
             )
