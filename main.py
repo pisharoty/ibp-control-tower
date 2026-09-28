@@ -924,7 +924,7 @@ def _propagate_commodity_forecast_cascade(payload: dict):
         icon="🚀",
     )
 
-
+@st.cache_data(ttl=300)
 def fetch_live_commodity_price(ticker: str, fallback_spot: float) -> float:
     """Fetch live commodity spot/last price from Yahoo Finance with a fallback."""
     try:
@@ -943,7 +943,7 @@ def fetch_live_commodity_price(ticker: str, fallback_spot: float) -> float:
         pass
     return fallback_spot
 
-@st.cache_data(ttl=300)
+
 def render_predictive_commodity_engine():
     """Predictive Commodity Price Engine tracking Top 50 Global Raw Material Inputs
 
