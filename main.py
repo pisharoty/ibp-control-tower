@@ -1556,13 +1556,15 @@ def render_predictive_commodity_engine():
     )
     st.plotly_chart(fig, use_container_width=True)
 
-    # -------------------------------------------------------------------------
+# -------------------------------------------------------------------------
     # DOWNSTREAM INJECTION PROPAGATION BUTTON
     # -------------------------------------------------------------------------
+    st.markdown("---")
     st.button(
-        f"⚡ Propagate {selected_comm} Extrapolation ({delta_60d_pct:+.2%})"
-        " into CTRM Risk Desk & S&OP Engine",
+        f"⚡ Propagate {selected_comm} Extrapolation ({delta_60d_pct:+.2%}) into CTRM Risk Desk & S&OP Engine",
         key="btn_propagate_commodity_extrapolation",
+        type="primary",
+        use_container_width=True,
         on_click=_propagate_commodity_forecast_cascade,
         args=(
             {
