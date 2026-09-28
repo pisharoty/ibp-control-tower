@@ -364,13 +364,6 @@ def get_persona_contracts(persona: str) -> list[dict]:
 # =====================================================================
 
 
-import plotly.graph_objects as go
-import streamlit as st
-
-
-import plotly.graph_objects as go
-import streamlit as st
-
 def render_executive_sop(
     persona="Discrete & Heavy Industrial Enterprise",
     term_unit="Units",
@@ -883,10 +876,7 @@ def fetch_live_sector_rss(topic_query=None, persona_materials=None):
     return processed_articles
 
 
-    import numpy as np
-import pandas as pd
-import plotly.graph_objects as go
-import streamlit as st
+ 
 
 def _propagate_commodity_forecast_cascade(payload: dict):
     """Callback to inject commodity price forecast extrapolation downstream
@@ -904,6 +894,7 @@ def _propagate_commodity_forecast_cascade(payload: dict):
     st.session_state["active_commodity_spot"] = spot_price
     st.session_state["active_commodity_60d_forecast"] = forecast_60d
     st.session_state["commodity_price_delta_pct"] = delta_pct
+    st.session_state["propagated_commodity_data"] = payload
 
     # 2. Compute CTRM Derivatives Desk Hedge Exposure ($)
     base_annual_procurement_units = st.session_state.get(
@@ -923,6 +914,10 @@ def _propagate_commodity_forecast_cascade(payload: dict):
     st.session_state["sop_procurement_budget_variance_pct"] = delta_pct
     st.session_state["macro_sim_cost_shock_pct"] = delta_pct * 100.0
 
+    # 4. Cascade to central S&OP engine if global pipeline exists
+    if "_propagate_signal_to_sop_cascade" in globals():
+        _propagate_signal_to_sop_cascade(payload)
+
     st.toast(
         f"⚡ Injected {comm_name} (+{delta_pct:.2%}) downstream across CTRM &"
         " S&OP Engines!",
@@ -930,6 +925,25 @@ def _propagate_commodity_forecast_cascade(payload: dict):
     )
 
 
+def fetch_live_commodity_price(ticker: str, fallback_spot: float) -> float:
+    """Fetch live commodity spot/last price from Yahoo Finance with a fallback."""
+    try:
+        t = yf.Ticker(ticker)
+        if hasattr(t, "fast_info"):
+            price = t.fast_info.get("lastPrice", None)
+            if price is not None and not np.isnan(price) and price > 0:
+                return float(price)
+
+        hist = t.history(period="5d")
+        if not hist.empty and "Close" in hist:
+            last_close = hist["Close"].iloc[-1]
+            if not np.isnan(last_close) and last_close > 0:
+                return float(last_close)
+    except Exception:
+        pass
+    return fallback_spot
+
+@st.cache_data(ttl=300)
 def render_predictive_commodity_engine():
     """Predictive Commodity Price Engine tracking Top 50 Global Raw Material Inputs
 
@@ -939,17 +953,17 @@ def render_predictive_commodity_engine():
     st.markdown("### 📈 SOTA Predictive Commodity Engine (Top 50 Global Inputs)")
     st.caption(
         "Historical precedence correlation matrix, news sentiment elasticity"
-        " ($\beta_{SI}$), and vector autoregressive forecast across 50 liquid"
-        " raw material benchmarks."
+        " (β_SI), and vector autoregressive forecast across 50 liquid raw"
+        " material benchmarks."
     )
 
     # -------------------------------------------------------------------------
-    # TOP 50 GLOBAL COMMODITY COVERAGE MATRIX
+    # TOP 50 GLOBAL COMMODITY COVERAGE MATRIX (UPDATED YAHOO FINANCE TICKERS)
     # -------------------------------------------------------------------------
     top_50_commodities = {
         # Bucket 1: Industrial Non-Ferrous & Ferrous Metals (1–10)
         "Copper (LME Grade A)": {
-            "ticker": "LME_CU",
+            "ticker": "HG=F",
             "category": "Industrial Metals",
             "spot": 9820.00,
             "unit": "$/MT",
@@ -962,19 +976,19 @@ def render_predictive_commodity_engine():
             ),
         },
         "Primary Aluminum (LME)": {
-            "ticker": "LME_AL",
+            "ticker": "ALI=F",
             "category": "Industrial Metals",
             "spot": 2540.00,
             "unit": "$/MT",
             "beta_si": 0.062,
             "r_squared": 0.841,
             "precedent": (
-                "2021 China Yunnan Hydro Power Rationing. Supply shock"
-                " drove spot premiums higher within 30 days."
+                "2021 China Yunnan Hydro Power Rationing. Supply shock drove"
+                " spot premiums higher within 30 days."
             ),
         },
         "Nickel (LME Class 1)": {
-            "ticker": "LME_NI",
+            "ticker": "JJN",
             "category": "Industrial Metals",
             "spot": 17450.00,
             "unit": "$/MT",
@@ -983,7 +997,7 @@ def render_predictive_commodity_engine():
             "precedent": "2022 Tsingshan Short Squeeze & Indonesian Ore Quotas",
         },
         "Zinc (LME High Grade)": {
-            "ticker": "LME_ZN",
+            "ticker": "ZNC=F",
             "category": "Industrial Metals",
             "spot": 2890.00,
             "unit": "$/MT",
@@ -992,7 +1006,7 @@ def render_predictive_commodity_engine():
             "precedent": "2022 Nyrstar Smelter Production Halt",
         },
         "Lead (LME Refined)": {
-            "ticker": "LME_PB",
+            "ticker": "LED=F",
             "category": "Industrial Metals",
             "spot": 2120.00,
             "unit": "$/MT",
@@ -1003,7 +1017,7 @@ def render_predictive_commodity_engine():
             ),
         },
         "Tin (LME Grade A)": {
-            "ticker": "LME_SN",
+            "ticker": "JJT",
             "category": "Industrial Metals",
             "spot": 31500.00,
             "unit": "$/MT",
@@ -1012,7 +1026,7 @@ def render_predictive_commodity_engine():
             "precedent": "2023 Myanmar Wa State Mining Export Ban",
         },
         "Lithium Hydroxide 56.5%": {
-            "ticker": "BAT_LI",
+            "ticker": "LIT",
             "category": "Industrial Metals",
             "spot": 14200.00,
             "unit": "$/MT",
@@ -1023,7 +1037,7 @@ def render_predictive_commodity_engine():
             ),
         },
         "Cobalt Metal 99.8%": {
-            "ticker": "BAT_CO",
+            "ticker": "LIT",
             "category": "Industrial Metals",
             "spot": 28400.00,
             "unit": "$/MT",
@@ -1032,7 +1046,7 @@ def render_predictive_commodity_engine():
             "precedent": "2022 DRC Export Logistics Bottlenecks at Durban",
         },
         "Neodymium Oxide (NdFeB)": {
-            "ticker": "REE_ND",
+            "ticker": "REMX",
             "category": "Industrial Metals",
             "spot": 72500.00,
             "unit": "$/MT",
@@ -1041,7 +1055,7 @@ def render_predictive_commodity_engine():
             "precedent": "2021 China Rare Earth Export Quota Tightening",
         },
         "Iron Ore 62% Fe (TSI)": {
-            "ticker": "SGX_FE",
+            "ticker": "TIO=F",
             "category": "Industrial Metals",
             "spot": 118.50,
             "unit": "$/dmt",
@@ -1051,7 +1065,7 @@ def render_predictive_commodity_engine():
         },
         # Bucket 2: Energy & Power Inputs (11–20)
         "Brent Crude Oil": {
-            "ticker": "ICE_B",
+            "ticker": "BZ=F",
             "category": "Energy & Power Inputs",
             "spot": 78.50,
             "unit": "$/Bbl",
@@ -1060,7 +1074,7 @@ def render_predictive_commodity_engine():
             "precedent": "2024 Red Sea Transit Rerouting Surcharges",
         },
         "WTI Crude Oil": {
-            "ticker": "NYM_CL",
+            "ticker": "CL=F",
             "category": "Energy & Power Inputs",
             "spot": 74.20,
             "unit": "$/Bbl",
@@ -1069,7 +1083,7 @@ def render_predictive_commodity_engine():
             "precedent": "2023 OPEC+ Voluntary Production Cuts",
         },
         "Henry Hub Natural Gas": {
-            "ticker": "NYM_NG",
+            "ticker": "NG=F",
             "category": "Energy & Power Inputs",
             "spot": 2.65,
             "unit": "$/MMBtu",
@@ -1078,7 +1092,7 @@ def render_predictive_commodity_engine():
             "precedent": "2022 Freeport LNG Export Terminal Outage",
         },
         "TTF European Gas": {
-            "ticker": "ICE_TTF",
+            "ticker": "TTF=F",
             "category": "Energy & Power Inputs",
             "spot": 38.50,
             "unit": "€/MWh",
@@ -1087,7 +1101,7 @@ def render_predictive_commodity_engine():
             "precedent": "2022 Nord Stream Pipeline Curtailment Crisis",
         },
         "Ultra-Low Sulfur Diesel (ULSD)": {
-            "ticker": "NYM_HO",
+            "ticker": "HO=F",
             "category": "Energy & Power Inputs",
             "spot": 2.42,
             "unit": "$/Gal",
@@ -1098,7 +1112,7 @@ def render_predictive_commodity_engine():
             ),
         },
         "Thermal Coal (Newcastle)": {
-            "ticker": "ICE_NCF",
+            "ticker": "NCF=F",
             "category": "Energy & Power Inputs",
             "spot": 138.00,
             "unit": "$/MT",
@@ -1107,7 +1121,7 @@ def render_predictive_commodity_engine():
             "precedent": "2021 Indonesian Coal Export Embargo",
         },
         "Uranium (U3O8 Benchmark)": {
-            "ticker": "UX_U3O8",
+            "ticker": "SRUUF",
             "category": "Energy & Power Inputs",
             "spot": 82.50,
             "unit": "$/lb",
@@ -1116,7 +1130,7 @@ def render_predictive_commodity_engine():
             "precedent": "2023 Kazatomprom Production Guidance Cut",
         },
         "Heavy Fuel Oil 380 CST": {
-            "ticker": "SGP_FO380",
+            "ticker": "BZ=F",
             "category": "Energy & Power Inputs",
             "spot": 440.00,
             "unit": "$/MT",
@@ -1125,7 +1139,7 @@ def render_predictive_commodity_engine():
             "precedent": "2024 Marine Bunker Fuel Demand Surge",
         },
         "European Carbon Permits (EUA)": {
-            "ticker": "ICE_EUA",
+            "ticker": "KRBN",
             "category": "Energy & Power Inputs",
             "spot": 68.20,
             "unit": "€/MT",
@@ -1134,7 +1148,7 @@ def render_predictive_commodity_engine():
             "precedent": "2023 EU MSR Rule Reform & Power Grid Switching",
         },
         "Electricity Base Load (PJM)": {
-            "ticker": "PJM_BASE",
+            "ticker": "XLU",
             "category": "Energy & Power Inputs",
             "spot": 42.50,
             "unit": "$/MWh",
@@ -1144,7 +1158,7 @@ def render_predictive_commodity_engine():
         },
         # Bucket 3: Petrochemicals & Polymers (21–30)
         "Ethylene (CFR Asia)": {
-            "ticker": "PET_ETH",
+            "ticker": "LYB",
             "category": "Petrochemicals & Polymers",
             "spot": 890.00,
             "unit": "$/MT",
@@ -1155,7 +1169,7 @@ def render_predictive_commodity_engine():
             ),
         },
         "Polypropylene (PP Raffia)": {
-            "ticker": "PET_PP",
+            "ticker": "DOW",
             "category": "Petrochemicals & Polymers",
             "spot": 1120.00,
             "unit": "$/MT",
@@ -1164,7 +1178,7 @@ def render_predictive_commodity_engine():
             "precedent": "2021 Hurricane Ida Louisiana Cracker Shutdowns",
         },
         "Polyethylene (HDPE Film)": {
-            "ticker": "PET_HDPE",
+            "ticker": "WLK",
             "category": "Petrochemicals & Polymers",
             "spot": 1050.00,
             "unit": "$/MT",
@@ -1173,7 +1187,7 @@ def render_predictive_commodity_engine():
             "precedent": "2022 European Steam Cracker Rate Reductions",
         },
         "Polyvinyl Chloride (PVC)": {
-            "ticker": "PET_PVC",
+            "ticker": "OLN",
             "category": "Petrochemicals & Polymers",
             "spot": 820.00,
             "unit": "$/MT",
@@ -1184,7 +1198,7 @@ def render_predictive_commodity_engine():
             ),
         },
         "Titanium Dioxide (TiO2)": {
-            "ticker": "CHM_TIO2",
+            "ticker": "TROX",
             "category": "Petrochemicals & Polymers",
             "spot": 2950.00,
             "unit": "$/MT",
@@ -1193,7 +1207,7 @@ def render_predictive_commodity_engine():
             "precedent": "2022 Ilmenite Ore Feedstock Shortage",
         },
         "Methanol (CFR China)": {
-            "ticker": "CHM_METH",
+            "ticker": "MEOH",
             "category": "Petrochemicals & Polymers",
             "spot": 285.00,
             "unit": "$/MT",
@@ -1202,7 +1216,7 @@ def render_predictive_commodity_engine():
             "precedent": "2023 Iranian Winter Natural Gas Cutoffs to Plants",
         },
         "Urea / Nitrogen Fertilizer": {
-            "ticker": "AGR_UREA",
+            "ticker": "CF",
             "category": "Petrochemicals & Polymers",
             "spot": 340.00,
             "unit": "$/MT",
@@ -1213,7 +1227,7 @@ def render_predictive_commodity_engine():
             ),
         },
         "Purified Terephthalic Acid (PTA)": {
-            "ticker": "PET_PTA",
+            "ticker": "ALB",
             "category": "Petrochemicals & Polymers",
             "spot": 760.00,
             "unit": "$/MT",
@@ -1222,7 +1236,7 @@ def render_predictive_commodity_engine():
             "precedent": "2022 PX Feedstock Premium Expansion",
         },
         "Styrene Monomer": {
-            "ticker": "CHM_SM",
+            "ticker": "AXTA",
             "category": "Petrochemicals & Polymers",
             "spot": 1150.00,
             "unit": "$/MT",
@@ -1231,7 +1245,7 @@ def render_predictive_commodity_engine():
             "precedent": "2023 POSM Plant Unplanned Maintenance Outages",
         },
         "Caustic Soda (Liquid 50%)": {
-            "ticker": "CHM_NAOH",
+            "ticker": "OLN",
             "category": "Petrochemicals & Polymers",
             "spot": 410.00,
             "unit": "$/MT",
@@ -1243,7 +1257,7 @@ def render_predictive_commodity_engine():
         },
         # Bucket 4: Agri-Softs & Industrial Crops (31–40)
         "Corn (CBOT Futures)": {
-            "ticker": "CBT_C",
+            "ticker": "ZC=F",
             "category": "Agri-Softs & Industrial Crops",
             "spot": 4.35,
             "unit": "$/Bu",
@@ -1254,7 +1268,7 @@ def render_predictive_commodity_engine():
             ),
         },
         "Soybeans (CBOT Futures)": {
-            "ticker": "CBT_S",
+            "ticker": "ZS=F",
             "category": "Agri-Softs & Industrial Crops",
             "spot": 10.15,
             "unit": "$/Bu",
@@ -1263,7 +1277,7 @@ def render_predictive_commodity_engine():
             "precedent": "2024 Brazil Mato Grosso Weather Disruption",
         },
         "Wheat (CBOT SRW)": {
-            "ticker": "CBT_W",
+            "ticker": "ZW=F",
             "category": "Agri-Softs & Industrial Crops",
             "spot": 5.65,
             "unit": "$/Bu",
@@ -1272,7 +1286,7 @@ def render_predictive_commodity_engine():
             "precedent": "2022 Black Sea Grain Corridor Interruption",
         },
         "Raw Sugar #11": {
-            "ticker": "ICE_SB",
+            "ticker": "SB=F",
             "category": "Agri-Softs & Industrial Crops",
             "spot": 0.21,
             "unit": "$/lb",
@@ -1281,7 +1295,7 @@ def render_predictive_commodity_engine():
             "precedent": "2023 India Export Ban & El Nino Rain Deficit",
         },
         "Robusta Coffee": {
-            "ticker": "ICE_RC",
+            "ticker": "KC=F",
             "category": "Agri-Softs & Industrial Crops",
             "spot": 4250.00,
             "unit": "$/MT",
@@ -1292,7 +1306,7 @@ def render_predictive_commodity_engine():
             ),
         },
         "Crude Palm Oil (MDEX)": {
-            "ticker": "FCPO",
+            "ticker": "CPO=F",
             "category": "Agri-Softs & Industrial Crops",
             "spot": 920.00,
             "unit": "$/MT",
@@ -1301,7 +1315,7 @@ def render_predictive_commodity_engine():
             "precedent": "2022 Indonesian Palm Oil Export Embargo",
         },
         "Natural Rubber (TSR20)": {
-            "ticker": "SGX_RT",
+            "ticker": "RUB=F",
             "category": "Agri-Softs & Industrial Crops",
             "spot": 1680.00,
             "unit": "$/MT",
@@ -1310,7 +1324,7 @@ def render_predictive_commodity_engine():
             "precedent": "2023 Thailand Heavy Monsoon Tapping Delays",
         },
         "Cotton #2": {
-            "ticker": "ICE_CT",
+            "ticker": "CT=F",
             "category": "Agri-Softs & Industrial Crops",
             "spot": 0.74,
             "unit": "$/lb",
@@ -1319,7 +1333,7 @@ def render_predictive_commodity_engine():
             "precedent": "2022 Texas West Drought Acreage Abandonment",
         },
         "Cocoa (ICE Futures)": {
-            "ticker": "ICE_CC",
+            "ticker": "CC=F",
             "category": "Agri-Softs & Industrial Crops",
             "spot": 7850.00,
             "unit": "$/MT",
@@ -1328,7 +1342,7 @@ def render_predictive_commodity_engine():
             "precedent": "2024 West Africa Black Pod Disease Shortage",
         },
         "Malting Barley": {
-            "ticker": "AGR_BAR",
+            "ticker": "WEAT",
             "category": "Agri-Softs & Industrial Crops",
             "spot": 210.00,
             "unit": "$/MT",
@@ -1338,7 +1352,7 @@ def render_predictive_commodity_engine():
         },
         # Bucket 5: Precious & Electronics Minerals (41–50)
         "Gold Spot": {
-            "ticker": "XAU",
+            "ticker": "GC=F",
             "category": "Precious & Electronics Minerals",
             "spot": 2510.00,
             "unit": "$/oz",
@@ -1347,7 +1361,7 @@ def render_predictive_commodity_engine():
             "precedent": "2024 Central Bank Gold Accumulation Surge",
         },
         "Silver Spot": {
-            "ticker": "XAG",
+            "ticker": "SI=F",
             "category": "Precious & Electronics Minerals",
             "spot": 29.80,
             "unit": "$/oz",
@@ -1356,7 +1370,7 @@ def render_predictive_commodity_engine():
             "precedent": "2024 Industrial Solar PV Demand Expansion",
         },
         "Platinum Spot": {
-            "ticker": "XPT",
+            "ticker": "PL=F",
             "category": "Precious & Electronics Minerals",
             "spot": 940.00,
             "unit": "$/oz",
@@ -1367,7 +1381,7 @@ def render_predictive_commodity_engine():
             ),
         },
         "Palladium Spot": {
-            "ticker": "XPD",
+            "ticker": "PA=F",
             "category": "Precious & Electronics Minerals",
             "spot": 980.00,
             "unit": "$/oz",
@@ -1376,7 +1390,7 @@ def render_predictive_commodity_engine():
             "precedent": "2022 Norilsk Nickel Logistics & Trade Rerouting",
         },
         "Silicon Metal 5-5-3 Grade": {
-            "ticker": "ELE_SI",
+            "ticker": "GSM",
             "category": "Precious & Electronics Minerals",
             "spot": 1920.00,
             "unit": "$/MT",
@@ -1385,7 +1399,7 @@ def render_predictive_commodity_engine():
             "precedent": "2021 Yunnan Smelter Energy Controls",
         },
         "High-Purity Neon Gas": {
-            "ticker": "ELE_NE",
+            "ticker": "APD",
             "category": "Precious & Electronics Minerals",
             "spot": 320.00,
             "unit": "$/m³",
@@ -1396,7 +1410,7 @@ def render_predictive_commodity_engine():
             ),
         },
         "Solar-Grade Polysilicon": {
-            "ticker": "ELE_POLY",
+            "ticker": "DQ",
             "category": "Precious & Electronics Minerals",
             "spot": 8.80,
             "unit": "$/kg",
@@ -1405,7 +1419,7 @@ def render_predictive_commodity_engine():
             "precedent": "2021 Xinjiang Plant Explosion & Fab Bottleneck",
         },
         "Germanium Metal 99.999%": {
-            "ticker": "ELE_GE",
+            "ticker": "MP",
             "category": "Precious & Electronics Minerals",
             "spot": 1450.00,
             "unit": "$/kg",
@@ -1416,7 +1430,7 @@ def render_predictive_commodity_engine():
             ),
         },
         "Gallium Metal 99.99%": {
-            "ticker": "ELE_GA",
+            "ticker": "ALB",
             "category": "Precious & Electronics Minerals",
             "spot": 520.00,
             "unit": "$/kg",
@@ -1425,7 +1439,7 @@ def render_predictive_commodity_engine():
             "precedent": "2023 Semiconductor Wafer Export Restrictions",
         },
         "Indium Metal": {
-            "ticker": "ELE_IN",
+            "ticker": "SMX",
             "category": "Precious & Electronics Minerals",
             "spot": 290.00,
             "unit": "$/kg",
@@ -1475,17 +1489,20 @@ def render_predictive_commodity_engine():
         )
         data = filtered_commodities[selected_comm]
 
+    # Dynamically fetch live spot price via yfinance (with static fallback)
+    live_spot = fetch_live_commodity_price(data["ticker"], data["spot"])
+
     # Retrieve live composite SI from session state
     si_val = st.session_state.get("si_composite", -0.62)
 
-    # Regression forecasting formula
+    # Regression forecasting formula using live or fallback spot price
     predicted_pct_change = (
         (data["beta_si"] * abs(si_val))
         if si_val < 0
         else (-data["beta_si"] * si_val)
     )
-    target_price_30d = data["spot"] * (1.0 + predicted_pct_change)
-    target_price_60d = data["spot"] * (1.0 + (predicted_pct_change * 1.45))
+    target_price_30d = live_spot * (1.0 + predicted_pct_change)
+    target_price_60d = live_spot * (1.0 + (predicted_pct_change * 1.45))
     delta_60d_pct = predicted_pct_change * 1.45
 
     # -------------------------------------------------------------------------
@@ -1493,13 +1510,15 @@ def render_predictive_commodity_engine():
     # -------------------------------------------------------------------------
     st.markdown("#### 📊 Econometric Regression & Historical Precedence Match")
     m1, m2, m3, m4, m5 = st.columns(5)
+
+    unit_label = data["unit"][1:] if data["unit"].startswith("$") else data["unit"]
+
     m1.metric(
         "Current Spot Baseline",
-        f"${data['spot']:,.2f}"
-        f" {data['unit'][1:] if data['unit'].startswith('$') else data['unit']}",
+        f"${live_spot:,.2f} {unit_label}",
     )
-    m2.metric("Elasticity ($\eta_{SI}$)", f"{data['beta_si']:.3f}")
-    m3.metric("Model Fit ($R^2$)", f"{data['r_squared']:.3f}")
+    m2.metric("Elasticity (η_SI)", f"{data['beta_si']:.3f}")
+    m3.metric("Model Fit (R²)", f"{data['r_squared']:.3f}")
     m4.metric(
         "30-Day Forecast",
         f"${target_price_30d:,.2f}",
@@ -1523,10 +1542,10 @@ def render_predictive_commodity_engine():
     # -------------------------------------------------------------------------
     days = np.array([0, 15, 30, 45, 60])
     prices_base = np.array([
-        data["spot"],
-        data["spot"] * (1 + predicted_pct_change * 0.5),
+        live_spot,
+        live_spot * (1 + predicted_pct_change * 0.5),
         target_price_30d,
-        data["spot"] * (1 + predicted_pct_change * 1.25),
+        live_spot * (1 + predicted_pct_change * 1.25),
         target_price_60d,
     ])
     prices_upper = prices_base * 1.035
@@ -1578,28 +1597,35 @@ def render_predictive_commodity_engine():
     )
     st.plotly_chart(fig, use_container_width=True)
 
-# -------------------------------------------------------------------------
+    # -------------------------------------------------------------------------
     # DOWNSTREAM INJECTION PROPAGATION BUTTON
     # -------------------------------------------------------------------------
     st.markdown("---")
+
+    surge_units = int(st.session_state.get("extracted_demand_surge", 102968) * (1.0 + abs(delta_60d_pct)))
+    lt_days = round(2.5 * (1.0 + abs(delta_60d_pct)), 1)
+
     st.button(
         f"⚡ Propagate {selected_comm} Extrapolation ({delta_60d_pct:+.2%}) into CTRM Risk Desk & S&OP Engine",
         key="btn_propagate_commodity_extrapolation",
         type="primary",
         use_container_width=True,
-        on_click=_propagate_commodity_forecast_cascade,
-        args=(
-            {
-                "commodity_name": selected_comm,
-                "ticker": data["ticker"],
-                "spot_price": data["spot"],
-                "unit": data["unit"],
-                "forecast_30d": target_price_30d,
-                "forecast_60d": target_price_60d,
-                "price_delta_pct": delta_60d_pct,
-                "precedent_match": data["precedent"],
-            },
-        ),
+        on_click=_propagate_commodity_forecast_cascade if "_propagate_commodity_forecast_cascade" in globals() else None,
+        args=({
+            "source_type": "Predictive Commodity Engine",
+            "title": f"Commodity Extrapolation: {selected_comm} ({delta_60d_pct:+.2%})",
+            "commodity_name": selected_comm,
+            "ticker": data["ticker"],
+            "spot_price": live_spot,
+            "unit": data["unit"],
+            "forecast_30d": target_price_30d,
+            "forecast_60d": target_price_60d,
+            "price_delta_pct": delta_60d_pct,
+            "precedent_match": data["precedent"],
+            "demand_surge_units": surge_units,
+            "leadtime_delay_days": lt_days,
+            "sentiment_index": si_val,
+        },),
     )
 
 
@@ -2759,8 +2785,8 @@ def render_ctrm_desk(
     with tab_synth:
         st.subheader("🧪 Synthetic Derivative Structurer")
         st.caption(
-            "Model customized derivative payoffs tailored to the net uncovered"
-            f" gap of **{net_units:,} {term_unit}**."
+            "Model customized derivative payoffs tailored to the net uncovered "
+            f"gap of **{net_units:,} {term_unit}**."
         )
 
         col_s1, col_s2 = st.columns([1, 1.4])

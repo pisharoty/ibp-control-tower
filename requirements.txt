@@ -7,3 +7,4 @@ scipy
 beautifulsoup4
 feedparser
 httpx
+yfinance
