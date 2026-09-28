@@ -866,14 +866,59 @@ import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
 
+def _propagate_commodity_forecast_cascade(payload: dict):
+    """Callback to inject commodity price forecast extrapolation downstream
+
+    across CTRM Desk, S&OP Control Tower, Procurement, and Flight Simulator.
+    """
+    comm_name = payload.get("commodity_name", "Copper (LME Grade A)")
+    delta_pct = payload.get("price_delta_pct", 0.0694)
+    spot_price = payload.get("spot_price", 9820.00)
+    forecast_60d = payload.get("forecast_60d", 10501.76)
+
+    # 1. Update active global commodity session state
+    st.session_state["active_commodity_name"] = comm_name
+    st.session_state["active_commodity_ticker"] = payload.get("ticker", "LME_CU")
+    st.session_state["active_commodity_spot"] = spot_price
+    st.session_state["active_commodity_60d_forecast"] = forecast_60d
+    st.session_state["commodity_price_delta_pct"] = delta_pct
+
+    # 2. Compute CTRM Derivatives Desk Hedge Exposure ($)
+    base_annual_procurement_units = st.session_state.get(
+        "base_annual_volume", 25000
+    )
+    unhedged_exposure_usd = (
+        base_annual_procurement_units * (forecast_60d - spot_price) * 0.50
+    )  # 60-day forward exposure
+    st.session_state["ctrm_unhedged_exposure_usd"] = max(
+        0.0, unhedged_exposure_usd
+    )
+    st.session_state["ctrm_recommended_futures_contracts"] = int(
+        np.ceil(unhedged_exposure_usd / 25000)
+    )
+
+    # 3. Inject Financial Budget Variance into S&OP Control Tower & Flight Sim
+    st.session_state["sop_procurement_budget_variance_pct"] = delta_pct
+    st.session_state["macro_sim_cost_shock_pct"] = delta_pct * 100.0
+
+    st.toast(
+        f"⚡ Injected {comm_name} (+{delta_pct:.2%}) downstream across CTRM &"
+        " S&OP Engines!",
+        icon="🚀",
+    )
+
+
 def render_predictive_commodity_engine():
     """Predictive Commodity Price Engine tracking Top 50 Global Raw Material Inputs
-    across 5 Benchmark Buckets using Econometric Precedence & Elasticity Regression.
+
+    with downstream econometric propagation to CTRM, S&OP, and Flight
+    Simulator.
     """
     st.markdown("### 📈 SOTA Predictive Commodity Engine (Top 50 Global Inputs)")
     st.caption(
-        "Historical precedence correlation matrix, news sentiment elasticity ($\beta_{SI}$), "
-        "and vector autoregressive forecast across 50 liquid raw material benchmarks."
+        "Historical precedence correlation matrix, news sentiment elasticity"
+        " ($\beta_{SI}$), and vector autoregressive forecast across 50 liquid"
+        " raw material benchmarks."
     )
 
     # -------------------------------------------------------------------------
@@ -881,64 +926,493 @@ def render_predictive_commodity_engine():
     # -------------------------------------------------------------------------
     top_50_commodities = {
         # Bucket 1: Industrial Non-Ferrous & Ferrous Metals (1–10)
-        "Copper (LME Grade A)": {"ticker": "LME_CU", "category": "Industrial Metals", "spot": 9820.00, "unit": "$/MT", "beta_si": 0.084, "r_squared": 0.892, "precedent": "2022 European Smelter Energy Curtailment Strike"},
-        "Primary Aluminum (LME)": {"ticker": "LME_AL", "category": "Industrial Metals", "spot": 2540.00, "unit": "$/MT", "beta_si": 0.062, "r_squared": 0.841, "precedent": "2021 China Yunnan Hydro Power Rationing"},
-        "Nickel (LME Class 1)": {"ticker": "LME_NI", "category": "Industrial Metals", "spot": 17450.00, "unit": "$/MT", "beta_si": 0.095, "r_squared": 0.812, "precedent": "2022 Tsingshan Short Squeeze & Indonesian Ore Quotas"},
-        "Zinc (LME High Grade)": {"ticker": "LME_ZN", "category": "Industrial Metals", "spot": 2890.00, "unit": "$/MT", "beta_si": 0.071, "r_squared": 0.835, "precedent": "2022 Nyrstar Smelter Production Halt"},
-        "Lead (LME Refined)": {"ticker": "LME_PB", "category": "Industrial Metals", "spot": 2120.00, "unit": "$/MT", "beta_si": 0.048, "r_squared": 0.790, "precedent": "2023 Secondary Recycler Lead Battery Scrap Deficit"},
-        "Tin (LME Grade A)": {"ticker": "LME_SN", "category": "Industrial Metals", "spot": 31500.00, "unit": "$/MT", "beta_si": 0.110, "r_squared": 0.864, "precedent": "2023 Myanmar Wa State Mining Export Ban"},
-        "Lithium Hydroxide 56.5%": {"ticker": "BAT_LI", "category": "Industrial Metals", "spot": 14200.00, "unit": "$/MT", "beta_si": 0.125, "r_squared": 0.785, "precedent": "2023 Spodumene Export Quota Delays & Inventory Destocking"},
-        "Cobalt Metal 99.8%": {"ticker": "BAT_CO", "category": "Industrial Metals", "spot": 28400.00, "unit": "$/MT", "beta_si": 0.088, "r_squared": 0.760, "precedent": "2022 DRC Export Logistics Bottlenecks at Durban"},
-        "Neodymium Oxide (NdFeB)": {"ticker": "REE_ND", "category": "Industrial Metals", "spot": 72500.00, "unit": "$/MT", "beta_si": 0.140, "r_squared": 0.820, "precedent": "2021 China Rare Earth Export Quota Tightening"},
-        "Iron Ore 62% Fe (TSI)": {"ticker": "SGX_FE", "category": "Industrial Metals", "spot": 118.50, "unit": "$/dmt", "beta_si": 0.078, "r_squared": 0.875, "precedent": "2019 Vale Brumadinho Tailings Dam Shock"},
-
+        "Copper (LME Grade A)": {
+            "ticker": "LME_CU",
+            "category": "Industrial Metals",
+            "spot": 9820.00,
+            "unit": "$/MT",
+            "beta_si": 0.084,
+            "r_squared": 0.892,
+            "precedent": (
+                "2022 European Smelter Energy Curtailment Strike. The current"
+                " signal cluster aligns with past structural supply shocks"
+                " where physical spot premiums adjusted within 45 days."
+            ),
+        },
+        "Primary Aluminum (LME)": {
+            "ticker": "LME_AL",
+            "category": "Industrial Metals",
+            "spot": 2540.00,
+            "unit": "$/MT",
+            "beta_si": 0.062,
+            "r_squared": 0.841,
+            "precedent": (
+                "2021 China Yunnan Hydro Power Rationing. Supply shock"
+                " drove spot premiums higher within 30 days."
+            ),
+        },
+        "Nickel (LME Class 1)": {
+            "ticker": "LME_NI",
+            "category": "Industrial Metals",
+            "spot": 17450.00,
+            "unit": "$/MT",
+            "beta_si": 0.095,
+            "r_squared": 0.812,
+            "precedent": "2022 Tsingshan Short Squeeze & Indonesian Ore Quotas",
+        },
+        "Zinc (LME High Grade)": {
+            "ticker": "LME_ZN",
+            "category": "Industrial Metals",
+            "spot": 2890.00,
+            "unit": "$/MT",
+            "beta_si": 0.071,
+            "r_squared": 0.835,
+            "precedent": "2022 Nyrstar Smelter Production Halt",
+        },
+        "Lead (LME Refined)": {
+            "ticker": "LME_PB",
+            "category": "Industrial Metals",
+            "spot": 2120.00,
+            "unit": "$/MT",
+            "beta_si": 0.048,
+            "r_squared": 0.790,
+            "precedent": (
+                "2023 Secondary Recycler Lead Battery Scrap Deficit"
+            ),
+        },
+        "Tin (LME Grade A)": {
+            "ticker": "LME_SN",
+            "category": "Industrial Metals",
+            "spot": 31500.00,
+            "unit": "$/MT",
+            "beta_si": 0.110,
+            "r_squared": 0.864,
+            "precedent": "2023 Myanmar Wa State Mining Export Ban",
+        },
+        "Lithium Hydroxide 56.5%": {
+            "ticker": "BAT_LI",
+            "category": "Industrial Metals",
+            "spot": 14200.00,
+            "unit": "$/MT",
+            "beta_si": 0.125,
+            "r_squared": 0.785,
+            "precedent": (
+                "2023 Spodumene Export Quota Delays & Inventory Destocking"
+            ),
+        },
+        "Cobalt Metal 99.8%": {
+            "ticker": "BAT_CO",
+            "category": "Industrial Metals",
+            "spot": 28400.00,
+            "unit": "$/MT",
+            "beta_si": 0.088,
+            "r_squared": 0.760,
+            "precedent": "2022 DRC Export Logistics Bottlenecks at Durban",
+        },
+        "Neodymium Oxide (NdFeB)": {
+            "ticker": "REE_ND",
+            "category": "Industrial Metals",
+            "spot": 72500.00,
+            "unit": "$/MT",
+            "beta_si": 0.140,
+            "r_squared": 0.820,
+            "precedent": "2021 China Rare Earth Export Quota Tightening",
+        },
+        "Iron Ore 62% Fe (TSI)": {
+            "ticker": "SGX_FE",
+            "category": "Industrial Metals",
+            "spot": 118.50,
+            "unit": "$/dmt",
+            "beta_si": 0.078,
+            "r_squared": 0.875,
+            "precedent": "2019 Vale Brumadinho Tailings Dam Shock",
+        },
         # Bucket 2: Energy & Power Inputs (11–20)
-        "Brent Crude Oil": {"ticker": "ICE_B", "category": "Energy & Power Inputs", "spot": 78.50, "unit": "$/Bbl", "beta_si": 0.091, "r_squared": 0.915, "precedent": "2024 Red Sea Transit Rerouting Surcharges"},
-        "WTI Crude Oil": {"ticker": "NYM_CL", "category": "Energy & Power Inputs", "spot": 74.20, "unit": "$/Bbl", "beta_si": 0.089, "r_squared": 0.908, "precedent": "2023 OPEC+ Voluntary Production Cuts"},
-        "Henry Hub Natural Gas": {"ticker": "NYM_NG", "category": "Energy & Power Inputs", "spot": 2.65, "unit": "$/MMBtu", "beta_si": 0.135, "r_squared": 0.830, "precedent": "2022 Freeport LNG Export Terminal Outage"},
-        "TTF European Gas": {"ticker": "ICE_TTF", "category": "Energy & Power Inputs", "spot": 38.50, "unit": "€/MWh", "beta_si": 0.165, "r_squared": 0.880, "precedent": "2022 Nord Stream Pipeline Curtailment Crisis"},
-        "Ultra-Low Sulfur Diesel (ULSD)": {"ticker": "NYM_HO", "category": "Energy & Power Inputs", "spot": 2.42, "unit": "$/Gal", "beta_si": 0.082, "r_squared": 0.895, "precedent": "2022 French Refinery Strikes & Distillate Shortage"},
-        "Thermal Coal (Newcastle)": {"ticker": "ICE_NCF", "category": "Energy & Power Inputs", "spot": 138.00, "unit": "$/MT", "beta_si": 0.105, "r_squared": 0.815, "precedent": "2021 Indonesian Coal Export Embargo"},
-        "Uranium (U3O8 Benchmark)": {"ticker": "UX_U3O8", "category": "Energy & Power Inputs", "spot": 82.50, "unit": "$/lb", "beta_si": 0.098, "r_squared": 0.850, "precedent": "2023 Kazatomprom Production Guidance Cut"},
-        "Heavy Fuel Oil 380 CST": {"ticker": "SGP_FO380", "category": "Energy & Power Inputs", "spot": 440.00, "unit": "$/MT", "beta_si": 0.075, "r_squared": 0.870, "precedent": "2024 Marine Bunker Fuel Demand Surge"},
-        "European Carbon Permits (EUA)": {"ticker": "ICE_EUA", "category": "Energy & Power Inputs", "spot": 68.20, "unit": "€/MT", "beta_si": 0.085, "r_squared": 0.840, "precedent": "2023 EU MSR Rule Reform & Power Grid Switching"},
-        "Electricity Base Load (PJM)": {"ticker": "PJM_BASE", "category": "Energy & Power Inputs", "spot": 42.50, "unit": "$/MWh", "beta_si": 0.115, "r_squared": 0.795, "precedent": "2022 Winter Storm Elliott Power Price Spikes"},
-
-        # Bucket 3: Petrochemicals, Polymers & Base Chemicals (21–30)
-        "Ethylene (CFR Asia)": {"ticker": "PET_ETH", "category": "Petrochemicals & Polymers", "spot": 890.00, "unit": "$/MT", "beta_si": 0.055, "r_squared": 0.825, "precedent": "2021 US Gulf Coast Winter Freeze Naphtha Outages"},
-        "Polypropylene (PP Raffia)": {"ticker": "PET_PP", "category": "Petrochemicals & Polymers", "spot": 1120.00, "unit": "$/MT", "beta_si": 0.045, "r_squared": 0.810, "precedent": "2021 Hurricane Ida Louisiana Cracker Shutdowns"},
-        "Polyethylene (HDPE Film)": {"ticker": "PET_HDPE", "category": "Petrochemicals & Polymers", "spot": 1050.00, "unit": "$/MT", "beta_si": 0.048, "r_squared": 0.818, "precedent": "2022 European Steam Cracker Rate Reductions"},
-        "Polyvinyl Chloride (PVC)": {"ticker": "PET_PVC", "category": "Petrochemicals & Polymers", "spot": 820.00, "unit": "$/MT", "beta_si": 0.052, "r_squared": 0.802, "precedent": "2021 Chlor-Alkali Power Rationing in Eastern China"},
-        "Titanium Dioxide (TiO2)": {"ticker": "CHM_TIO2", "category": "Petrochemicals & Polymers", "spot": 2950.00, "unit": "$/MT", "beta_si": 0.038, "r_squared": 0.775, "precedent": "2022 Ilmenite Ore Feedstock Shortage"},
-        "Methanol (CFR China)": {"ticker": "CHM_METH", "category": "Petrochemicals & Polymers", "spot": 285.00, "unit": "$/MT", "beta_si": 0.065, "r_squared": 0.832, "precedent": "2023 Iranian Winter Natural Gas Cutoffs to Plants"},
-        "Urea / Nitrogen Fertilizer": {"ticker": "AGR_UREA", "category": "Petrochemicals & Polymers", "spot": 340.00, "unit": "$/MT", "beta_si": 0.092, "r_squared": 0.860, "precedent": "2021 China Urea Export Inspection Restrictions"},
-        "Purified Terephthalic Acid (PTA)": {"ticker": "PET_PTA", "category": "Petrochemicals & Polymers", "spot": 760.00, "unit": "$/MT", "beta_si": 0.042, "r_squared": 0.805, "precedent": "2022 PX Feedstock Premium Expansion"},
-        "Styrene Monomer": {"ticker": "CHM_SM", "category": "Petrochemicals & Polymers", "spot": 1150.00, "unit": "$/MT", "beta_si": 0.058, "r_squared": 0.815, "precedent": "2023 POSM Plant Unplanned Maintenance Outages"},
-        "Caustic Soda (Liquid 50%)": {"ticker": "CHM_NAOH", "category": "Petrochemicals & Polymers", "spot": 410.00, "unit": "$/MT", "beta_si": 0.060, "r_squared": 0.790, "precedent": "2022 Rhine River Low Water Level Barge Bottlenecks"},
-
+        "Brent Crude Oil": {
+            "ticker": "ICE_B",
+            "category": "Energy & Power Inputs",
+            "spot": 78.50,
+            "unit": "$/Bbl",
+            "beta_si": 0.091,
+            "r_squared": 0.915,
+            "precedent": "2024 Red Sea Transit Rerouting Surcharges",
+        },
+        "WTI Crude Oil": {
+            "ticker": "NYM_CL",
+            "category": "Energy & Power Inputs",
+            "spot": 74.20,
+            "unit": "$/Bbl",
+            "beta_si": 0.089,
+            "r_squared": 0.908,
+            "precedent": "2023 OPEC+ Voluntary Production Cuts",
+        },
+        "Henry Hub Natural Gas": {
+            "ticker": "NYM_NG",
+            "category": "Energy & Power Inputs",
+            "spot": 2.65,
+            "unit": "$/MMBtu",
+            "beta_si": 0.135,
+            "r_squared": 0.830,
+            "precedent": "2022 Freeport LNG Export Terminal Outage",
+        },
+        "TTF European Gas": {
+            "ticker": "ICE_TTF",
+            "category": "Energy & Power Inputs",
+            "spot": 38.50,
+            "unit": "€/MWh",
+            "beta_si": 0.165,
+            "r_squared": 0.880,
+            "precedent": "2022 Nord Stream Pipeline Curtailment Crisis",
+        },
+        "Ultra-Low Sulfur Diesel (ULSD)": {
+            "ticker": "NYM_HO",
+            "category": "Energy & Power Inputs",
+            "spot": 2.42,
+            "unit": "$/Gal",
+            "beta_si": 0.082,
+            "r_squared": 0.895,
+            "precedent": (
+                "2022 French Refinery Strikes & Distillate Shortage"
+            ),
+        },
+        "Thermal Coal (Newcastle)": {
+            "ticker": "ICE_NCF",
+            "category": "Energy & Power Inputs",
+            "spot": 138.00,
+            "unit": "$/MT",
+            "beta_si": 0.105,
+            "r_squared": 0.815,
+            "precedent": "2021 Indonesian Coal Export Embargo",
+        },
+        "Uranium (U3O8 Benchmark)": {
+            "ticker": "UX_U3O8",
+            "category": "Energy & Power Inputs",
+            "spot": 82.50,
+            "unit": "$/lb",
+            "beta_si": 0.098,
+            "r_squared": 0.850,
+            "precedent": "2023 Kazatomprom Production Guidance Cut",
+        },
+        "Heavy Fuel Oil 380 CST": {
+            "ticker": "SGP_FO380",
+            "category": "Energy & Power Inputs",
+            "spot": 440.00,
+            "unit": "$/MT",
+            "beta_si": 0.075,
+            "r_squared": 0.870,
+            "precedent": "2024 Marine Bunker Fuel Demand Surge",
+        },
+        "European Carbon Permits (EUA)": {
+            "ticker": "ICE_EUA",
+            "category": "Energy & Power Inputs",
+            "spot": 68.20,
+            "unit": "€/MT",
+            "beta_si": 0.085,
+            "r_squared": 0.840,
+            "precedent": "2023 EU MSR Rule Reform & Power Grid Switching",
+        },
+        "Electricity Base Load (PJM)": {
+            "ticker": "PJM_BASE",
+            "category": "Energy & Power Inputs",
+            "spot": 42.50,
+            "unit": "$/MWh",
+            "beta_si": 0.115,
+            "r_squared": 0.795,
+            "precedent": "2022 Winter Storm Elliott Power Price Spikes",
+        },
+        # Bucket 3: Petrochemicals & Polymers (21–30)
+        "Ethylene (CFR Asia)": {
+            "ticker": "PET_ETH",
+            "category": "Petrochemicals & Polymers",
+            "spot": 890.00,
+            "unit": "$/MT",
+            "beta_si": 0.055,
+            "r_squared": 0.825,
+            "precedent": (
+                "2021 US Gulf Coast Winter Freeze Naphtha Outages"
+            ),
+        },
+        "Polypropylene (PP Raffia)": {
+            "ticker": "PET_PP",
+            "category": "Petrochemicals & Polymers",
+            "spot": 1120.00,
+            "unit": "$/MT",
+            "beta_si": 0.045,
+            "r_squared": 0.810,
+            "precedent": "2021 Hurricane Ida Louisiana Cracker Shutdowns",
+        },
+        "Polyethylene (HDPE Film)": {
+            "ticker": "PET_HDPE",
+            "category": "Petrochemicals & Polymers",
+            "spot": 1050.00,
+            "unit": "$/MT",
+            "beta_si": 0.048,
+            "r_squared": 0.818,
+            "precedent": "2022 European Steam Cracker Rate Reductions",
+        },
+        "Polyvinyl Chloride (PVC)": {
+            "ticker": "PET_PVC",
+            "category": "Petrochemicals & Polymers",
+            "spot": 820.00,
+            "unit": "$/MT",
+            "beta_si": 0.052,
+            "r_squared": 0.802,
+            "precedent": (
+                "2021 Chlor-Alkali Power Rationing in Eastern China"
+            ),
+        },
+        "Titanium Dioxide (TiO2)": {
+            "ticker": "CHM_TIO2",
+            "category": "Petrochemicals & Polymers",
+            "spot": 2950.00,
+            "unit": "$/MT",
+            "beta_si": 0.038,
+            "r_squared": 0.775,
+            "precedent": "2022 Ilmenite Ore Feedstock Shortage",
+        },
+        "Methanol (CFR China)": {
+            "ticker": "CHM_METH",
+            "category": "Petrochemicals & Polymers",
+            "spot": 285.00,
+            "unit": "$/MT",
+            "beta_si": 0.065,
+            "r_squared": 0.832,
+            "precedent": "2023 Iranian Winter Natural Gas Cutoffs to Plants",
+        },
+        "Urea / Nitrogen Fertilizer": {
+            "ticker": "AGR_UREA",
+            "category": "Petrochemicals & Polymers",
+            "spot": 340.00,
+            "unit": "$/MT",
+            "beta_si": 0.092,
+            "r_squared": 0.860,
+            "precedent": (
+                "2021 China Urea Export Inspection Restrictions"
+            ),
+        },
+        "Purified Terephthalic Acid (PTA)": {
+            "ticker": "PET_PTA",
+            "category": "Petrochemicals & Polymers",
+            "spot": 760.00,
+            "unit": "$/MT",
+            "beta_si": 0.042,
+            "r_squared": 0.805,
+            "precedent": "2022 PX Feedstock Premium Expansion",
+        },
+        "Styrene Monomer": {
+            "ticker": "CHM_SM",
+            "category": "Petrochemicals & Polymers",
+            "spot": 1150.00,
+            "unit": "$/MT",
+            "beta_si": 0.058,
+            "r_squared": 0.815,
+            "precedent": "2023 POSM Plant Unplanned Maintenance Outages",
+        },
+        "Caustic Soda (Liquid 50%)": {
+            "ticker": "CHM_NAOH",
+            "category": "Petrochemicals & Polymers",
+            "spot": 410.00,
+            "unit": "$/MT",
+            "beta_si": 0.060,
+            "r_squared": 0.790,
+            "precedent": (
+                "2022 Rhine River Low Water Level Barge Bottlenecks"
+            ),
+        },
         # Bucket 4: Agri-Softs & Industrial Crops (31–40)
-        "Corn (CBOT Futures)": {"ticker": "CBT_C", "category": "Agri-Softs & Industrial Crops", "spot": 4.35, "unit": "$/Bu", "beta_si": 0.068, "r_squared": 0.855, "precedent": "2023 US Midwest Drought & Mississippi Low Water"},
-        "Soybeans (CBOT Futures)": {"ticker": "CBT_S", "category": "Agri-Softs & Industrial Crops", "spot": 10.15, "unit": "$/Bu", "beta_si": 0.064, "r_squared": 0.848, "precedent": "2024 Brazil Mato Grosso Weather Disruption"},
-        "Wheat (CBOT SRW)": {"ticker": "CBT_W", "category": "Agri-Softs & Industrial Crops", "spot": 5.65, "unit": "$/Bu", "beta_si": 0.088, "r_squared": 0.872, "precedent": "2022 Black Sea Grain Corridor Interruption"},
-        "Raw Sugar #11": {"ticker": "ICE_SB", "category": "Agri-Softs & Industrial Crops", "spot": 0.21, "unit": "$/lb", "beta_si": 0.075, "r_squared": 0.820, "precedent": "2023 India Export Ban & El Nino Rain Deficit"},
-        "Robusta Coffee": {"ticker": "ICE_RC", "category": "Agri-Softs & Industrial Crops", "spot": 4250.00, "unit": "$/MT", "beta_si": 0.112, "r_squared": 0.865, "precedent": "2024 Vietnam Central Highlands Heatwave Deficit"},
-        "Crude Palm Oil (MDEX)": {"ticker": "FCPO", "category": "Agri-Softs & Industrial Crops", "spot": 920.00, "unit": "$/MT", "beta_si": 0.082, "r_squared": 0.840, "precedent": "2022 Indonesian Palm Oil Export Embargo"},
-        "Natural Rubber (TSR20)": {"ticker": "SGX_RT", "category": "Agri-Softs & Industrial Crops", "spot": 1680.00, "unit": "$/MT", "beta_si": 0.058, "r_squared": 0.805, "precedent": "2023 Thailand Heavy Monsoon Tapping Delays"},
-        "Cotton #2": {"ticker": "ICE_CT", "category": "Agri-Softs & Industrial Crops", "spot": 0.74, "unit": "$/lb", "beta_si": 0.062, "r_squared": 0.810, "precedent": "2022 Texas West Drought Acreage Abandonment"},
-        "Cocoa (ICE Futures)": {"ticker": "ICE_CC", "category": "Agri-Softs & Industrial Crops", "spot": 7850.00, "unit": "$/MT", "beta_si": 0.155, "r_squared": 0.890, "precedent": "2024 West Africa Black Pod Disease Shortage"},
-        "Malting Barley": {"ticker": "AGR_BAR", "category": "Agri-Softs & Industrial Crops", "spot": 210.00, "unit": "$/MT", "beta_si": 0.050, "r_squared": 0.780, "precedent": "2023 Australian Crop Yield Weather Revisions"},
-
+        "Corn (CBOT Futures)": {
+            "ticker": "CBT_C",
+            "category": "Agri-Softs & Industrial Crops",
+            "spot": 4.35,
+            "unit": "$/Bu",
+            "beta_si": 0.068,
+            "r_squared": 0.855,
+            "precedent": (
+                "2023 US Midwest Drought & Mississippi Low Water"
+            ),
+        },
+        "Soybeans (CBOT Futures)": {
+            "ticker": "CBT_S",
+            "category": "Agri-Softs & Industrial Crops",
+            "spot": 10.15,
+            "unit": "$/Bu",
+            "beta_si": 0.064,
+            "r_squared": 0.848,
+            "precedent": "2024 Brazil Mato Grosso Weather Disruption",
+        },
+        "Wheat (CBOT SRW)": {
+            "ticker": "CBT_W",
+            "category": "Agri-Softs & Industrial Crops",
+            "spot": 5.65,
+            "unit": "$/Bu",
+            "beta_si": 0.088,
+            "r_squared": 0.872,
+            "precedent": "2022 Black Sea Grain Corridor Interruption",
+        },
+        "Raw Sugar #11": {
+            "ticker": "ICE_SB",
+            "category": "Agri-Softs & Industrial Crops",
+            "spot": 0.21,
+            "unit": "$/lb",
+            "beta_si": 0.075,
+            "r_squared": 0.820,
+            "precedent": "2023 India Export Ban & El Nino Rain Deficit",
+        },
+        "Robusta Coffee": {
+            "ticker": "ICE_RC",
+            "category": "Agri-Softs & Industrial Crops",
+            "spot": 4250.00,
+            "unit": "$/MT",
+            "beta_si": 0.112,
+            "r_squared": 0.865,
+            "precedent": (
+                "2024 Vietnam Central Highlands Heatwave Deficit"
+            ),
+        },
+        "Crude Palm Oil (MDEX)": {
+            "ticker": "FCPO",
+            "category": "Agri-Softs & Industrial Crops",
+            "spot": 920.00,
+            "unit": "$/MT",
+            "beta_si": 0.082,
+            "r_squared": 0.840,
+            "precedent": "2022 Indonesian Palm Oil Export Embargo",
+        },
+        "Natural Rubber (TSR20)": {
+            "ticker": "SGX_RT",
+            "category": "Agri-Softs & Industrial Crops",
+            "spot": 1680.00,
+            "unit": "$/MT",
+            "beta_si": 0.058,
+            "r_squared": 0.805,
+            "precedent": "2023 Thailand Heavy Monsoon Tapping Delays",
+        },
+        "Cotton #2": {
+            "ticker": "ICE_CT",
+            "category": "Agri-Softs & Industrial Crops",
+            "spot": 0.74,
+            "unit": "$/lb",
+            "beta_si": 0.062,
+            "r_squared": 0.810,
+            "precedent": "2022 Texas West Drought Acreage Abandonment",
+        },
+        "Cocoa (ICE Futures)": {
+            "ticker": "ICE_CC",
+            "category": "Agri-Softs & Industrial Crops",
+            "spot": 7850.00,
+            "unit": "$/MT",
+            "beta_si": 0.155,
+            "r_squared": 0.890,
+            "precedent": "2024 West Africa Black Pod Disease Shortage",
+        },
+        "Malting Barley": {
+            "ticker": "AGR_BAR",
+            "category": "Agri-Softs & Industrial Crops",
+            "spot": 210.00,
+            "unit": "$/MT",
+            "beta_si": 0.050,
+            "r_squared": 0.780,
+            "precedent": "2023 Australian Crop Yield Weather Revisions",
+        },
         # Bucket 5: Precious & Electronics Minerals (41–50)
-        "Gold Spot": {"ticker": "XAU", "category": "Precious & Electronics Minerals", "spot": 2510.00, "unit": "$/oz", "beta_si": 0.040, "r_squared": 0.920, "precedent": "2024 Central Bank Gold Accumulation Surge"},
-        "Silver Spot": {"ticker": "XAG", "category": "Precious & Electronics Minerals", "spot": 29.80, "unit": "$/oz", "beta_si": 0.072, "r_squared": 0.885, "precedent": "2024 Industrial Solar PV Demand Expansion"},
-        "Platinum Spot": {"ticker": "XPT", "category": "Precious & Electronics Minerals", "spot": 940.00, "unit": "$/oz", "beta_si": 0.065, "r_squared": 0.815, "precedent": "2023 South African Power Grid Loadshedding At Mines"},
-        "Palladium Spot": {"ticker": "XPD", "category": "Precious & Electronics Minerals", "spot": 980.00, "unit": "$/oz", "beta_si": 0.090, "r_squared": 0.830, "precedent": "2022 Norilsk Nickel Logistics & Trade Rerouting"},
-        "Silicon Metal 5-5-3 Grade": {"ticker": "ELE_SI", "category": "Precious & Electronics Minerals", "spot": 1920.00, "unit": "$/MT", "beta_si": 0.085, "r_squared": 0.825, "precedent": "2021 Yunnan Smelter Energy Controls"},
-        "High-Purity Neon Gas": {"ticker": "ELE_NE", "category": "Precious & Electronics Minerals", "spot": 320.00, "unit": "$/m³", "beta_si": 0.180, "r_squared": 0.860, "precedent": "2022 Mariupol Ingas & Cryoin Semiconductor Supply Halt"},
-        "Solar-Grade Polysilicon": {"ticker": "ELE_POLY", "category": "Precious & Electronics Minerals", "spot": 8.80, "unit": "$/kg", "beta_si": 0.110, "r_squared": 0.800, "precedent": "2021 Xinjiang Plant Explosion & Fab Bottleneck"},
-        "Germanium Metal 99.999%": {"ticker": "ELE_GE", "category": "Precious & Electronics Minerals", "spot": 1450.00, "unit": "$/kg", "beta_si": 0.135, "r_squared": 0.845, "precedent": "2023 Chinese Ministry of Commerce Export Licensing Controls"},
-        "Gallium Metal 99.99%": {"ticker": "ELE_GA", "category": "Precious & Electronics Minerals", "spot": 520.00, "unit": "$/kg", "beta_si": 0.140, "r_squared": 0.850, "precedent": "2023 Semiconductor Wafer Export Restrictions"},
-        "Indium Metal": {"ticker": "ELE_IN", "category": "Precious & Electronics Minerals", "spot": 290.00, "unit": "$/kg", "beta_si": 0.078, "r_squared": 0.790, "precedent": "2022 Flat Panel Display ITO Sputtering Demand Surge"},
+        "Gold Spot": {
+            "ticker": "XAU",
+            "category": "Precious & Electronics Minerals",
+            "spot": 2510.00,
+            "unit": "$/oz",
+            "beta_si": 0.040,
+            "r_squared": 0.920,
+            "precedent": "2024 Central Bank Gold Accumulation Surge",
+        },
+        "Silver Spot": {
+            "ticker": "XAG",
+            "category": "Precious & Electronics Minerals",
+            "spot": 29.80,
+            "unit": "$/oz",
+            "beta_si": 0.072,
+            "r_squared": 0.885,
+            "precedent": "2024 Industrial Solar PV Demand Expansion",
+        },
+        "Platinum Spot": {
+            "ticker": "XPT",
+            "category": "Precious & Electronics Minerals",
+            "spot": 940.00,
+            "unit": "$/oz",
+            "beta_si": 0.065,
+            "r_squared": 0.815,
+            "precedent": (
+                "2023 South African Power Grid Loadshedding At Mines"
+            ),
+        },
+        "Palladium Spot": {
+            "ticker": "XPD",
+            "category": "Precious & Electronics Minerals",
+            "spot": 980.00,
+            "unit": "$/oz",
+            "beta_si": 0.090,
+            "r_squared": 0.830,
+            "precedent": "2022 Norilsk Nickel Logistics & Trade Rerouting",
+        },
+        "Silicon Metal 5-5-3 Grade": {
+            "ticker": "ELE_SI",
+            "category": "Precious & Electronics Minerals",
+            "spot": 1920.00,
+            "unit": "$/MT",
+            "beta_si": 0.085,
+            "r_squared": 0.825,
+            "precedent": "2021 Yunnan Smelter Energy Controls",
+        },
+        "High-Purity Neon Gas": {
+            "ticker": "ELE_NE",
+            "category": "Precious & Electronics Minerals",
+            "spot": 320.00,
+            "unit": "$/m³",
+            "beta_si": 0.180,
+            "r_squared": 0.860,
+            "precedent": (
+                "2022 Mariupol Ingas & Cryoin Semiconductor Supply Halt"
+            ),
+        },
+        "Solar-Grade Polysilicon": {
+            "ticker": "ELE_POLY",
+            "category": "Precious & Electronics Minerals",
+            "spot": 8.80,
+            "unit": "$/kg",
+            "beta_si": 0.110,
+            "r_squared": 0.800,
+            "precedent": "2021 Xinjiang Plant Explosion & Fab Bottleneck",
+        },
+        "Germanium Metal 99.999%": {
+            "ticker": "ELE_GE",
+            "category": "Precious & Electronics Minerals",
+            "spot": 1450.00,
+            "unit": "$/kg",
+            "beta_si": 0.135,
+            "r_squared": 0.845,
+            "precedent": (
+                "2023 Chinese Ministry of Commerce Export Licensing Controls"
+            ),
+        },
+        "Gallium Metal 99.99%": {
+            "ticker": "ELE_GA",
+            "category": "Precious & Electronics Minerals",
+            "spot": 520.00,
+            "unit": "$/kg",
+            "beta_si": 0.140,
+            "r_squared": 0.850,
+            "precedent": "2023 Semiconductor Wafer Export Restrictions",
+        },
+        "Indium Metal": {
+            "ticker": "ELE_IN",
+            "category": "Precious & Electronics Minerals",
+            "spot": 290.00,
+            "unit": "$/kg",
+            "beta_si": 0.078,
+            "r_squared": 0.790,
+            "precedent": (
+                "2022 Flat Panel Display ITO Sputtering Demand Surge"
+            ),
+        },
     }
 
     # -------------------------------------------------------------------------
@@ -962,12 +1436,13 @@ def render_predictive_commodity_engine():
             key="predictive_category_filter",
         )
 
-    # Filter commodity options based on selected class
     if selected_category == "🌐 ALL TOP 50 COMMODITIES":
         filtered_commodities = top_50_commodities
     else:
         filtered_commodities = {
-            k: v for k, v in top_50_commodities.items() if v["category"] == selected_category
+            k: v
+            for k, v in top_50_commodities.items()
+            if v["category"] == selected_category
         }
 
     with p_select_col:
@@ -982,17 +1457,26 @@ def render_predictive_commodity_engine():
     si_val = st.session_state.get("si_composite", -0.62)
 
     # Regression forecasting formula
-    predicted_pct_change = (data["beta_si"] * abs(si_val)) if si_val < 0 else (-data["beta_si"] * si_val)
+    predicted_pct_change = (
+        (data["beta_si"] * abs(si_val))
+        if si_val < 0
+        else (-data["beta_si"] * si_val)
+    )
     target_price_30d = data["spot"] * (1.0 + predicted_pct_change)
     target_price_60d = data["spot"] * (1.0 + (predicted_pct_change * 1.45))
+    delta_60d_pct = predicted_pct_change * 1.45
 
     # -------------------------------------------------------------------------
     # REGRESSION METRICS & HISTORICAL PRECEDENCE DISPLAY
     # -------------------------------------------------------------------------
     st.markdown("#### 📊 Econometric Regression & Historical Precedence Match")
     m1, m2, m3, m4, m5 = st.columns(5)
-    m1.metric("Current Spot Baseline", f"${data['spot']:,.2f} {data['unit'][1:] if data['unit'].startswith('$') else data['unit']}")
-    m2.metric("Elasticity ($\beta_{SI}$)", f"{data['beta_si']:.3f}")
+    m1.metric(
+        "Current Spot Baseline",
+        f"${data['spot']:,.2f}"
+        f" {data['unit'][1:] if data['unit'].startswith('$') else data['unit']}",
+    )
+    m2.metric("Elasticity ($\eta_{SI}$)", f"{data['beta_si']:.3f}")
     m3.metric("Model Fit ($R^2$)", f"{data['r_squared']:.3f}")
     m4.metric(
         "30-Day Forecast",
@@ -1003,13 +1487,13 @@ def render_predictive_commodity_engine():
     m5.metric(
         "60-Day Forecast",
         f"${target_price_60d:,.2f}",
-        delta=f"{(predicted_pct_change * 1.45):+.2%}",
-        delta_color="inverse" if predicted_pct_change > 0 else "normal",
+        delta=f"{delta_60d_pct:+.2%}",
+        delta_color="inverse" if delta_60d_pct > 0 else "normal",
     )
 
     st.info(
-        f"🔍 **Highest Historical Precedence Match (Cosine Similarity: 93.8%):** `{data['precedent']}`. "
-        "The current signal cluster aligns with past structural supply shocks where physical spot premiums adjusted within 45 days."
+        f"🔍 **Highest Historical Precedence Match (Cosine Similarity:"
+        f" 93.8%):** `{data['precedent']}`"
     )
 
     # -------------------------------------------------------------------------
@@ -1060,7 +1544,10 @@ def render_predictive_commodity_engine():
     )
 
     fig.update_layout(
-        title=f"Predictive Price Path: {selected_comm} [{data['ticker']}] (30/60-Day Forward Horizon)",
+        title=(
+            f"Predictive Price Path: {selected_comm} [{data['ticker']}]"
+            " (30/60-Day Forward Horizon)"
+        ),
         xaxis_title="Forward Horizon (Days)",
         yaxis_title=f"Price ({data['unit']})",
         height=340,
@@ -1068,6 +1555,28 @@ def render_predictive_commodity_engine():
         template="plotly_white",
     )
     st.plotly_chart(fig, use_container_width=True)
+
+    # -------------------------------------------------------------------------
+    # DOWNSTREAM INJECTION PROPAGATION BUTTON
+    # -------------------------------------------------------------------------
+    st.button(
+        f"⚡ Propagate {selected_comm} Extrapolation ({delta_60d_pct:+.2%})"
+        " into CTRM Risk Desk & S&OP Engine",
+        key="btn_propagate_commodity_extrapolation",
+        on_click=_propagate_commodity_forecast_cascade,
+        args=(
+            {
+                "commodity_name": selected_comm,
+                "ticker": data["ticker"],
+                "spot_price": data["spot"],
+                "unit": data["unit"],
+                "forecast_30d": target_price_30d,
+                "forecast_60d": target_price_60d,
+                "price_delta_pct": delta_60d_pct,
+                "precedent_match": data["precedent"],
+            },
+        ),
+    )
 
 
 def render_nlp_intelligence(persona=None, term_unit="Units", **kwargs):
