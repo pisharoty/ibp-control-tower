@@ -248,8 +248,35 @@ def fetch_expeditors_signals() -> dict:
 
 
 # ---------------------------------------------------------------------------
-# 6. IMAP Live Email Ingestion Engine (LinkedIn & Expeditors Target Filter)
+# 6. IMAP Live Email Ingestion & Unstructured Parser
 # ---------------------------------------------------------------------------
+def parse_unstructured_email(raw_text: str) -> dict:
+    """Parses unstructured supplier email/debrief text into structured operational entities."""
+    if not raw_text:
+        return {
+            "vendor": "Global Smelting Corp",
+            "event": "Smelter Outage & Energy Curtailment",
+            "delay_val": 13.5,
+            "units_val": 45000,
+            "sentiment_score": -0.45,
+        }
+
+    sentiment = analyze_text_sentiment(raw_text)
+
+    # Heuristic regex extraction with defaults
+    vendor_match = re.search(r"(?:from|vendor|supplier):\s*([A-Za-z0-9\s]+)", raw_text, re.IGNORECASE)
+    delay_match = re.search(r"(\d+(?:\.\d+)?)\s*(?:day|wk|week)s?\s*(?:delay|lead time)", raw_text, re.IGNORECASE)
+    units_match = re.search(r"(\d{1,3}(?:,\d{3})+|\d+)\s*(?:units|mt|tons|lbs)", raw_text, re.IGNORECASE)
+
+    return {
+        "vendor": vendor_match.group(1).strip() if vendor_match else "Global Smelting Corp",
+        "event": "Smelter Outage & Energy Curtailment" if "smelter" in raw_text.lower() else "Operational Disruption",
+        "delay_val": float(delay_match.group(1)) if delay_match else 13.5,
+        "units_val": int(units_match.group(1).replace(",", "")) if units_match else 45000,
+        "sentiment_score": round(sentiment, 2),
+    }
+
+
 def fetch_gmail_newsletters(max_emails: int = 15) -> list:
     """Connects to Gmail via IMAP, targets LinkedIn & Expeditors updates, and extracts commodity signals."""
     gmail_user, gmail_pass = _get_gmail_credentials()
