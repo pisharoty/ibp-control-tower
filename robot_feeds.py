@@ -1,4 +1,5 @@
 import asyncio
+import concurrent.futures
 from datetime import datetime, timedelta
 import email
 from email.header import decode_header
@@ -187,9 +188,18 @@ async def fetch_live_sea_and_air_telemetry() -> dict:
 
 
 def get_freight_telemetry_sync() -> dict:
-    """Synchronous wrapper for fetch_live_sea_and_air_telemetry."""
+    """Synchronous wrapper for fetch_live_sea_and_air_telemetry with active event loop handling."""
     try:
-        return asyncio.run(fetch_live_sea_and_air_telemetry())
+        try:
+            loop = asyncio.get_running_loop()
+        except RuntimeError:
+            loop = None
+
+        if loop and loop.is_running():
+            with concurrent.futures.ThreadPoolExecutor() as pool:
+                return pool.submit(lambda: asyncio.run(fetch_live_sea_and_air_telemetry())).result()
+        else:
+            return asyncio.run(fetch_live_sea_and_air_telemetry())
     except Exception:
         return {
             "ocean_freight_usd_feu": 3850.0,
@@ -568,6 +578,12 @@ def sync_robot_feeds() -> dict:
     except Exception:
         pass
 
+    try:
+        import streamlit as st
+        st.session_state["latest_robot_signals"] = feed_data
+    except Exception:
+        pass
+
     return feed_data
 
 
@@ -575,7 +591,7 @@ def sync_robot_feeds() -> dict:
 # 10. Multi-Source Composite Sentiment Calculation
 # ---------------------------------------------------------------------------
 def calculate_composite_sentiment(feed_signals: dict = None) -> dict:
-    """Calculates weighted composite sentiment SI_composite across global sources."""
+    """Calculates weighted composite sentiment SI_composite safely across global sources."""
     if feed_signals is None:
         feed_signals = {}
 
@@ -587,20 +603,29 @@ def calculate_composite_sentiment(feed_signals: dict = None) -> dict:
         "field_emails": 0.10,
     }
 
-    hard_macro = feed_signals.get("hard_macro", {})
+    hard_macro = feed_signals.get("hard_macro", {}) or {}
+
+    def _safe_float(val, default):
+        if val is None:
+            return float(default)
+        try:
+            return float(val)
+        except (ValueError, TypeError):
+            return float(default)
+
     scores = {
-        "gscpi_index": float(hard_macro.get("gscpi_sentiment", -0.15)),
-        "world_bank_pinksheet": float(feed_signals.get("world_bank_score", -0.20)),
-        "linkedin_feed": float(feed_signals.get("linkedin_score", -0.10)),
-        "gis_telemetry": float(feed_signals.get("gis_score", -0.10)),
-        "field_emails": float(feed_signals.get("field_email_score", -0.25)),
+        "gscpi_index": _safe_float(hard_macro.get("gscpi_sentiment"), -0.15),
+        "world_bank_pinksheet": _safe_float(feed_signals.get("world_bank_score"), -0.20),
+        "linkedin_feed": _safe_float(feed_signals.get("linkedin_score"), -0.10),
+        "gis_telemetry": _safe_float(feed_signals.get("gis_score"), -0.10),
+        "field_emails": _safe_float(feed_signals.get("field_email_score"), -0.25),
     }
 
     si_composite = sum(weights[k] * scores[k] for k in weights)
     si_composite = float(np.clip(si_composite, -1.0, 1.0))
 
     return {
-        "si_composite": si_composite,
+        "si_composite": round(si_composite, 4),
         "individual_scores": scores,
         "weights": weights,
     }
@@ -657,17 +682,28 @@ def run_end_to_end_sop_cascade(
     base_demand_units: int = 200000,
     raw_mat_ratio_per_unit: float = 1.25,
     current_spot_price: float = 4.15,
-    por_baseline_date: str = "2026-11-15"
+    por_baseline_date: str = "2026-11-15",
+    feed_signals: dict = None
 ) -> dict:
     """Central Orchestrator: Passes live feed outputs through S&OP, CTRM, and Logistics modules."""
     si_composite = -0.28
     
-    try:
-        import streamlit as st
-        signals = st.session_state.get("latest_robot_signals", {})
-        si_composite = signals.get("sentiment_index", st.session_state.get("si_composite", -0.28))
-    except Exception:
-        pass
+    if feed_signals is None:
+        try:
+            import streamlit as st
+            feed_signals = st.session_state.get("latest_robot_signals", {})
+        except Exception:
+            feed_signals = {}
+
+    if feed_signals:
+        calc_out = calculate_composite_sentiment(feed_signals)
+        si_composite = calc_out.get("si_composite", -0.28)
+    else:
+        try:
+            import streamlit as st
+            si_composite = st.session_state.get("si_composite", -0.28)
+        except Exception:
+            pass
 
     # Stage 2: Demand Surge & Order Offset Calculation
     k_demand = 0.25
