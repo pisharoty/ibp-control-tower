@@ -115,7 +115,87 @@ def analyze_text_sentiment(text: str) -> float:
     return float(np.clip(polarity, -1.0, 1.0))
 
 
-# 4. Fetch Live NOAA Severe Marine, Coastal & Waterway Disruption Telemetry
+# ---------------------------------------------------------------------------
+# 4. Async Live Freight Ingestion Engine (Sea Freight, Air Freight, Vessel GIS, NOAA)
+# ---------------------------------------------------------------------------
+async def fetch_live_sea_and_air_telemetry() -> dict:
+    """
+    Fetches real-time ocean/air freight rates, active vessel tracking, and live NOAA severe weather alerts.
+    Falls back gracefully to baseline metrics if API keys or network requests are unavailable.
+    """
+    fbx_key = _get_secret("FBX_API_KEY")
+    tac_key = _get_secret("TAC_API_KEY")
+    p44_token = _get_secret("P44_API_TOKEN")
+
+    ocean_rate = 3850.0  # Baseline $/FEU
+    air_rate = 2.48      # Baseline $/kg
+    active_vessels = []
+    status_flags = []
+    
+    # NOAA Defaults
+    noaa_severity = "Level 2 Advisory"
+    noaa_summary = "Mississippi Waterway & Gulf Coastal Alert"
+
+    async with httpx.AsyncClient(timeout=4.0) as client:
+        # 1. Fetch Ocean Freight Benchmarks (FBX API or Yahoo Finance Carrier Proxy)
+        if fbx_key:
+            try:
+                resp = await client.get(
+                    "https://api.freightos.com/v1/fbx/index",
+                    headers={"Authorization": f"Bearer {fbx_key}"}
+                )
+                if resp.status_code == 200:
+                    ocean_rate = float(resp.json().get("fbx_global_value", ocean_rate))
+                    status_flags.append("FBX_LIVE")
+            except Exception as e:
+                status_flags.append(f"FBX_FALLBACK ({str(e)})")
+        else:
+            try:
+                yf_url = "https://query1.finance.yahoo.com/v8/finance/chart/ZIM?interval=1d&range=5d"
+                yf_resp = await client.get(yf_url, headers={"User-Agent": "Mozilla/5.0"})
+                if yf_resp.status_code == 200:
+                    result = yf_resp.json().get("chart", {}).get("result", [{}])[0]
+                    meta = result.get("meta", {})
+                    curr_price = meta.get("regularMarketPrice")
+                    prev_close = meta.get("chartPreviousClose")
+                    if curr_price and prev_close:
+                        pct_change = (curr_price - prev_close) / prev_close
+                        ocean_rate = round(3850.0 * (1.0 + (pct_change * 0.4)), -1)
+                        status_flags.append("YFINANCE_INDEXED")
+            except Exception:
+                status_flags.append("FBX_SIMULATED")
+
+        # 2. Fetch Air Freight Benchmarks (TAC Index API)
+        if tac_key:
+            try:
+                resp = await client.get(
+                    "https://api.tacindex.com/v1/air/rates",
+                    headers={"X-API-KEY": tac_key}
+                )
+                if resp.status_code == 200:
+                    air_rate = float(resp.json().get("shanghai_chicago_usd_kg", air_rate))
+                    status_flags.append("TAC_LIVE")
+            except Exception as e:
+                status_flags.append(f"TAC_FALLBACK ({str(e)})")
+        else:
+            status_flags.append("TAC_SIMULATED")
+
+        # 3. Fetch Active Vessel/Container Tracking (Project44 API)
+        if p44_token:
+            try:
+                resp = await client.get(
+                    "https://na12.api.project44.com/api/v4/shipments/tracking",
+                    headers={"Authorization": f"Bearer {p44_token}"}
+                )
+                if resp.status_code == 200:
+                    active_vessels = resp.json().get("shipments", [])
+                    status_flags.append("P44_LIVE")
+            except Exception as e:
+                status_flags.append(f"P44_FALLBACK ({str(e)})")
+        else:
+            status_flags.append("P44_SIMULATED")
+
+        # 4. Fetch Live NOAA Severe Marine, Coastal & Waterway Disruption Telemetry
         try:
             noaa_headers = {"User-Agent": "IBPControlTower/1.0 (contact@ibp-tower.org)"}
             noaa_resp = await client.get(
@@ -160,6 +240,16 @@ def analyze_text_sentiment(text: str) -> float:
         except Exception:
             status_flags.append("NOAA_SIMULATED")
 
+    return {
+        "ocean_freight_usd_feu": ocean_rate,
+        "air_freight_usd_kg": air_rate,
+        "active_vessels_count": len(active_vessels) if active_vessels else 3,
+        "vessel_telemetry": active_vessels,
+        "noaa_severity_level": noaa_severity,
+        "noaa_alert_summary": noaa_summary,
+        "telemetry_status": " | ".join(status_flags)
+    }
+
 
 def get_freight_telemetry_sync() -> dict:
     """Synchronous wrapper for fetch_live_sea_and_air_telemetry with active event loop handling."""
@@ -179,8 +269,8 @@ def get_freight_telemetry_sync() -> dict:
             "ocean_freight_usd_feu": 3850.0,
             "air_freight_usd_kg": 2.48,
             "active_vessels_count": 3,
-            "noaa_severity_level": "Level 3 Warning",
-            "noaa_alert_summary": "Low Stage Water / Tropical Storm Alert",
+            "noaa_severity_level": "Level 2 Advisory",
+            "noaa_alert_summary": "Mississippi Waterway & Gulf Coastal Alert",
             "telemetry_status": "FALLBACK_MODE"
         }
 
