@@ -116,12 +116,12 @@ def analyze_text_sentiment(text: str) -> float:
 
 
 # ---------------------------------------------------------------------------
-# 4. Async Live Freight Ingestion Engine (Sea Freight, Air Freight, Vessel GIS)
+# 4. Async Live Freight Ingestion Engine (Sea Freight, Air Freight, Vessel GIS, NOAA)
 # ---------------------------------------------------------------------------
 async def fetch_live_sea_and_air_telemetry() -> dict:
     """
-    Fetches real-time ocean and air freight rates and active vessel tracking.
-    Falls back gracefully to baseline metrics if API keys are missing or requests time out.
+    Fetches real-time ocean/air freight rates, active vessel tracking, and live NOAA severe weather alerts.
+    Falls back gracefully to baseline metrics if API keys or network requests are unavailable.
     """
     fbx_key = _get_secret("FBX_API_KEY")
     tac_key = _get_secret("TAC_API_KEY")
@@ -131,9 +131,13 @@ async def fetch_live_sea_and_air_telemetry() -> dict:
     air_rate = 2.48      # Baseline $/kg
     active_vessels = []
     status_flags = []
+    
+    # NOAA Defaults
+    noaa_severity = "Level 3 Warning"
+    noaa_summary = "Mississippi Waterway & Gulf Marine Alert"
 
-    async with httpx.AsyncClient(timeout=8.0) as client:
-        # 1. Fetch Ocean Freight Benchmarks (FBX API)
+    async with httpx.AsyncClient(timeout=4.0) as client:
+        # 1. Fetch Ocean Freight Benchmarks (FBX API or Yahoo Finance Carrier Proxy)
         if fbx_key:
             try:
                 resp = await client.get(
@@ -146,7 +150,21 @@ async def fetch_live_sea_and_air_telemetry() -> dict:
             except Exception as e:
                 status_flags.append(f"FBX_FALLBACK ({str(e)})")
         else:
-            status_flags.append("FBX_SIMULATED")
+            # Fallback to live Yahoo Finance carrier index (ZIM) when no private FBX key is provided
+            try:
+                yf_url = "https://query1.finance.yahoo.com/v8/finance/chart/ZIM?interval=1d&range=5d"
+                yf_resp = await client.get(yf_url, headers={"User-Agent": "Mozilla/5.0"})
+                if yf_resp.status_code == 200:
+                    result = yf_resp.json().get("chart", {}).get("result", [{}])[0]
+                    meta = result.get("meta", {})
+                    curr_price = meta.get("regularMarketPrice")
+                    prev_close = meta.get("chartPreviousClose")
+                    if curr_price and prev_close:
+                        pct_change = (curr_price - prev_close) / prev_close
+                        ocean_rate = round(3850.0 * (1.0 + (pct_change * 0.4)), -1)
+                        status_flags.append("YFINANCE_INDEXED")
+            except Exception:
+                status_flags.append("FBX_SIMULATED")
 
         # 2. Fetch Air Freight Benchmarks (TAC Index API)
         if tac_key:
@@ -178,11 +196,35 @@ async def fetch_live_sea_and_air_telemetry() -> dict:
         else:
             status_flags.append("P44_SIMULATED")
 
+        # 4. Fetch Live NOAA Severe Marine & Weather Alerts
+        try:
+            noaa_headers = {"User-Agent": "IBPControlTower/1.0 (contact@ibp-tower.org)"}
+            noaa_resp = await client.get(
+                "https://api.weather.gov/alerts/active?severity=Severe,Extreme",
+                headers=noaa_headers
+            )
+            if noaa_resp.status_code == 200:
+                features = noaa_resp.json().get("features", [])
+                alert_count = len(features)
+                if alert_count > 0:
+                    top_alert = features[0].get("properties", {}).get("event", "Severe Marine/Climate Disruption")
+                    severity_num = min(alert_count // 8 + 2, 5)
+                    noaa_severity = f"Level {severity_num} Warning"
+                    noaa_summary = f"{alert_count} Active Alerts | {top_alert}"
+                else:
+                    noaa_severity = "Level 1 Normal"
+                    noaa_summary = "No Active Severe Alerts"
+                status_flags.append("NOAA_LIVE")
+        except Exception:
+            status_flags.append("NOAA_SIMULATED")
+
     return {
         "ocean_freight_usd_feu": ocean_rate,
         "air_freight_usd_kg": air_rate,
         "active_vessels_count": len(active_vessels) if active_vessels else 3,
         "vessel_telemetry": active_vessels,
+        "noaa_severity_level": noaa_severity,
+        "noaa_alert_summary": noaa_summary,
         "telemetry_status": " | ".join(status_flags)
     }
 
@@ -205,6 +247,8 @@ def get_freight_telemetry_sync() -> dict:
             "ocean_freight_usd_feu": 3850.0,
             "air_freight_usd_kg": 2.48,
             "active_vessels_count": 3,
+            "noaa_severity_level": "Level 3 Warning",
+            "noaa_alert_summary": "Low Stage Water / Tropical Storm Alert",
             "telemetry_status": "FALLBACK_MODE"
         }
 
