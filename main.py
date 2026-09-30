@@ -6,32 +6,24 @@ import re
 import time
 import uuid
 from datetime import datetime, timezone
-import urllib.request
-import xml.etree.ElementTree as ET
-
 import numpy as np
 import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
-import pydeck as pdk
+import pydeck as pdk  # Added for GIS / Global Logistics map layers
 import streamlit as st
-
+import urllib.request
+import xml.etree.ElementTree as ET
 from robot_feeds import (
     calculate_composite_sentiment,
     compute_quantified_operational_impact,
-    fetch_baltic_indices,
+    fetch_baltic_indices,            # Exports live ocean FBX & air TAC rates
     fetch_global_macro_telemetry,
     fetch_gmail_newsletters,
-    fetch_live_sector_rss,
-    get_freight_telemetry_sync,
-    parse_unstructured_email,
-    run_end_to_end_sop_cascade,
-    run_end_to_end_sop_cascade as _propagate_signal_to_sop_cascade,  # Explicit alias for button callbacks
+    get_freight_telemetry_sync,      # Direct sync wrapper for live sea & air APIs
+    run_end_to_end_sop_cascade,      # Orchestrates full S&OP, CTRM & Logistics impacts
     sync_robot_feeds,
 )
-
-# Import commodity engine if located in a separate module
-# from commodity_engine import render_predictive_commodity_engine
 
 
 # =====================================================================
@@ -377,9 +369,7 @@ def render_executive_sop(
     term_unit="Units",
     **kwargs,
 ):
-    """Render Executive S&OP Control Tower with dynamic persona baselines, live sea/air telemetry,
-    and Plotly waterfall bound to Single Source of Truth Session State.
-    """
+    """Render Executive S&OP Control Tower with dynamic persona baselines, live sea/air telemetry, & Plotly waterfall."""
     st.title("📈 Executive S&OP Control Tower")
     st.caption(f"Active Persona View: **{persona}**")
     st.markdown(
@@ -387,9 +377,7 @@ def render_executive_sop(
         " benefit reconciliation."
     )
 
-    # -------------------------------------------------------------------------
-    # 1. DYNAMIC PERSONA BASELINES
-    # -------------------------------------------------------------------------
+    # 1. Dynamic Persona Baselines
     if "FMCG" in persona:
         base_aop_rev = 450_000_000.0
         unit_price = 45.0
@@ -403,9 +391,7 @@ def render_executive_sop(
         unit_price = 780.0
         cogs_pct = 0.65
 
-    # -------------------------------------------------------------------------
-    # 2. EXTRACT CENTRAL CASCADE STATE & SINGLE SOURCE OF TRUTH (SSOT)
-    # -------------------------------------------------------------------------
+    # 2. Extract Central Cascade State, Live Signals & Propagated Commodity Data
     cascade = st.session_state.get("active_sop_cascade", {})
     robot_signals = st.session_state.get("latest_robot_signals", {})
     prop_data = st.session_state.get("propagated_commodity_data")
@@ -426,36 +412,22 @@ def render_executive_sop(
     surge_units = demand_data.get("total_surge_units", 102968)
     delta_units = demand_data.get("delta_surge_units", 0)
 
-    # SSOT Key 1: Shortfall / Net Procurement Volume (Reconciles S&OP, CTRM, & Procurement)
-    net_procurement_units = st.session_state.get(
-        "net_procurement_units",
-        demand_data.get("net_deficit_units", 28500),
-    )
-    st.session_state["net_procurement_units"] = net_procurement_units
-
     # Extract Live Sea & Air Telemetry + Modal Shift Details
     modal_shift_air = logistics_data.get("modal_shift_air", False)
     freight_surcharge = logistics_data.get("total_freight_surcharge_usd", 0.0)
     fbx_sea_rate = baltic_data.get("freightos_fbx_ocean", {}).get("value", 3850)
     tac_air_rate = baltic_data.get("baltic_air_tac", {}).get("value", 2.48)
 
-    # -------------------------------------------------------------------------
-    # 3. RECONCILED P&L MATH & WATERFALL EQUATIONS (SSOT BOUND)
-    # -------------------------------------------------------------------------
+    # Financial inputs derived from Orchestrator Cascade
     revenue_upside = exec_data.get(
         "delta_revenue_usd", delta_units * unit_price
     )
-    if revenue_upside == 0.0 and "unconstrained_demand_usd" in st.session_state:
-        unconstrained_rev = st.session_state["unconstrained_demand_usd"]
-        revenue_upside = unconstrained_rev - base_aop_rev
-    else:
-        unconstrained_rev = base_aop_rev + revenue_upside
-        st.session_state["unconstrained_demand_usd"] = unconstrained_rev
+    unconstrained_rev = base_aop_rev + revenue_upside
 
     fix_executed = st.session_state.get("fix_executed", False)
     mc_res = st.session_state.get("mc_results", None)
 
-    # Dynamic COGS & Freight Drag Calculation
+    # Dynamic COGS drag calculation
     if mc_res:
         cogs_drag = mc_res["mean_cost"]
         var_95_drag = mc_res["var_95"]
@@ -463,40 +435,36 @@ def render_executive_sop(
         cogs_drag = exec_data.get("delta_cogs_usd", 0.0) + freight_surcharge
         if cogs_drag == 0.0:
             cogs_drag = (base_aop_rev * 0.025) * (1.0 + abs(si_score) * 2.5)
-
+        
         # Scale drag if commodity forecast extrapolation is propagated
         if prop_data:
             cogs_drag *= (1.0 + max(0.0, prop_data.get("price_delta_pct", 0.0)))
 
         var_95_drag = cogs_drag * 1.4
 
-    # SSOT Key 2: Exact Executed Hedge Benefit Offset Reconciliation
-    if "executed_hedge_benefit_usd" in st.session_state:
-        ctrm_hedge_benefit = st.session_state["executed_hedge_benefit_usd"]
-    elif fix_executed:
-        ctrm_hedge_benefit = ctrm_data.get("capital_committed_usd", 128881.25)
-        st.session_state["executed_hedge_benefit_usd"] = ctrm_hedge_benefit
+    # Dynamic CTRM Hedge Benefit
+    if fix_executed:
+        ctrm_hedge_benefit = ctrm_data.get(
+            "capital_committed_usd",
+            cogs_drag * 0.42,
+        )
     elif prop_data:
+        # Extrapolated hedge benefit calculation under active commodity signal
         ctrm_hedge_benefit = cogs_drag * 0.35 * (1.0 + prop_data.get("price_delta_pct", 0.0))
-        st.session_state["executed_hedge_benefit_usd"] = ctrm_hedge_benefit
     else:
         ctrm_hedge_benefit = 0.0
-        st.session_state["executed_hedge_benefit_usd"] = 0.0
 
-    # Mathematically exact EBITDA Reconciliation
-    base_cogs = base_aop_rev * cogs_pct
     net_cogs_drag = cogs_drag - ctrm_hedge_benefit
+    base_cogs = base_aop_rev * cogs_pct
     net_ebitda = unconstrained_rev - base_cogs - net_cogs_drag
     sop_cash = st.session_state.get("sop_cash_balance", 5_000_000.0)
 
-    # -------------------------------------------------------------------------
-    # 4. TOP KPI CARDS
-    # -------------------------------------------------------------------------
+    # 3. Top KPI Cards
     col_m1, col_m2, col_m3, col_m4 = st.columns(4)
     with col_m1:
         st.metric(
             "Annual Operating Plan (AOP)",
-            f"${base_aop_rev / 1e6:.2f}M",
+            f"${base_aop_rev / 1e6:.1f}M",
             "+4.2% YoY",
         )
     with col_m2:
@@ -533,14 +501,11 @@ def render_executive_sop(
             f" Current Treasury Cash balance is **${sop_cash:,.2f}**."
         )
 
-    # -------------------------------------------------------------------------
-    # 5. RECONCILED VISUAL WATERFALL & DESK FEEDS
-    # -------------------------------------------------------------------------
+    # 4. Interactive Visual Waterfall & Desk Feeds
     col_p1, col_p2 = st.columns([1.3, 1])
     with col_p1:
         st.subheader("💵 Financial P&L Margin Waterfall")
-        
-        # Exact mathematical waterfall formatting using single source variables
+        # Mathematically reconciled P&L waterfall
         fig = go.Figure(
             go.Waterfall(
                 name="P&L Reconciliation",
@@ -563,8 +528,8 @@ def render_executive_sop(
                 ],
                 textposition="outside",
                 text=[
-                    f"${base_aop_rev / 1e6:.2f}M",
-                    f"-${base_cogs / 1e6:.2f}M",
+                    f"${base_aop_rev / 1e6:.1f}M",
+                    f"-${base_cogs / 1e6:.1f}M",
                     f"+${revenue_upside / 1e6:.2f}M",
                     f"-${cogs_drag / 1e6:.2f}M",
                     f"+${ctrm_hedge_benefit / 1e6:.2f}M",
@@ -635,7 +600,7 @@ def render_executive_sop(
         else:
             st.warning(
                 f"🔸 **CTRM Risk Desk**: Unhedged Volatility Gap ="
-                f" **{net_procurement_units:,} {term_unit}**."
+                f" **{delta_units:,} {term_unit}**."
             )
 
         if mc_res:
@@ -842,59 +807,82 @@ def _propagate_signal_to_sop_cascade(signal_data: dict):
     )
 
 
-
+    import urllib.request
 import xml.etree.ElementTree as ET
-import urllib.parse
-import urllib.request
 
 
-def fetch_live_or_fallback(rss_url: str, fallback_articles: list, timeout_sec: float = 3.0) -> tuple[list, bool]:
-    """
-    Fetches and parses live RSS XML feed using standard library modules.
-    Falls back gracefully if offline, rate-limited, or if parsing fails.
-    """
-    try:
-        req = urllib.request.Request(
-            rss_url,
-            headers={"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) MarketScraper/1.0"}
+def fetch_live_sector_rss(topic_query=None, persona_materials=None):
+    """Fetch and score live breaking commodity & logistics news from RSS feeds."""
+    
+    # Construct broad multi-commodity search query if none provided
+    if topic_query:
+        clean_query = topic_query.replace(" ", "+").replace("&", "%26")
+    elif persona_materials and isinstance(persona_materials, list):
+        mat_str = "+OR+".join([f'"{m}"' for m in persona_materials])
+        clean_query = f"({mat_str})+AND+(force+majeure+OR+outage+OR+strike+OR+shortage+OR+disruption)"
+    else:
+        clean_query = (
+            "(copper+OR+tin+OR+polymers+OR+petrochemicals+OR+resins+OR+lithium+OR+oil)"
+            "+AND+(force+majeure+OR+outage+OR+strike+OR+shortage+OR+disruption)"
         )
-        with urllib.request.urlopen(req, timeout=timeout_sec) as response:
-            xml_data = response.read()
 
-        root = ET.fromstring(xml_data)
-        fetched_articles = []
+    rss_url = f"https://news.google.com/rss/search?q={clean_query}&hl=en-US&gl=US&ceid=US:en"
 
-        for item in root.findall(".//item"):
-            # Guard against None returned by findtext on empty XML tags (<title/>)
-            title = (item.findtext("title") or "").strip()
-            link = (item.findtext("link") or "#").strip()
-            published = (item.findtext("pubDate") or "").strip()
+    # Define fallback articles for offline / rate-limited execution
+    fallback_articles = [
+        {
+            "title": "Global Raw Materials Update: Spot Market Tightening Across Metals & Resins",
+            "source": "Reuters Telemetry",
+            "published": "Live Ingest",
+            "link": "#",
+        },
+        {
+            "title": "Ethylene & Polymer Cracker Outages Extend Force Majeure Declarations",
+            "source": "ICIS Chemical Intelligence",
+            "published": "Live Ingest",
+            "link": "#",
+        },
+    ]
 
-            source_elem = item.find("source")
-            source = source_elem.text.strip() if (source_elem is not None and source_elem.text) else "Google News"
+    # Leverage low-level fetcher
+    raw_articles, is_live = fetch_live_or_fallback(rss_url, fallback_articles, timeout_sec=3.0)
 
-            if title:
-                fetched_articles.append({
-                    "title": title,
-                    "source": source,
-                    "published": published,
-                    "link": link,
-                })
+    # Apply sentiment analysis & operational shock scoring
+    processed_articles = []
+    for item in raw_articles:
+        title = item.get("title", "")
+        t_lower = title.lower()
 
-        if fetched_articles:
-            return fetched_articles, True
+        if any(w in t_lower for w in ["strike", "outage", "disruption", "force majeure", "surge", "shortage", "halt", "delay", "curtailment"]):
+            sentiment = -0.75
+            impact_units = 145000
+        elif any(w in t_lower for w in ["growth", "boost", "rebound", "expansion", "surplus", "gain"]):
+            sentiment = +0.50
+            impact_units = 65000
+        else:
+            sentiment = -0.35
+            impact_units = 110000
 
-    except Exception:
-        pass
+        processed_articles.append({
+            "title": title,
+            "source": item.get("source", "Market Feed"),
+            "published": item.get("published", ""),
+            "link": item.get("link", "#"),
+            "sentiment": sentiment,
+            "estimated_impact": impact_units,
+            "is_live": is_live,
+        })
 
-    return fallback_articles or [], False
+    return processed_articles
 
+
+ 
 
 def _propagate_commodity_forecast_cascade(payload: dict):
     """Callback to inject commodity price forecast extrapolation downstream
+
     across CTRM Desk, S&OP Control Tower, Procurement, and Flight Simulator.
     """
-    payload = payload or {}
     comm_name = payload.get("commodity_name", "Copper (LME Grade A)")
     delta_pct = payload.get("price_delta_pct", 0.0694)
     spot_price = payload.get("spot_price", 9820.00)
@@ -908,13 +896,16 @@ def _propagate_commodity_forecast_cascade(payload: dict):
     st.session_state["commodity_price_delta_pct"] = delta_pct
     st.session_state["propagated_commodity_data"] = payload
 
-    # 2. Compute CTRM Derivatives Desk Hedge Exposure ($) - Safe fallback if key is None
-    base_annual_procurement_units = st.session_state.get("base_annual_volume") or 25000
-    
+    # 2. Compute CTRM Derivatives Desk Hedge Exposure ($)
+    base_annual_procurement_units = st.session_state.get(
+        "base_annual_volume", 25000
+    )
     unhedged_exposure_usd = (
         base_annual_procurement_units * (forecast_60d - spot_price) * 0.50
+    )  # 60-day forward exposure
+    st.session_state["ctrm_unhedged_exposure_usd"] = max(
+        0.0, unhedged_exposure_usd
     )
-    st.session_state["ctrm_unhedged_exposure_usd"] = max(0.0, unhedged_exposure_usd)
     st.session_state["ctrm_recommended_futures_contracts"] = int(
         np.ceil(unhedged_exposure_usd / 25000)
     )
@@ -928,10 +919,10 @@ def _propagate_commodity_forecast_cascade(payload: dict):
         _propagate_signal_to_sop_cascade(payload)
 
     st.toast(
-        f"⚡ Injected {comm_name} (+{delta_pct:.2%}) downstream across CTRM & S&OP Engines!",
+        f"⚡ Injected {comm_name} (+{delta_pct:.2%}) downstream across CTRM &"
+        " S&OP Engines!",
         icon="🚀",
     )
-
 
 @st.cache_data(ttl=300)
 def fetch_live_commodity_price(ticker: str, fallback_spot: float) -> float:
@@ -954,15 +945,23 @@ def fetch_live_commodity_price(ticker: str, fallback_spot: float) -> float:
 
 
 def render_predictive_commodity_engine():
-    """Predictive Commodity Price Engine tracking Top 50 Global Raw Material Inputs"""
+    """Predictive Commodity Price Engine tracking Top 50 Global Raw Material Inputs
+
+    with downstream econometric propagation to CTRM, S&OP, and Flight
+    Simulator.
+    """
     st.markdown("### 📈 SOTA Predictive Commodity Engine (Top 50 Global Inputs)")
     st.caption(
         "Historical precedence correlation matrix, news sentiment elasticity"
-        " (β_SI), and vector autoregressive forecast across 50 liquid raw material benchmarks."
+        " (β_SI), and vector autoregressive forecast across 50 liquid raw"
+        " material benchmarks."
     )
 
+    # -------------------------------------------------------------------------
+    # TOP 50 GLOBAL COMMODITY COVERAGE MATRIX (UPDATED YAHOO FINANCE TICKERS)
+    # -------------------------------------------------------------------------
     top_50_commodities = {
-        # Bucket 1: Industrial Non-Ferrous & Ferrous Metals
+        # Bucket 1: Industrial Non-Ferrous & Ferrous Metals (1–10)
         "Copper (LME Grade A)": {
             "ticker": "HG=F",
             "category": "Industrial Metals",
@@ -970,7 +969,11 @@ def render_predictive_commodity_engine():
             "unit": "$/MT",
             "beta_si": 0.084,
             "r_squared": 0.892,
-            "precedent": "2022 European Smelter Energy Curtailment Strike.",
+            "precedent": (
+                "2022 European Smelter Energy Curtailment Strike. The current"
+                " signal cluster aligns with past structural supply shocks"
+                " where physical spot premiums adjusted within 45 days."
+            ),
         },
         "Primary Aluminum (LME)": {
             "ticker": "ALI=F",
@@ -979,11 +982,478 @@ def render_predictive_commodity_engine():
             "unit": "$/MT",
             "beta_si": 0.062,
             "r_squared": 0.841,
-            "precedent": "2021 China Yunnan Hydro Power Rationing.",
+            "precedent": (
+                "2021 China Yunnan Hydro Power Rationing. Supply shock drove"
+                " spot premiums higher within 30 days."
+            ),
         },
-        # Additional commodity definitions...
+        "Nickel (LME Class 1)": {
+            "ticker": "JJN",
+            "category": "Industrial Metals",
+            "spot": 17450.00,
+            "unit": "$/MT",
+            "beta_si": 0.095,
+            "r_squared": 0.812,
+            "precedent": "2022 Tsingshan Short Squeeze & Indonesian Ore Quotas",
+        },
+        "Zinc (LME High Grade)": {
+            "ticker": "ZNC=F",
+            "category": "Industrial Metals",
+            "spot": 2890.00,
+            "unit": "$/MT",
+            "beta_si": 0.071,
+            "r_squared": 0.835,
+            "precedent": "2022 Nyrstar Smelter Production Halt",
+        },
+        "Lead (LME Refined)": {
+            "ticker": "LED=F",
+            "category": "Industrial Metals",
+            "spot": 2120.00,
+            "unit": "$/MT",
+            "beta_si": 0.048,
+            "r_squared": 0.790,
+            "precedent": (
+                "2023 Secondary Recycler Lead Battery Scrap Deficit"
+            ),
+        },
+        "Tin (LME Grade A)": {
+            "ticker": "JJT",
+            "category": "Industrial Metals",
+            "spot": 31500.00,
+            "unit": "$/MT",
+            "beta_si": 0.110,
+            "r_squared": 0.864,
+            "precedent": "2023 Myanmar Wa State Mining Export Ban",
+        },
+        "Lithium Hydroxide 56.5%": {
+            "ticker": "LIT",
+            "category": "Industrial Metals",
+            "spot": 14200.00,
+            "unit": "$/MT",
+            "beta_si": 0.125,
+            "r_squared": 0.785,
+            "precedent": (
+                "2023 Spodumene Export Quota Delays & Inventory Destocking"
+            ),
+        },
+        "Cobalt Metal 99.8%": {
+            "ticker": "LIT",
+            "category": "Industrial Metals",
+            "spot": 28400.00,
+            "unit": "$/MT",
+            "beta_si": 0.088,
+            "r_squared": 0.760,
+            "precedent": "2022 DRC Export Logistics Bottlenecks at Durban",
+        },
+        "Neodymium Oxide (NdFeB)": {
+            "ticker": "REMX",
+            "category": "Industrial Metals",
+            "spot": 72500.00,
+            "unit": "$/MT",
+            "beta_si": 0.140,
+            "r_squared": 0.820,
+            "precedent": "2021 China Rare Earth Export Quota Tightening",
+        },
+        "Iron Ore 62% Fe (TSI)": {
+            "ticker": "TIO=F",
+            "category": "Industrial Metals",
+            "spot": 118.50,
+            "unit": "$/dmt",
+            "beta_si": 0.078,
+            "r_squared": 0.875,
+            "precedent": "2019 Vale Brumadinho Tailings Dam Shock",
+        },
+        # Bucket 2: Energy & Power Inputs (11–20)
+        "Brent Crude Oil": {
+            "ticker": "BZ=F",
+            "category": "Energy & Power Inputs",
+            "spot": 78.50,
+            "unit": "$/Bbl",
+            "beta_si": 0.091,
+            "r_squared": 0.915,
+            "precedent": "2024 Red Sea Transit Rerouting Surcharges",
+        },
+        "WTI Crude Oil": {
+            "ticker": "CL=F",
+            "category": "Energy & Power Inputs",
+            "spot": 74.20,
+            "unit": "$/Bbl",
+            "beta_si": 0.089,
+            "r_squared": 0.908,
+            "precedent": "2023 OPEC+ Voluntary Production Cuts",
+        },
+        "Henry Hub Natural Gas": {
+            "ticker": "NG=F",
+            "category": "Energy & Power Inputs",
+            "spot": 2.65,
+            "unit": "$/MMBtu",
+            "beta_si": 0.135,
+            "r_squared": 0.830,
+            "precedent": "2022 Freeport LNG Export Terminal Outage",
+        },
+        "TTF European Gas": {
+            "ticker": "TTF=F",
+            "category": "Energy & Power Inputs",
+            "spot": 38.50,
+            "unit": "€/MWh",
+            "beta_si": 0.165,
+            "r_squared": 0.880,
+            "precedent": "2022 Nord Stream Pipeline Curtailment Crisis",
+        },
+        "Ultra-Low Sulfur Diesel (ULSD)": {
+            "ticker": "HO=F",
+            "category": "Energy & Power Inputs",
+            "spot": 2.42,
+            "unit": "$/Gal",
+            "beta_si": 0.082,
+            "r_squared": 0.895,
+            "precedent": (
+                "2022 French Refinery Strikes & Distillate Shortage"
+            ),
+        },
+        "Thermal Coal (Newcastle)": {
+            "ticker": "NCF=F",
+            "category": "Energy & Power Inputs",
+            "spot": 138.00,
+            "unit": "$/MT",
+            "beta_si": 0.105,
+            "r_squared": 0.815,
+            "precedent": "2021 Indonesian Coal Export Embargo",
+        },
+        "Uranium (U3O8 Benchmark)": {
+            "ticker": "SRUUF",
+            "category": "Energy & Power Inputs",
+            "spot": 82.50,
+            "unit": "$/lb",
+            "beta_si": 0.098,
+            "r_squared": 0.850,
+            "precedent": "2023 Kazatomprom Production Guidance Cut",
+        },
+        "Heavy Fuel Oil 380 CST": {
+            "ticker": "BZ=F",
+            "category": "Energy & Power Inputs",
+            "spot": 440.00,
+            "unit": "$/MT",
+            "beta_si": 0.075,
+            "r_squared": 0.870,
+            "precedent": "2024 Marine Bunker Fuel Demand Surge",
+        },
+        "European Carbon Permits (EUA)": {
+            "ticker": "KRBN",
+            "category": "Energy & Power Inputs",
+            "spot": 68.20,
+            "unit": "€/MT",
+            "beta_si": 0.085,
+            "r_squared": 0.840,
+            "precedent": "2023 EU MSR Rule Reform & Power Grid Switching",
+        },
+        "Electricity Base Load (PJM)": {
+            "ticker": "XLU",
+            "category": "Energy & Power Inputs",
+            "spot": 42.50,
+            "unit": "$/MWh",
+            "beta_si": 0.115,
+            "r_squared": 0.795,
+            "precedent": "2022 Winter Storm Elliott Power Price Spikes",
+        },
+        # Bucket 3: Petrochemicals & Polymers (21–30)
+        "Ethylene (CFR Asia)": {
+            "ticker": "LYB",
+            "category": "Petrochemicals & Polymers",
+            "spot": 890.00,
+            "unit": "$/MT",
+            "beta_si": 0.055,
+            "r_squared": 0.825,
+            "precedent": (
+                "2021 US Gulf Coast Winter Freeze Naphtha Outages"
+            ),
+        },
+        "Polypropylene (PP Raffia)": {
+            "ticker": "DOW",
+            "category": "Petrochemicals & Polymers",
+            "spot": 1120.00,
+            "unit": "$/MT",
+            "beta_si": 0.045,
+            "r_squared": 0.810,
+            "precedent": "2021 Hurricane Ida Louisiana Cracker Shutdowns",
+        },
+        "Polyethylene (HDPE Film)": {
+            "ticker": "WLK",
+            "category": "Petrochemicals & Polymers",
+            "spot": 1050.00,
+            "unit": "$/MT",
+            "beta_si": 0.048,
+            "r_squared": 0.818,
+            "precedent": "2022 European Steam Cracker Rate Reductions",
+        },
+        "Polyvinyl Chloride (PVC)": {
+            "ticker": "OLN",
+            "category": "Petrochemicals & Polymers",
+            "spot": 820.00,
+            "unit": "$/MT",
+            "beta_si": 0.052,
+            "r_squared": 0.802,
+            "precedent": (
+                "2021 Chlor-Alkali Power Rationing in Eastern China"
+            ),
+        },
+        "Titanium Dioxide (TiO2)": {
+            "ticker": "TROX",
+            "category": "Petrochemicals & Polymers",
+            "spot": 2950.00,
+            "unit": "$/MT",
+            "beta_si": 0.038,
+            "r_squared": 0.775,
+            "precedent": "2022 Ilmenite Ore Feedstock Shortage",
+        },
+        "Methanol (CFR China)": {
+            "ticker": "MEOH",
+            "category": "Petrochemicals & Polymers",
+            "spot": 285.00,
+            "unit": "$/MT",
+            "beta_si": 0.065,
+            "r_squared": 0.832,
+            "precedent": "2023 Iranian Winter Natural Gas Cutoffs to Plants",
+        },
+        "Urea / Nitrogen Fertilizer": {
+            "ticker": "CF",
+            "category": "Petrochemicals & Polymers",
+            "spot": 340.00,
+            "unit": "$/MT",
+            "beta_si": 0.092,
+            "r_squared": 0.860,
+            "precedent": (
+                "2021 China Urea Export Inspection Restrictions"
+            ),
+        },
+        "Purified Terephthalic Acid (PTA)": {
+            "ticker": "ALB",
+            "category": "Petrochemicals & Polymers",
+            "spot": 760.00,
+            "unit": "$/MT",
+            "beta_si": 0.042,
+            "r_squared": 0.805,
+            "precedent": "2022 PX Feedstock Premium Expansion",
+        },
+        "Styrene Monomer": {
+            "ticker": "AXTA",
+            "category": "Petrochemicals & Polymers",
+            "spot": 1150.00,
+            "unit": "$/MT",
+            "beta_si": 0.058,
+            "r_squared": 0.815,
+            "precedent": "2023 POSM Plant Unplanned Maintenance Outages",
+        },
+        "Caustic Soda (Liquid 50%)": {
+            "ticker": "OLN",
+            "category": "Petrochemicals & Polymers",
+            "spot": 410.00,
+            "unit": "$/MT",
+            "beta_si": 0.060,
+            "r_squared": 0.790,
+            "precedent": (
+                "2022 Rhine River Low Water Level Barge Bottlenecks"
+            ),
+        },
+        # Bucket 4: Agri-Softs & Industrial Crops (31–40)
+        "Corn (CBOT Futures)": {
+            "ticker": "ZC=F",
+            "category": "Agri-Softs & Industrial Crops",
+            "spot": 4.35,
+            "unit": "$/Bu",
+            "beta_si": 0.068,
+            "r_squared": 0.855,
+            "precedent": (
+                "2023 US Midwest Drought & Mississippi Low Water"
+            ),
+        },
+        "Soybeans (CBOT Futures)": {
+            "ticker": "ZS=F",
+            "category": "Agri-Softs & Industrial Crops",
+            "spot": 10.15,
+            "unit": "$/Bu",
+            "beta_si": 0.064,
+            "r_squared": 0.848,
+            "precedent": "2024 Brazil Mato Grosso Weather Disruption",
+        },
+        "Wheat (CBOT SRW)": {
+            "ticker": "ZW=F",
+            "category": "Agri-Softs & Industrial Crops",
+            "spot": 5.65,
+            "unit": "$/Bu",
+            "beta_si": 0.088,
+            "r_squared": 0.872,
+            "precedent": "2022 Black Sea Grain Corridor Interruption",
+        },
+        "Raw Sugar #11": {
+            "ticker": "SB=F",
+            "category": "Agri-Softs & Industrial Crops",
+            "spot": 0.21,
+            "unit": "$/lb",
+            "beta_si": 0.075,
+            "r_squared": 0.820,
+            "precedent": "2023 India Export Ban & El Nino Rain Deficit",
+        },
+        "Robusta Coffee": {
+            "ticker": "KC=F",
+            "category": "Agri-Softs & Industrial Crops",
+            "spot": 4250.00,
+            "unit": "$/MT",
+            "beta_si": 0.112,
+            "r_squared": 0.865,
+            "precedent": (
+                "2024 Vietnam Central Highlands Heatwave Deficit"
+            ),
+        },
+        "Crude Palm Oil (MDEX)": {
+            "ticker": "CPO=F",
+            "category": "Agri-Softs & Industrial Crops",
+            "spot": 920.00,
+            "unit": "$/MT",
+            "beta_si": 0.082,
+            "r_squared": 0.840,
+            "precedent": "2022 Indonesian Palm Oil Export Embargo",
+        },
+        "Natural Rubber (TSR20)": {
+            "ticker": "RUB=F",
+            "category": "Agri-Softs & Industrial Crops",
+            "spot": 1680.00,
+            "unit": "$/MT",
+            "beta_si": 0.058,
+            "r_squared": 0.805,
+            "precedent": "2023 Thailand Heavy Monsoon Tapping Delays",
+        },
+        "Cotton #2": {
+            "ticker": "CT=F",
+            "category": "Agri-Softs & Industrial Crops",
+            "spot": 0.74,
+            "unit": "$/lb",
+            "beta_si": 0.062,
+            "r_squared": 0.810,
+            "precedent": "2022 Texas West Drought Acreage Abandonment",
+        },
+        "Cocoa (ICE Futures)": {
+            "ticker": "CC=F",
+            "category": "Agri-Softs & Industrial Crops",
+            "spot": 7850.00,
+            "unit": "$/MT",
+            "beta_si": 0.155,
+            "r_squared": 0.890,
+            "precedent": "2024 West Africa Black Pod Disease Shortage",
+        },
+        "Malting Barley": {
+            "ticker": "WEAT",
+            "category": "Agri-Softs & Industrial Crops",
+            "spot": 210.00,
+            "unit": "$/MT",
+            "beta_si": 0.050,
+            "r_squared": 0.780,
+            "precedent": "2023 Australian Crop Yield Weather Revisions",
+        },
+        # Bucket 5: Precious & Electronics Minerals (41–50)
+        "Gold Spot": {
+            "ticker": "GC=F",
+            "category": "Precious & Electronics Minerals",
+            "spot": 2510.00,
+            "unit": "$/oz",
+            "beta_si": 0.040,
+            "r_squared": 0.920,
+            "precedent": "2024 Central Bank Gold Accumulation Surge",
+        },
+        "Silver Spot": {
+            "ticker": "SI=F",
+            "category": "Precious & Electronics Minerals",
+            "spot": 29.80,
+            "unit": "$/oz",
+            "beta_si": 0.072,
+            "r_squared": 0.885,
+            "precedent": "2024 Industrial Solar PV Demand Expansion",
+        },
+        "Platinum Spot": {
+            "ticker": "PL=F",
+            "category": "Precious & Electronics Minerals",
+            "spot": 940.00,
+            "unit": "$/oz",
+            "beta_si": 0.065,
+            "r_squared": 0.815,
+            "precedent": (
+                "2023 South African Power Grid Loadshedding At Mines"
+            ),
+        },
+        "Palladium Spot": {
+            "ticker": "PA=F",
+            "category": "Precious & Electronics Minerals",
+            "spot": 980.00,
+            "unit": "$/oz",
+            "beta_si": 0.090,
+            "r_squared": 0.830,
+            "precedent": "2022 Norilsk Nickel Logistics & Trade Rerouting",
+        },
+        "Silicon Metal 5-5-3 Grade": {
+            "ticker": "GSM",
+            "category": "Precious & Electronics Minerals",
+            "spot": 1920.00,
+            "unit": "$/MT",
+            "beta_si": 0.085,
+            "r_squared": 0.825,
+            "precedent": "2021 Yunnan Smelter Energy Controls",
+        },
+        "High-Purity Neon Gas": {
+            "ticker": "APD",
+            "category": "Precious & Electronics Minerals",
+            "spot": 320.00,
+            "unit": "$/m³",
+            "beta_si": 0.180,
+            "r_squared": 0.860,
+            "precedent": (
+                "2022 Mariupol Ingas & Cryoin Semiconductor Supply Halt"
+            ),
+        },
+        "Solar-Grade Polysilicon": {
+            "ticker": "DQ",
+            "category": "Precious & Electronics Minerals",
+            "spot": 8.80,
+            "unit": "$/kg",
+            "beta_si": 0.110,
+            "r_squared": 0.800,
+            "precedent": "2021 Xinjiang Plant Explosion & Fab Bottleneck",
+        },
+        "Germanium Metal 99.999%": {
+            "ticker": "MP",
+            "category": "Precious & Electronics Minerals",
+            "spot": 1450.00,
+            "unit": "$/kg",
+            "beta_si": 0.135,
+            "r_squared": 0.845,
+            "precedent": (
+                "2023 Chinese Ministry of Commerce Export Licensing Controls"
+            ),
+        },
+        "Gallium Metal 99.99%": {
+            "ticker": "ALB",
+            "category": "Precious & Electronics Minerals",
+            "spot": 520.00,
+            "unit": "$/kg",
+            "beta_si": 0.140,
+            "r_squared": 0.850,
+            "precedent": "2023 Semiconductor Wafer Export Restrictions",
+        },
+        "Indium Metal": {
+            "ticker": "SMX",
+            "category": "Precious & Electronics Minerals",
+            "spot": 290.00,
+            "unit": "$/kg",
+            "beta_si": 0.078,
+            "r_squared": 0.790,
+            "precedent": (
+                "2022 Flat Panel Display ITO Sputtering Demand Surge"
+            ),
+        },
     }
 
+    # -------------------------------------------------------------------------
+    # UI CONTROLS: CATEGORY FILTER & BENCHMARK SELECTOR
+    # -------------------------------------------------------------------------
     categories = [
         "🌐 ALL TOP 50 COMMODITIES",
         "Industrial Metals",
@@ -1006,13 +1476,10 @@ def render_predictive_commodity_engine():
         filtered_commodities = top_50_commodities
     else:
         filtered_commodities = {
-            k: v for k, v in top_50_commodities.items()
-            if v.get("category") == selected_category
+            k: v
+            for k, v in top_50_commodities.items()
+            if v["category"] == selected_category
         }
-
-    # Fallback to full dictionary if category filtering yields no matches
-    if not filtered_commodities:
-        filtered_commodities = top_50_commodities
 
     with p_select_col:
         selected_comm = st.selectbox(
@@ -1022,13 +1489,13 @@ def render_predictive_commodity_engine():
         )
         data = filtered_commodities[selected_comm]
 
+    # Dynamically fetch live spot price via yfinance (with static fallback)
     live_spot = fetch_live_commodity_price(data["ticker"], data["spot"])
 
-    # Safe retrieval in case si_composite is present in session_state as None
-    si_val = st.session_state.get("si_composite")
-    if si_val is None:
-        si_val = -0.62
+    # Retrieve live composite SI from session state
+    si_val = st.session_state.get("si_composite", -0.62)
 
+    # Regression forecasting formula using live or fallback spot price
     predicted_pct_change = (
         (data["beta_si"] * abs(si_val))
         if si_val < 0
@@ -1038,19 +1505,41 @@ def render_predictive_commodity_engine():
     target_price_60d = live_spot * (1.0 + (predicted_pct_change * 1.45))
     delta_60d_pct = predicted_pct_change * 1.45
 
+    # -------------------------------------------------------------------------
+    # REGRESSION METRICS & HISTORICAL PRECEDENCE DISPLAY
+    # -------------------------------------------------------------------------
     st.markdown("#### 📊 Econometric Regression & Historical Precedence Match")
     m1, m2, m3, m4, m5 = st.columns(5)
 
     unit_label = data["unit"][1:] if data["unit"].startswith("$") else data["unit"]
 
-    m1.metric("Current Spot Baseline", f"${live_spot:,.2f} {unit_label}")
+    m1.metric(
+        "Current Spot Baseline",
+        f"${live_spot:,.2f} {unit_label}",
+    )
     m2.metric("Elasticity (η_SI)", f"{data['beta_si']:.3f}")
     m3.metric("Model Fit (R²)", f"{data['r_squared']:.3f}")
-    m4.metric("30-Day Forecast", f"${target_price_30d:,.2f}", delta=f"{predicted_pct_change:+.2%}", delta_color="inverse" if predicted_pct_change > 0 else "normal")
-    m5.metric("60-Day Forecast", f"${target_price_60d:,.2f}", delta=f"{delta_60d_pct:+.2%}", delta_color="inverse" if delta_60d_pct > 0 else "normal")
+    m4.metric(
+        "30-Day Forecast",
+        f"${target_price_30d:,.2f}",
+        delta=f"{predicted_pct_change:+.2%}",
+        delta_color="inverse" if predicted_pct_change > 0 else "normal",
+    )
+    m5.metric(
+        "60-Day Forecast",
+        f"${target_price_60d:,.2f}",
+        delta=f"{delta_60d_pct:+.2%}",
+        delta_color="inverse" if delta_60d_pct > 0 else "normal",
+    )
 
-    st.info(f"🔍 **Highest Historical Precedence Match (Cosine Similarity: 93.8%):** `{data['precedent']}`")
+    st.info(
+        f"🔍 **Highest Historical Precedence Match (Cosine Similarity:"
+        f" 93.8%):** `{data['precedent']}`"
+    )
 
+    # -------------------------------------------------------------------------
+    # FORECAST TRAJECTORY PLOT
+    # -------------------------------------------------------------------------
     days = np.array([0, 15, 30, 45, 60])
     prices_base = np.array([
         live_spot,
@@ -1063,12 +1552,43 @@ def render_predictive_commodity_engine():
     prices_lower = prices_base * 0.965
 
     fig = go.Figure()
-    fig.add_trace(go.Scatter(x=days, y=prices_base, mode="lines+markers", name="Forecast Mean Trajectory", line=dict(color="#FF4B4B", width=3)))
-    fig.add_trace(go.Scatter(x=days, y=prices_upper, mode="lines", name="Upper 95% CI", line=dict(width=0), showlegend=False))
-    fig.add_trace(go.Scatter(x=days, y=prices_lower, mode="lines", name="Lower 95% CI", line=dict(width=0), fill="tonexty", fillcolor="rgba(255, 75, 75, 0.15)", showlegend=False))
+    fig.add_trace(
+        go.Scatter(
+            x=days,
+            y=prices_base,
+            mode="lines+markers",
+            name="Forecast Mean Trajectory",
+            line=dict(color="#FF4B4B", width=3),
+        )
+    )
+    fig.add_trace(
+        go.Scatter(
+            x=days,
+            y=prices_upper,
+            mode="lines",
+            name="Upper 95% Confidence Interval",
+            line=dict(width=0),
+            showlegend=False,
+        )
+    )
+    fig.add_trace(
+        go.Scatter(
+            x=days,
+            y=prices_lower,
+            mode="lines",
+            name="Lower 95% Confidence Interval",
+            line=dict(width=0),
+            fill="tonexty",
+            fillcolor="rgba(255, 75, 75, 0.15)",
+            showlegend=False,
+        )
+    )
 
     fig.update_layout(
-        title=f"Predictive Price Path: {selected_comm} [{data['ticker']}] (30/60-Day Forward Horizon)",
+        title=(
+            f"Predictive Price Path: {selected_comm} [{data['ticker']}]"
+            " (30/60-Day Forward Horizon)"
+        ),
         xaxis_title="Forward Horizon (Days)",
         yaxis_title=f"Price ({data['unit']})",
         height=340,
@@ -1077,11 +1597,12 @@ def render_predictive_commodity_engine():
     )
     st.plotly_chart(fig, use_container_width=True)
 
+    # -------------------------------------------------------------------------
+    # DOWNSTREAM INJECTION PROPAGATION BUTTON
+    # -------------------------------------------------------------------------
     st.markdown("---")
 
-    # Safe retrieval of extracted demand surge from session state
-    base_surge = st.session_state.get("extracted_demand_surge") or 102968
-    surge_units = int(base_surge * (1.0 + abs(delta_60d_pct)))
+    surge_units = int(st.session_state.get("extracted_demand_surge", 102968) * (1.0 + abs(delta_60d_pct)))
     lt_days = round(2.5 * (1.0 + abs(delta_60d_pct)), 1)
 
     st.button(
@@ -1107,868 +1628,24 @@ def render_predictive_commodity_engine():
         },),
     )
 
-# ---------------------------------------------------------------------------
-# 1. Focus Sector & Commodity Keywords & Exclusion Filters
-# ---------------------------------------------------------------------------
-SUPPLY_CHAIN_KEYWORDS = [
-    "supply chain", "logistics", "freight", "shipping", "container", "port",
-    "vessel", "transit", "smelter", "cathode", "copper", "aluminum", "nickel",
-    "zinc", "lithium", "cobalt", "tin", "minerals", "metals", "semiconductor",
-    "chip", "fab", "wafer", "ethylene", "resin", "chemical", "force majeure",
-    "outage", "shortage", "disruption", "delay", "tariff", "inventory", "lme",
-    "strike", "bottleneck", "surcharge", "bunker", "dwell", "rerouting", "oil",
-    "expeditors", "gep", "baltic", "tac index", "freightos", "air freight"
-]
 
-POLITICAL_EXCLUSIONS = [
-    "trump", "biden", "election", "white house", "press freedom", "ballroom",
-    "democrats", "republicans", "congress", "senate", "journalism", "freedom desk",
-    "campaign", "voter", "politic", "opinion", "editorial", "celebrity"
-]
-
-
-# ---------------------------------------------------------------------------
-# 2. Lazy Runtime Credential & Secret Resolution
-# ---------------------------------------------------------------------------
-def _get_gmail_credentials():
-    """Safely retrieves Gmail credentials at runtime without import deadlocks."""
-    user = os.getenv("GMAIL_USER", "pisharoty1@gmail.com")
-    app_pass = os.getenv("GMAIL_APP_PASS", "")
-
-    if not app_pass:
-        try:
-            user = st.secrets.get("GMAIL_USER", user)
-            app_pass = st.secrets.get("GMAIL_APP_PASS", app_pass)
-        except Exception:
-            pass
-
-    return user, app_pass
-
-
-def _get_secret(key_name: str, default_val: str = "") -> str:
-    """Helper to fetch dynamic environment variables or Streamlit secrets."""
-    val = os.getenv(key_name, default_val)
-    if not val:
-        try:
-            val = st.secrets.get(key_name, val)
-        except Exception:
-            pass
-    return val
-
-
-# ---------------------------------------------------------------------------
-# 3. Sector Relevance & Dynamic Sentiment Analysis Engine
-# ---------------------------------------------------------------------------
-def is_supply_chain_relevant(text: str) -> bool:
-    """Returns True if content matches SC keywords AND does not contain political noise."""
-    if not text:
-        return False
-    lower_text = text.lower()
-
-    if any(noise in lower_text for noise in POLITICAL_EXCLUSIONS):
-        return False
-
-    return any(kw in lower_text for kw in SUPPLY_CHAIN_KEYWORDS)
-
-
-def extract_matched_commodities(text: str) -> list:
-    """Extracts detected commodity and logistics tags from incoming text."""
-    if not text:
-        return []
-    lower_text = text.lower()
-    return [kw.upper() for kw in SUPPLY_CHAIN_KEYWORDS if kw in lower_text]
-
-
-def analyze_text_sentiment(text: str) -> float:
-    """Parses raw text and computes normalized polarity score s_i in [-1.0, +1.0]."""
-    if not text:
-        return 0.0
-
-    bearish_words = [
-        "outage", "curtailment", "strike", "delay", "bottleneck", "surge",
-        "shortage", "deficit", "sanction", "force majeure", "disruption",
-        "spike", "tightness", "shutdown"
-    ]
-    bullish_words = [
-        "recovery", "surplus", "expansion", "easing", "resolution", "steady",
-        "capacity expansion", "rebate", "normalization", "growth"
-    ]
-
-    lower_text = text.lower()
-    bear_count = sum(1 for word in bearish_words if word in lower_text)
-    bull_count = sum(1 for word in bullish_words if word in lower_text)
-
-    total = bear_count + bull_count
-    if total == 0:
-        return -0.10  # Standard mild default risk bias
-
-    polarity = (bull_count - bear_count) / float(total)
-    return float(np.clip(polarity, -1.0, 1.0))
-
-
-# ---------------------------------------------------------------------------
-# 4. Async Live Freight Ingestion Engine (Sea Freight, Air Freight, Vessel GIS)
-# ---------------------------------------------------------------------------
-async def fetch_live_sea_and_air_telemetry() -> dict:
-    """
-    Fetches real-time ocean and air freight rates and active vessel tracking.
-    Falls back gracefully to baseline metrics if API keys are missing or requests time out.
-    """
-    fbx_key = _get_secret("FBX_API_KEY")
-    tac_key = _get_secret("TAC_API_KEY")
-    p44_token = _get_secret("P44_API_TOKEN")
-
-    ocean_rate = 3850.0  # Baseline $/FEU
-    air_rate = 2.48      # Baseline $/kg
-    active_vessels = []
-    status_flags = []
-
-    async with httpx.AsyncClient(timeout=8.0) as client:
-        # 1. Fetch Ocean Freight Benchmarks (FBX API)
-        if fbx_key:
-            try:
-                resp = await client.get(
-                    "https://api.freightos.com/v1/fbx/index",
-                    headers={"Authorization": f"Bearer {fbx_key}"}
-                )
-                if resp.status_code == 200:
-                    ocean_rate = float(resp.json().get("fbx_global_value", ocean_rate))
-                    status_flags.append("FBX_LIVE")
-            except Exception as e:
-                status_flags.append(f"FBX_FALLBACK ({str(e)})")
-        else:
-            status_flags.append("FBX_SIMULATED")
-
-        # 2. Fetch Air Freight Benchmarks (TAC Index API)
-        if tac_key:
-            try:
-                resp = await client.get(
-                    "https://api.tacindex.com/v1/air/rates",
-                    headers={"X-API-KEY": tac_key}
-                )
-                if resp.status_code == 200:
-                    air_rate = float(resp.json().get("shanghai_chicago_usd_kg", air_rate))
-                    status_flags.append("TAC_LIVE")
-            except Exception as e:
-                status_flags.append(f"TAC_FALLBACK ({str(e)})")
-        else:
-            status_flags.append("TAC_SIMULATED")
-
-        # 3. Fetch Active Vessel/Container Tracking (Project44 API)
-        if p44_token:
-            try:
-                resp = await client.get(
-                    "https://na12.api.project44.com/api/v4/shipments/tracking",
-                    headers={"Authorization": f"Bearer {p44_token}"}
-                )
-                if resp.status_code == 200:
-                    active_vessels = resp.json().get("shipments", [])
-                    status_flags.append("P44_LIVE")
-            except Exception as e:
-                status_flags.append(f"P44_FALLBACK ({str(e)})")
-        else:
-            status_flags.append("P44_SIMULATED")
-
-    return {
-        "ocean_freight_usd_feu": ocean_rate,
-        "air_freight_usd_kg": air_rate,
-        "active_vessels_count": len(active_vessels) if active_vessels else 3,
-        "vessel_telemetry": active_vessels,
-        "telemetry_status": " | ".join(status_flags)
-    }
-
-
-def get_freight_telemetry_sync() -> dict:
-    """Synchronous wrapper for fetch_live_sea_and_air_telemetry with active event loop handling."""
-    try:
-        try:
-            loop = asyncio.get_running_loop()
-        except RuntimeError:
-            loop = None
-
-        if loop and loop.is_running():
-            with concurrent.futures.ThreadPoolExecutor() as pool:
-                return pool.submit(lambda: asyncio.run(fetch_live_sea_and_air_telemetry())).result()
-        else:
-            return asyncio.run(fetch_live_sea_and_air_telemetry())
-    except Exception:
-        return {
-            "ocean_freight_usd_feu": 3850.0,
-            "air_freight_usd_kg": 2.48,
-            "active_vessels_count": 3,
-            "telemetry_status": "FALLBACK_MODE"
-        }
-
-
-# ---------------------------------------------------------------------------
-# 5. Specialized Industry Feed Calls (GEP, Baltic Freight, Expeditors)
-# ---------------------------------------------------------------------------
-def fetch_gep_index() -> dict:
-    """Fetches GEP Global Supply Chain Volatility Index status."""
-    return {
-        "source": "GEP Global Supply Chain Volatility Index",
-        "index_value": -0.32,
-        "status": "Capacity Underutilization / Regional Bottlenecks",
-        "volatility_score": -0.32,
-        "leadtime_delay_days": 2.0,
-        "demand_surge_units": 60000,
-        "summary": "GEP Index signals regional transportation bottlenecks in Europe & Asia alongside ocean capacity constraints."
-    }
-
-
-def fetch_baltic_indices() -> dict:
-    """Fetches Baltic Dry Index (BDI), Freightos Baltic (FBX), and Baltic Air Freight (TAC Index)."""
-    freight_live = get_freight_telemetry_sync()
-    
-    return {
-        "baltic_dry_bdi": {"value": 1845, "unit": "pts", "change": "+3.2%"},
-        "freightos_fbx_ocean": {
-            "value": freight_live.get("ocean_freight_usd_feu", 3850.0),
-            "unit": "USD/FEU",
-            "status": freight_live.get("telemetry_status")
-        },
-        "baltic_air_tac": {
-            "value": freight_live.get("air_freight_usd_kg", 2.48),
-            "unit": "USD/kg",
-            "status": freight_live.get("telemetry_status")
-        },
-        "status": "Active Feed"
-    }
-
-
-def fetch_expeditors_signals() -> dict:
-    """Pulls Expeditors Weekly Briefing updates or structured intelligence fallback."""
-    return {
-        "source": "Expeditors Global Logistics Briefing",
-        "title": "Expeditors | Weekly Market Briefing: Air & Ocean Freight Capacity",
-        "summary": "Ocean space remains tight on Transpacific Eastbound; Asia-Europe air freight spot rates rising due to peak season demand.",
-        "sentiment_score": -0.45,
-        "impact_units": 110000,
-        "leadtime_delay_days": 4.5
-    }
-
-
-# ---------------------------------------------------------------------------
-# 6. IMAP Live Email Ingestion & Unstructured Parser
-# ---------------------------------------------------------------------------
-def parse_unstructured_email(raw_text: str) -> dict:
-    """Parses unstructured supplier email/debrief text into structured operational entities."""
-    if not raw_text:
-        return {
-            "vendor": "Global Smelting Corp",
-            "event": "Smelter Outage & Energy Curtailment",
-            "delay_val": 13.5,
-            "units_val": 45000,
-            "sentiment_score": -0.45,
-        }
-
-    sentiment = analyze_text_sentiment(raw_text)
-
-    # Heuristic regex extraction with defaults
-    vendor_match = re.search(r"(?:from|vendor|supplier):\s*([A-Za-z0-9\s]+)", raw_text, re.IGNORECASE)
-    delay_match = re.search(r"(\d+(?:\.\d+)?)\s*(?:day|wk|week)s?\s*(?:delay|lead time)", raw_text, re.IGNORECASE)
-    units_match = re.search(r"(\d{1,3}(?:,\d{3})+|\d+)\s*(?:units|mt|tons|lbs)", raw_text, re.IGNORECASE)
-
-    return {
-        "vendor": vendor_match.group(1).strip() if vendor_match else "Global Smelting Corp",
-        "event": "Smelter Outage & Energy Curtailment" if "smelter" in raw_text.lower() else "Operational Disruption",
-        "delay_val": float(delay_match.group(1)) if delay_match else 13.5,
-        "units_val": int(units_match.group(1).replace(",", "")) if units_match else 45000,
-        "sentiment_score": round(sentiment, 2),
-    }
-
-
-def fetch_gmail_newsletters(max_emails: int = 15) -> list:
-    """Connects to Gmail via IMAP, targets LinkedIn & Expeditors updates, and extracts commodity signals."""
-    gmail_user, gmail_pass = _get_gmail_credentials()
-
-    if not gmail_pass:
-        return [{
-            "source": "LinkedIn Newsletters",
-            "status": "GMAIL_APP_PASS is missing in secrets or environment.",
-            "is_live": False,
-            "sentiment_score": -0.10,
-        }]
-
-    try:
-        mail = imaplib.IMAP4_SSL("imap.gmail.com")
-        mail.login(gmail_user, gmail_pass)
-        mail.select("inbox")
-
-        email_ids = []
-
-        try:
-            status, messages = mail.search(None, 'X-GM-RAW', 'from:linkedin OR subject:linkedin OR subject:expeditors')
-            if status == 'OK' and messages[0]:
-                email_ids = messages[0].split()
-        except Exception:
-            pass
-
-        if not email_ids:
-            status, messages = mail.search(None, 'TEXT "linkedin"')
-            if status == 'OK' and messages[0]:
-                email_ids = messages[0].split()
-
-        if not email_ids:
-            mail.logout()
-            return [{
-                "source": "LinkedIn / Expeditors Direct Feed",
-                "title": "No Matching Logistics Signal Found",
-                "summary": "No matching newsletter messages found in Inbox.",
-                "is_live": True,
-                "sentiment_score": 0.0,
-                "detected_commodities": []
-            }]
-
-        target_ids = list(reversed(email_ids))[:max_emails]
-        parsed_newsletters = []
-
-        for email_id in target_ids:
-            res, msg_data = mail.fetch(email_id, '(RFC822)')
-            for response_part in msg_data:
-                if isinstance(response_part, tuple):
-                    msg = email.message_from_bytes(response_part[1])
-
-                    subject_header = msg.get('Subject', 'Signal Update')
-                    decoded_header = decode_header(subject_header)[0]
-                    subject = decoded_header[0]
-                    if isinstance(subject, bytes):
-                        encoding = decoded_header[1] if decoded_header[1] else 'utf-8'
-                        subject = subject.decode(encoding, errors='ignore')
-
-                    sender = str(msg.get('From', 'Direct Feed'))
-
-                    body = ''
-                    if msg.is_multipart():
-                        for part in msg.walk():
-                            content_type = part.get_content_type()
-                            if content_type in ['text/html', 'text/plain']:
-                                payload = part.get_payload(decode=True)
-                                if payload:
-                                    body = payload.decode(errors='ignore')
-                                    if content_type == 'text/html':
-                                        break
-                    else:
-                        payload = msg.get_payload(decode=True)
-                        if payload:
-                            body = payload.decode(errors='ignore')
-
-                    clean_text = bs4.BeautifulSoup(body, 'html.parser').get_text()
-                    full_content = f"{subject} {clean_text}"
-
-                    if not is_supply_chain_relevant(full_content):
-                        continue
-
-                    matched_tags = extract_matched_commodities(full_content)
-                    clean_summary = (
-                        ' '.join(clean_text.split())[:300] + '...'
-                        if clean_text else 'No text summary available.'
-                    )
-                    live_sentiment = analyze_text_sentiment(full_content)
-
-                    source_label = "Expeditors Market Intelligence" if "expeditors" in full_content.lower() else "LinkedIn / Gmail Direct Feed"
-
-                    parsed_newsletters.append({
-                        'title': str(subject),
-                        'sender': sender,
-                        'published': str(msg.get('Date', 'Recent')),
-                        'summary': clean_summary,
-                        'raw_body': clean_text[:1000],
-                        'source': source_label,
-                        'is_live': True,
-                        'sentiment_score': round(live_sentiment, 2),
-                        'detected_commodities': list(dict.fromkeys(matched_tags))[:5]
-                    })
-
-                    if len(parsed_newsletters) >= 5:
-                        break
-
-        mail.logout()
-
-        return parsed_newsletters if parsed_newsletters else [{
-            'source': 'LinkedIn / Expeditors Direct Feed',
-            'title': 'No Targeted Commodity Match',
-            'summary': 'Retrieved messages were evaluated, but none matched active supply chain criteria.',
-            'is_live': False,
-            'sentiment_score': 0.0,
-            'detected_commodities': []
-        }]
-
-    except Exception as e:
-        return [{
-            'source': 'LinkedIn / Gmail Direct Feed',
-            'status': f'IMAP Connection Error: {str(e)}',
-            'is_live': False,
-            'sentiment_score': -0.10,
-            'detected_commodities': []
-        }]
-
-
-# ---------------------------------------------------------------------------
-# 7. Live Macro Telemetry Feeds & Domain Isolation
-# ---------------------------------------------------------------------------
-def fetch_ny_fed_gscpi() -> dict:
-    """Fetch live NY Fed GSCPI directly via FRED API (Series ID: GSCPI)."""
-    fred_key = _get_secret("FRED_API_KEY", "")
-    if not fred_key:
-        return {"value": 0.45, "display": "+0.45 σ (Baseline)"}
-
-    url = (
-        f"https://api.stlouisfed.org/fred/series/observations?"
-        f"series_id=GSCPI&api_key={fred_key}&file_type=json&sort_order=desc&limit=1"
-    )
-    try:
-        req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
-        with urllib.request.urlopen(req, timeout=5) as resp:
-            data = json.loads(resp.read().decode())
-            val = float(data["observations"][0]["value"])
-            return {"value": round(val, 2), "display": f"{val:+.2f} σ"}
-    except Exception:
-        return {"value": 0.45, "display": "+0.45 σ"}
-
-
-def fetch_fred_indicator(series_id: str = "INDPRO", default_val: float = 103.1) -> dict:
-    """Fetch US Industrial Production / Mfg Index via FRED API."""
-    fred_key = _get_secret("FRED_API_KEY", "")
-    if not fred_key:
-        return {"value": default_val, "display": f"{default_val:.1f} pts (Baseline)"}
-
-    url = (
-        f"https://api.stlouisfed.org/fred/series/observations?"
-        f"series_id={series_id}&api_key={fred_key}&file_type=json&sort_order=desc&limit=1"
-    )
-    try:
-        req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
-        with urllib.request.urlopen(req, timeout=5) as resp:
-            data = json.loads(resp.read().decode())
-            val = float(data["observations"][0]["value"])
-            return {"value": round(val, 1), "display": f"{val:.1f} pts"}
-    except Exception:
-        return {"value": default_val, "display": f"{default_val:.1f} pts"}
-
-
-def fetch_world_bank_commodity_pink_sheet(series_code: str = "PALLFNFINDEXM") -> dict:
-    """Fetch World Bank Monthly Non-Energy Commodity Index (PALLFNFINDEXM)."""
-    url = f"https://api.worldbank.org/v2/country/WLD/indicator/{series_code}?format=json&per_page=12"
-    try:
-        req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
-        with urllib.request.urlopen(req, timeout=5) as resp:
-            data = json.loads(resp.read().decode())
-            if len(data) > 1 and data[1]:
-                for obs in data[1]:
-                    if obs and obs.get("value") is not None:
-                        val = float(obs["value"])
-                        return {"value": round(val, 1), "display": f"{val:.1f} Index"}
-    except Exception:
-        pass
-    return {"value": 142.8, "display": "142.8 Index"}
-
-
-def fetch_eurozone_ecb() -> dict:
-    """Fetch official ECB Main Refinancing Rate directly via keyless ECB API."""
-    try:
-        url = "https://data-api.ecb.europa.eu/service/data/FM/M.U2.EUR.4F.KR.MRR_R.LEV?lastNObservations=1&format=jsondata"
-        req = urllib.request.Request(url, headers={"Accept": "application/json", "User-Agent": "Mozilla/5.0"})
-        with urllib.request.urlopen(req, timeout=5) as resp:
-            res = json.loads(resp.read().decode())
-            obs = res['dataSets'][0]['series']['0:0:0:0:0:0:0']['observations']['0'][0]
-            return {"value": float(obs), "display": f"{obs:.2f}% (ECB Refi)"}
-    except Exception:
-        return {"value": -0.15, "display": "-0.15 σ (ECB)"}
-
-
-def fetch_global_macro_telemetry() -> dict:
-    """Unified Pure Central Bank & Macroeconomic Telemetry (FRED, NY Fed, ECB, World Bank, PBOC)."""
-    gscpi = fetch_ny_fed_gscpi()
-    indpro = fetch_fred_indicator("INDPRO", default_val=103.1)
-    wb_comm = fetch_world_bank_commodity_pink_sheet("PALLFNFINDEXM")
-    ecb_data = fetch_eurozone_ecb()
-
-    return {
-        "ny_fed_gscpi": gscpi["display"],
-        "gscpi_value": gscpi["value"],
-        "us_fred": indpro["display"],
-        "world_bank": wb_comm["display"],
-        "china_pmi": "50.4 (Expansion)",
-        "eurozone_ecb": ecb_data["display"],
-        "kospi_korea": "2,645 pts",
-        "noaa_weather_index": "Elevated Risk",
-    }
-
-
-def fetch_kospi_apac_feed() -> dict:
-    """Dedicated APAC Semiconductor, Component & Export Lead Telemetry."""
-    return {
-        "kospi_index": "2,645.20 pts",
-        "semiconductor_export_trend": "+12.4% YoY",
-        "leadtime_status": "Normal Lead Times",
-    }
-
-
-def fetch_noaa_environmental_telemetry() -> dict:
-    """Dedicated NOAA Severe Weather, Marine Drought & Port Risk Telemetry."""
-    return {
-        "weather_alert": "Low Stage Water Warning (Mississippi River Corridor)",
-        "severity_level": "Level 3 Warning",
-        "port_delay_risk": "+6 to 9 Days Transit Buffer",
-        "noaa_score": -0.55,
-    }
-
-
-# ---------------------------------------------------------------------------
-# 8. Dynamic Live RSS Web Stream Fetcher
-# ---------------------------------------------------------------------------
-def fetch_live_sector_rss(topic_query: str = "copper supply chain") -> list:
-    """Fetches live RSS search results dynamically for selected commodities."""
-    try:
-        query = urllib.parse.quote(topic_query)
-        url = f"https://news.google.com/rss/search?q={query}&hl=en-US&gl=US&ceid=US:en"
-        req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
-
-        with urllib.request.urlopen(req, timeout=5) as response:
-            xml_data = response.read()
-
-        root = ET.fromstring(xml_data)
-        items = []
-        for item in root.findall('.//item')[:3]:
-            title = item.find('title').text if item.find('title') is not None else 'Live Market Signal'
-            pub_date = item.find('pubDate').text if item.find('pubDate') is not None else 'Recent'
-            link = item.find('link').text if item.find('link') is not None else '#'
-
-            clean_title = re.sub(r' - [^-]+$', '', title)
-            sentiment = analyze_text_sentiment(clean_title)
-
-            items.append({
-                "title": clean_title,
-                "published": pub_date,
-                "sentiment": sentiment,
-                "estimated_impact": int(abs(sentiment) * 120000) + 45000,
-                "link": link,
-                "source": "Web RSS Stream"
-            })
-        return items
-    except Exception:
-        return []
-
-
-# ---------------------------------------------------------------------------
-# 9. Main Feed Synchronizer Function
-# ---------------------------------------------------------------------------
-def sync_robot_feeds() -> dict:
-    """Executes full cross-validation engine across Sea/Air APIs, Macro APIs & LinkedIn Feeds."""
-    freight_telemetry = get_freight_telemetry_sync()
-    newsletters = fetch_gmail_newsletters(max_emails=15)
-    
-    gscpi_res = fetch_ny_fed_gscpi()
-    gscpi_val = gscpi_res["value"] if isinstance(gscpi_res, dict) else float(gscpi_res)
-    
-    world_bank_meta = fetch_world_bank_commodity_pink_sheet("PALLFNFINDEXM")
-    fred_meta = fetch_fred_indicator("INDPRO")
-    global_telemetry = fetch_global_macro_telemetry()
-    gep_index = fetch_gep_index()
-    baltic_indices = fetch_baltic_indices()
-    kospi_feed = fetch_kospi_apac_feed()
-    noaa_feed = fetch_noaa_environmental_telemetry()
-
-    linkedin_score = newsletters[0].get("sentiment_score", -0.10) if newsletters else -0.10
-    gscpi_sentiment = float(np.clip(-gscpi_val / 3.0, -1.0, 1.0))
-
-    feed_data = {
-        "status": "synced",
-        "sync_timestamp": datetime.now().isoformat(),
-        "freight_telemetry": freight_telemetry,
-        "freight_score": -0.90,
-        "newsletters": newsletters,
-        "linkedin_score": linkedin_score,
-        "noaa_weather_score": noaa_feed.get("noaa_score", -0.55),
-        "global_telemetry": global_telemetry,
-        "gep_index": gep_index,
-        "baltic_indices": baltic_indices,
-        "kospi_apac": kospi_feed,
-        "noaa_environmental": noaa_feed,
-        "hard_macro": {
-            "gscpi_raw": round(gscpi_val, 2),
-            "gscpi_sentiment": round(gscpi_sentiment, 2),
-            "world_bank": world_bank_meta,
-            "fred": fred_meta
-        }
-    }
-
-    try:
-        signals_file = os.path.join(os.path.dirname(__file__), "robot_signals.json")
-        with open(signals_file, "w") as f:
-            json.dump(feed_data, f, indent=2)
-    except Exception:
-        pass
-
-    try:
-        st.session_state["latest_robot_signals"] = feed_data
-    except Exception:
-        pass
-
-    return feed_data
-
-
-# ---------------------------------------------------------------------------
-# 10. Multi-Source Composite Sentiment Calculation
-# ---------------------------------------------------------------------------
-def calculate_composite_sentiment(feed_signals: dict = None) -> dict:
-    """Calculates weighted composite sentiment SI_composite safely across global sources."""
-    if feed_signals is None:
-        feed_signals = {}
-
-    weights = {
-        "gscpi_index": 0.35,
-        "world_bank_pinksheet": 0.25,
-        "linkedin_feed": 0.20,
-        "gis_telemetry": 0.10,
-        "field_emails": 0.10,
-    }
-
-    hard_macro = feed_signals.get("hard_macro", {}) or {}
-
-    def _safe_float(val, default):
-        if val is None:
-            return float(default)
-        try:
-            return float(val)
-        except (ValueError, TypeError):
-            return float(default)
-
-    scores = {
-        "gscpi_index": _safe_float(hard_macro.get("gscpi_sentiment"), -0.15),
-        "world_bank_pinksheet": _safe_float(feed_signals.get("world_bank_score"), -0.20),
-        "linkedin_feed": _safe_float(feed_signals.get("linkedin_score"), -0.10),
-        "gis_telemetry": _safe_float(feed_signals.get("gis_score"), -0.10),
-        "field_emails": _safe_float(feed_signals.get("field_email_score"), -0.25),
-    }
-
-    si_composite = sum(weights[k] * scores[k] for k in weights)
-    si_composite = float(np.clip(si_composite, -1.0, 1.0))
-
-    return {
-        "si_composite": round(si_composite, 4),
-        "individual_scores": scores,
-        "weights": weights,
-    }
-
-
-# ---------------------------------------------------------------------------
-# 11. Operational Quantification & ERP Order Offsetting
-# ---------------------------------------------------------------------------
-def compute_quantified_operational_impact(
-    si_composite: float, base_demand: int = 185000, k_demand: float = 0.25
-) -> dict:
-    """Quantifies S&OP and CTRM operational levers dynamically based on SI_composite."""
-    surge_multiplier = 1.0 + (abs(si_composite) * k_demand)
-    quantified_demand_surge = int(base_demand * surge_multiplier)
-    delta_demand = quantified_demand_surge - base_demand
-
-    lead_time_buffer_days = max(0.0, round(-si_composite * 7.5, 1))
-
-    if si_composite < -0.35:
-        target_hedge_pct = 85.0
-        action_flag = "CRITICAL: Trigger CTRM Option Collar / Fixed Swap & extend ERP lead times."
-    elif si_composite < -0.15:
-        target_hedge_pct = 60.0
-        action_flag = "MODERATE: Lock 60-Day Forward Exposure on CTRM Desk."
-    else:
-        target_hedge_pct = 30.0
-        action_flag = "STABLE: Standard Operational Buffer"
-
-    return {
-        "si_composite": round(si_composite, 4),
-        "base_demand": base_demand,
-        "quantified_demand_surge": quantified_demand_surge,
-        "delta_demand_units": delta_demand,
-        "lead_time_buffer_days": lead_time_buffer_days,
-        "target_hedge_pct": target_hedge_pct,
-        "recommended_action": action_flag,
-    }
-
-
-def calculate_dynamic_erp_order_offset(por_baseline_date_str: str, transit_delay_days: float) -> str:
-    """Executes ERP Dynamic Order Offset: POR_offset = POR_baseline - Delta_LT_transit."""
-    try:
-        base_date = datetime.strptime(por_baseline_date_str, "%Y-%m-%d")
-        offset_date = base_date - timedelta(days=transit_delay_days)
-        return offset_date.strftime("%Y-%m-%d")
-    except Exception:
-        return por_baseline_date_str
-
-
-# ---------------------------------------------------------------------------
-# 12. End-to-End S&OP Cascade Orchestrator
-# ---------------------------------------------------------------------------
-def run_end_to_end_sop_cascade(
-    base_demand_units: int = 200000,
-    raw_mat_ratio_per_unit: float = 1.25,
-    current_spot_price: float = 4.15,
-    por_baseline_date: str = "2026-11-15",
-    feed_signals: dict = None
-) -> dict:
-    """Central Orchestrator: Passes live feed outputs through S&OP, CTRM, and Logistics modules."""
-    si_composite = -0.28
-    
-    if feed_signals is None:
-        try:
-            feed_signals = st.session_state.get("latest_robot_signals", {})
-        except Exception:
-            feed_signals = {}
-
-    if feed_signals:
-        calc_out = calculate_composite_sentiment(feed_signals)
-        si_composite = calc_out.get("si_composite", -0.28)
-    else:
-        try:
-            si_composite = st.session_state.get("si_composite", -0.28)
-        except Exception:
-            pass
-
-    # Stage 2: Demand Surge & Order Offset Calculation
-    k_demand = 0.25
-    surge_multiplier = 1.0 + (abs(si_composite) * k_demand)
-    quantified_demand_surge = int(base_demand_units * surge_multiplier)
-    delta_demand_surge = quantified_demand_surge - base_demand_units
-
-    transit_delay_days = max(0.0, round(abs(si_composite) * 12.0, 1))
-    por_offset_date = calculate_dynamic_erp_order_offset(por_baseline_date, transit_delay_days)
-
-    # Stage 3: Physical Procurement
-    expedited_po_units = delta_demand_surge
-    target_vendor_notice_date = calculate_dynamic_erp_order_offset(por_offset_date, 5.0)
-
-    # Stage 4: CTRM Desk Delta-Hedging
-    incremental_raw_material_lbs = delta_demand_surge * raw_mat_ratio_per_unit
-    incremental_financial_exposure = incremental_raw_material_lbs * current_spot_price
-
-    target_hedge_ratio = 0.85 if si_composite < -0.30 else 0.50
-    incremental_volume_to_hedge_lbs = incremental_raw_material_lbs * target_hedge_ratio
-    capital_to_commit_hedge = incremental_volume_to_hedge_lbs * current_spot_price
-
-    # Stage 5: Global Logistics Surcharges & Air Freight Shift
-    is_air_freight_modal_shift = transit_delay_days > 7.0
-    freight_surcharge_per_unit = 2.45 if is_air_freight_modal_shift else 0.65
-    total_freight_surcharge_cost = quantified_demand_surge * freight_surcharge_per_unit
-
-    # Stage 6: Executive S&OP P&L Impact
-    unit_selling_price = 18.50
-    delta_gross_revenue = delta_demand_surge * unit_selling_price
-    delta_cogs = delta_demand_surge * (current_spot_price * raw_mat_ratio_per_unit)
-    net_ebitda_impact = delta_gross_revenue - (delta_cogs + total_freight_surcharge_cost)
-
-    cascade_results = {
-        "si_composite": si_composite,
-        "demand": {
-            "base_units": base_demand_units,
-            "total_surge_units": quantified_demand_surge,
-            "delta_surge_units": delta_demand_surge,
-        },
-        "procurement": {
-            "por_baseline": por_baseline_date,
-            "por_offset": por_offset_date,
-            "transit_delay_days": transit_delay_days,
-            "vendor_notice_date": target_vendor_notice_date,
-            "expedited_po_units": expedited_po_units
-        },
-        "ctrm": {
-            "incremental_lbs_exposed": incremental_raw_material_lbs,
-            "incremental_exposure_usd": incremental_financial_exposure,
-            "target_hedge_ratio": target_hedge_ratio,
-            "incremental_lbs_to_hedge": incremental_volume_to_hedge_lbs,
-            "capital_committed_usd": capital_to_commit_hedge
-        },
-        "logistics": {
-            "modal_shift_air": is_air_freight_modal_shift,
-            "freight_surcharge_per_unit": freight_surcharge_per_unit,
-            "total_freight_surcharge_usd": total_freight_surcharge_cost
-        },
-        "exec_sop": {
-            "delta_revenue_usd": delta_gross_revenue,
-            "delta_cogs_usd": delta_cogs,
-            "net_ebitda_impact_usd": net_ebitda_impact
-        }
-    }
-
-    try:
-        st.session_state["active_sop_cascade"] = cascade_results
-    except Exception:
-        pass
-
-    return cascade_results
-
-
-# ---------------------------------------------------------------------------
-# 13. UI Signal Propagation Callbacks & Predictive Commodity Helpers
-# ---------------------------------------------------------------------------
-def _propagate_signal_to_sop_cascade(
-    source_type: str,
-    title: str,
-    demand_surge_units: int,
-    leadtime_delay_days: float,
-    sentiment_index: float,
-    **kwargs
-):
-    """Callback to propagate selected intelligence signals directly into the S&OP Cascade Engine."""
-    try:
-        st.session_state["active_signal_source"] = source_type
-        st.session_state["active_signal_title"] = title
-        st.session_state["extracted_demand_surge"] = demand_surge_units
-        st.session_state["active_leadtime_delay_days"] = leadtime_delay_days
-        st.session_state["si_composite"] = sentiment_index
-
-        cascade = run_end_to_end_sop_cascade(
-            base_demand_units=st.session_state.get("base_demand", 129500),
-            feed_signals=st.session_state.get("latest_robot_signals", {})
-        )
-        st.session_state["active_sop_cascade"] = cascade
-
-        st.toast(f"Propagated signal: '{title}' into S&OP Cascade Engine!", icon="⚡")
-    except Exception as e:
-        st.error(f"Failed to propagate signal: {e}")
-
-
-def render_predictive_commodity_engine():
-    """Renders the Predictive Commodity Price Engine UI component."""
-    st.subheader("📈 Predictive Commodity Price Engine")
-    st.caption("Machine Learning Forward Curves & Supply/Demand Imbalance Forecasting")
-
-    col1, col2, col3, col4 = st.columns(4)
-    col1.metric("LME Copper 3M Target", "$8,950 / MT", "+3.4%")
-    col2.metric("LME Aluminum 3M Target", "$2,420 / MT", "-1.1%")
-    col3.metric("Lithium Carbonate Target", "$14,200 / MT", "+0.8%")
-    col4.metric("Spot Premium Spike Risk", "High", delta="Top 10% Volatility", delta_color="inverse")
-
-    months = ["Oct 26", "Nov 26", "Dec 26", "Jan 27", "Feb 27", "Mar 27"]
-    df_chart = pd.DataFrame({
-        "Month": months,
-        "Base Forecast ($/MT)": [8700, 8820, 8950, 9100, 9050, 9200],
-        "Stress Case ($/MT)": [8700, 8980, 9250, 9500, 9600, 9800]
-    }).set_index("Month")
-    st.line_chart(df_chart)
-
-
-# ---------------------------------------------------------------------------
-# 14. Streamlit NLP Commercial Sensing & Intelligence Module
-# ---------------------------------------------------------------------------
 def render_nlp_intelligence(persona=None, term_unit="Units", **kwargs):
     """Complete NLP Commercial Sensing & Intelligence Module with Hard Macro,
-    Unified Social & Executive Field Intelligence (Component C), NOAA Weather Telemetry,
-    Composite Market Sentiment Engine (Component A), Email Parsing, Live Telemetry,
+    Unified Social & Executive Field Intelligence, Email Parsing, Live Telemetry,
     and S&OP Cascade Hooks.
     """
     st.title("🧠 NLP Commercial Sensing & Intelligence")
     st.caption(
         f"Active Persona View: **{persona or 'Discrete & Heavy Industrial Enterprise'}** | "
         "Ingest unstructured signals from live RSS feeds, executive LinkedIn disclosures, "
-        "field sales intelligence, hard macro indicators (NY Fed, FRED, World Bank, ECB, PBOC, KOSPI), "
-        "NOAA weather alerts, and ocean/air freight telemetry."
+        "email debriefs, hard macro indicators (NY Fed, FRED, World Bank, ECB, PBOC, KOSPI), "
+        "and ocean/air freight telemetry."
     )
 
     tab1, tab2, tab3 = st.tabs([
         "📡 Live Web, Macro & Social Signals",
         "📧 Email & Event Debrief Parser",
-        "⚓ Freight, NOAA Weather & Black Swan Feeds",
+        "⚓ Freight, Weather & Black Swan Feeds",
     ])
 
     # =========================================================================
@@ -1979,7 +1656,7 @@ def render_nlp_intelligence(persona=None, term_unit="Units", **kwargs):
         with r_head1:
             st.caption(
                 "🤖 **Triangulated Intelligence Engine**: Hard Macro (NY Fed / FRED / ECB / PBOC / KOSPI) "
-                "+ NOAA Severe Weather / Climate Telemetry + Ocean/Air Freight + Executive & Social Field Stream"
+                "+ Ocean/Air Freight Telemetry + Executive Social Stream"
             )
         with r_head2:
             if st.button("🔄 Refresh Live Feeds & APIs", key="btn_refresh_robot_feeds"):
@@ -1987,29 +1664,20 @@ def render_nlp_intelligence(persona=None, term_unit="Units", **kwargs):
                     feed_data = sync_robot_feeds() if "sync_robot_feeds" in globals() else {}
                     newsletters = feed_data.get("newsletters", [])
 
-                    # Synchronize refreshed signals directly to session state
-                    if newsletters:
+                    if newsletters and newsletters[0].get("is_live"):
                         st.session_state["live_newsletters"] = newsletters
-                    if "linkedin_score" in feed_data:
-                        st.session_state["s_social_val"] = feed_data["linkedin_score"]
-                    if "noaa_weather_score" in feed_data:
-                        st.session_state["s_noaa_val"] = feed_data["noaa_weather_score"]
-                    if "freight_score" in feed_data:
-                        st.session_state["s_freight_val"] = feed_data["freight_score"]
-                    if "hard_macro" in feed_data:
-                        macro_val = feed_data["hard_macro"]
-                        st.session_state["s_macro_val"] = (
-                            macro_val.get("gscpi_sentiment", -0.65)
-                            if isinstance(macro_val, dict)
-                            else float(macro_val)
+                        st.session_state["s_social_val"] = feed_data.get("linkedin_score", -0.70)
+                        st.toast(
+                            f"Synced live signal: {newsletters[0].get('title', 'LinkedIn Feed')}",
+                            icon="✅",
                         )
-
-                    st.toast("Refreshed feeds from Gmail IMAP, NOAA Weather & Global Macro APIs!", icon="✅")
+                    else:
+                        st.toast("Refreshed feeds from Gmail IMAP & Global Macro APIs!", icon="🔄")
                     st.rerun()
                 except Exception as e:
                     st.error(f"Sync error: {e}")
 
-        # Load persisted signals file
+        # Ensure robot_signals.json exists or load safely
         robot_data = {}
         if os.path.exists("robot_signals.json"):
             try:
@@ -2019,7 +1687,7 @@ def render_nlp_intelligence(persona=None, term_unit="Units", **kwargs):
                 pass
 
         # -------------------------------------------------------------------------
-        # 1. HARD MACROECONOMIC & CLIMATE TELEMETRY DASHBOARD
+        # 1. HARD MACROECONOMIC TELEMETRY DASHBOARD
         # -------------------------------------------------------------------------
         macro = fetch_global_macro_telemetry() if "fetch_global_macro_telemetry" in globals() else {
             "ny_fed_gscpi": "+0.45 σ",
@@ -2029,11 +1697,10 @@ def render_nlp_intelligence(persona=None, term_unit="Units", **kwargs):
             "eurozone_ecb": "-0.15 σ",
             "kospi_korea": "2,645 pts",
             "japan_pmi": "50.1",
-            "noaa_weather_index": "Elevated Risk",
         }
 
         with st.expander(
-            "🏛️ Hard Macroeconomic & Environmental Telemetry (NY Fed GSCPI, FRED, ECB, PBOC, NOAA)",
+            "🏛️ Hard Macroeconomic Telemetry (NY Fed GSCPI, World Bank, FRED, ECB, PBOC, BOJ, KOSPI)",
             expanded=True,
         ):
             m_col1, m_col2, m_col3, m_col4, m_col5 = st.columns(5)
@@ -2050,27 +1717,19 @@ def render_nlp_intelligence(persona=None, term_unit="Units", **kwargs):
                 st.metric("Eurozone (ECB)", macro.get("eurozone_ecb", "-0.15 σ"), "Industrial Trend")
                 st.caption("ECB Telemetry")
             with m_col5:
-                st.metric("NOAA Climate / KOSPI", macro.get("noaa_weather_index", "Elevated Risk"), macro.get("kospi_korea", "2,645 pts"))
-                st.caption("NOAA Weather & Asian Benchmark")
+                st.metric("Korea KOSPI / Japan", macro.get("kospi_korea", "2,645 pts"), macro.get("japan_pmi", "50.1"))
+                st.caption("Asian Export Benchmark")
 
         # -------------------------------------------------------------------------
-        # 2. COMPOSITE MARKET SENTIMENT INDEX (SI) ENGINE
+        # 2. TRIANGULATED COMPOSITE SENTIMENT INDEX (SI) ENGINE
         # -------------------------------------------------------------------------
-        raw_macro_file = robot_data.get("hard_macro", {})
-        fallback_macro = (
-            raw_macro_file.get("gscpi_sentiment", -0.65)
-            if isinstance(raw_macro_file, dict)
-            else float(raw_macro_file or -0.65)
-        )
-
-        s_macro = st.session_state.get("s_macro_val", fallback_macro)
-        s_freight = st.session_state.get("s_freight_val", robot_data.get("freight_score", -0.90))
+        s_macro = st.session_state.get("s_macro_val", robot_data.get("hard_macro", {}).get("gscpi_sentiment", -0.65))
+        s_freight = st.session_state.get("s_freight_val", -0.90)
         s_social = st.session_state.get("s_social_val", robot_data.get("linkedin_score", -0.70))
-        s_noaa = st.session_state.get("s_noaa_val", robot_data.get("noaa_weather_score", -0.55))
 
-        # Weighting Engine: Macro (35%), Freight (30%), Social/Exec (20%), NOAA (15%)
-        W_MACRO, W_FREIGHT, W_SOCIAL, W_NOAA = 0.35, 0.30, 0.20, 0.15
-        composite_si = (W_MACRO * s_macro) + (W_FREIGHT * s_freight) + (W_SOCIAL * s_social) + (W_NOAA * s_noaa)
+        # Explicit Weightage Engine
+        W_MACRO, W_FREIGHT, W_SOCIAL = 0.40, 0.35, 0.25
+        composite_si = (W_MACRO * s_macro) + (W_FREIGHT * s_freight) + (W_SOCIAL * s_social)
         st.session_state["si_composite"] = round(composite_si, 2)
 
         base_dem = st.session_state.get("base_demand", 129500)
@@ -2088,7 +1747,7 @@ def render_nlp_intelligence(persona=None, term_unit="Units", **kwargs):
 
         with st.container(border=True):
             st.markdown("### 🎯 Triangulated Composite Market Sentiment Index ($SI$)")
-
+            
             c_col1, c_col2, c_col3, c_col4 = st.columns([1.2, 1, 1, 1])
             with c_col1:
                 st.metric(
@@ -2105,14 +1764,13 @@ def render_nlp_intelligence(persona=None, term_unit="Units", **kwargs):
                 st.metric("CTRM Risk Status", "🔴 HEDGE REQUIRED" if ctrm_hedge else "🟢 STABLE")
 
             st.markdown(
-                r"**Formula Weighting:** $SI = (0.35 \times S_{\text{macro}}) + (0.30 \times S_{\text{freight}}) + (0.20 \times S_{\text{social}}) + (0.15 \times S_{\text{noaa}})$"
+                r"**Formula Weighting:** $SI = (0.40 \times S_{\text{macro}}) + (0.35 \times S_{\text{freight}}) + (0.25 \times S_{\text{social}})$"
             )
-
-            sc1, sc2, sc3, sc4 = st.columns(4)
-            sc1.caption(f"**Macro ($S_{{macro}}$)**: `{s_macro:+.2f}` (35%)")
-            sc2.caption(f"**Logistics ($S_{{freight}}$)**: `{s_freight:+.2f}` (30%)")
-            sc3.caption(f"**Social/Exec ($S_{{social}}$)**: `{s_social:+.2f}` (20%)")
-            sc4.caption(f"**NOAA Climate ($S_{{noaa}}$)**: `{s_noaa:+.2f}` (15%)")
+            
+            sc1, sc2, sc3 = st.columns(3)
+            sc1.caption(f"**Macro News ($S_{{macro}}$)**: `{s_macro:+.2f}` (Weight: 40%)")
+            sc2.caption(f"**Logistics ($S_{{freight}}$)**: `{s_freight:+.2f}` (Weight: 35%)")
+            sc3.caption(f"**Social/Exec ($S_{{social}}$)**: `{s_social:+.2f}` (Weight: 25%)")
 
             st.info(f"**Quantified Action Plan**: {rec_text}")
 
@@ -2120,22 +1778,21 @@ def render_nlp_intelligence(persona=None, term_unit="Units", **kwargs):
                 "⚡ Propagate Triangulated Composite Index across Platform",
                 key="btn_propagate_composite",
                 on_click=_propagate_signal_to_sop_cascade if "_propagate_signal_to_sop_cascade" in globals() else None,
-                kwargs={
-                    "source_type": "Macro, Social & NOAA Triangulation Engine",
+                args=({
+                    "source_type": "Macro & Social Triangulation Engine",
                     "title": f"Triangulated Composite Index ({composite_si:+.2f})",
                     "demand_surge_units": surge_units,
                     "leadtime_delay_days": lt_days,
                     "sentiment_index": composite_si,
-                },
+                },),
             )
 
         st.divider()
 
         # -------------------------------------------------------------------------
-        # 3. PREDICTIVE COMMODITY PRICE ENGINE
+        # 3. SOTA PREDICTIVE COMMODITY PRICE ENGINE (OPTION B INTEGRATION)
         # -------------------------------------------------------------------------
-        if "render_predictive_commodity_engine" in globals():
-            render_predictive_commodity_engine()
+        render_predictive_commodity_engine()
 
         st.divider()
 
@@ -2144,14 +1801,11 @@ def render_nlp_intelligence(persona=None, term_unit="Units", **kwargs):
         # -------------------------------------------------------------------------
         st.subheader("📱 Unified Social Media & Executive Field Intelligence Stream")
         st.caption(
-            "Direct ingestion from C-suite LinkedIn disclosures, executive post-trade disclosures, "
-            "field sales intelligence debriefs, and industry newsletter feeds."
+            "Direct ingestion from C-suite LinkedIn post-trade disclosures, industry newsletters, "
+            "and field sales intelligence."
         )
 
-        live_newsletters = st.session_state.get(
-            "live_newsletters",
-            fetch_gmail_newsletters(max_emails=3) if "fetch_gmail_newsletters" in globals() else []
-        )
+        live_newsletters = fetch_gmail_newsletters(max_emails=3) if "fetch_gmail_newsletters" in globals() else []
 
         social_feed_items = [
             {
@@ -2163,18 +1817,7 @@ def render_nlp_intelligence(persona=None, term_unit="Units", **kwargs):
                 "sentiment": -0.82,
                 "impact_demand": 185000,
                 "impact_leadtime": 8.5,
-                "type": "C-Suite Field Posts",
-            },
-            {
-                "source": "Executive Field Sales Intelligence | Regional Debrief",
-                "author": "Mark Vance (Director of Global Field Sales, Heavy Equipment Div)",
-                "timestamp": "Today at 11:05 EST",
-                "title": "Tier-1 OEM Escalation: Hydraulic Cylinder Allocation Constraints",
-                "snippet": "Key OEM accounts in North America reporting 3-week backlog in cylinder assemblies due to European raw steel forging shortages. Field sales requests safety buffer increase.",
-                "sentiment": -0.74,
-                "impact_demand": 95000,
-                "impact_leadtime": 5.0,
-                "type": "Exec Field Intel",
+                "type": "C-Suite Field Post",
             },
             {
                 "source": "Substack / LinkedIn Newsletter Direct Ingestion",
@@ -2185,7 +1828,7 @@ def render_nlp_intelligence(persona=None, term_unit="Units", **kwargs):
                 "sentiment": -0.60,
                 "impact_demand": 52000,
                 "impact_leadtime": 3.0,
-                "type": "Industry Newsletters",
+                "type": "Industry Newsletter",
             },
             {
                 "source": "LinkedIn Commercial Desk | Freight Intelligence",
@@ -2196,10 +1839,11 @@ def render_nlp_intelligence(persona=None, term_unit="Units", **kwargs):
                 "sentiment": -0.65,
                 "impact_demand": 120000,
                 "impact_leadtime": 6.0,
-                "type": "C-Suite Field Posts",
+                "type": "Freight Executive Post",
             },
         ]
 
+        # Prepend any active ingested live emails into the unified social stream
         for news in live_newsletters:
             if news.get("title"):
                 social_feed_items.insert(0, {
@@ -2211,21 +1855,10 @@ def render_nlp_intelligence(persona=None, term_unit="Units", **kwargs):
                     "sentiment": news.get("sentiment_score", -0.40),
                     "impact_demand": int(abs(news.get("sentiment_score", -0.40)) * 150000),
                     "impact_leadtime": round(abs(news.get("sentiment_score", -0.40)) * 10, 1),
-                    "type": news.get("type", "Industry Newsletters"),
+                    "type": "Live Social/Email Signal",
                 })
 
-        feed_filter = st.radio(
-            "Filter Stream by Signal Type:",
-            ["All Field & Social Signals", "C-Suite Field Posts", "Exec Field Intel", "Industry Newsletters"],
-            horizontal=True,
-            key="nlp_social_feed_filter",
-        )
-
-        filtered_items = social_feed_items
-        if feed_filter != "All Field & Social Signals":
-            filtered_items = [i for i in social_feed_items if i.get("type") == feed_filter]
-
-        for idx, item in enumerate(filtered_items):
+        for idx, item in enumerate(social_feed_items):
             with st.container(border=True):
                 s_col1, s_col2 = st.columns([2.8, 1.2])
                 with s_col1:
@@ -2243,16 +1876,16 @@ def render_nlp_intelligence(persona=None, term_unit="Units", **kwargs):
                     )
 
                 st.button(
-                    "⚡ Ingest Social / Field Signal into S&OP Engine",
+                    "⚡ Ingest Social Signal into S&OP Engine",
                     key=f"btn_ingest_soc_{idx}",
                     on_click=_propagate_signal_to_sop_cascade if "_propagate_signal_to_sop_cascade" in globals() else None,
-                    kwargs={
+                    args=({
                         "source_type": item["source"],
                         "title": item["title"],
                         "demand_surge_units": item["impact_demand"],
                         "leadtime_delay_days": item["impact_leadtime"],
                         "sentiment_index": item["sentiment"],
-                    },
+                    },),
                 )
 
         st.divider()
@@ -2302,24 +1935,15 @@ def render_nlp_intelligence(persona=None, term_unit="Units", **kwargs):
 
             headline_map = {
                 f"{item['title']} [{item.get('source', 'Web')}]": item
-                for item in live_rss_items if item.get("title")
+                for item in live_rss_items
             }
 
-            if headline_map:
-                selected_headline = st.selectbox(
-                    "Select Live RSS / Scraped Headline Signal:",
-                    list(headline_map.keys()),
-                    key="nlp_web_headline_select",
-                )
-                art_info = headline_map[selected_headline]
-            else:
-                art_info = {
-                    "title": "No headlines retrieved",
-                    "estimated_impact": 100000,
-                    "sentiment": -0.50,
-                    "link": "#",
-                }
-                st.info("No active RSS headlines retrieved for this sector.")
+            selected_headline = st.selectbox(
+                "Select Live RSS / Scraped Headline Signal:",
+                list(headline_map.keys()),
+                key="nlp_web_headline_select",
+            )
+            art_info = headline_map[selected_headline]
 
             if art_info.get("link") and art_info["link"] != "#":
                 st.markdown(f"[🔗 Open Original Source Article]({art_info['link']})")
@@ -2333,20 +1957,20 @@ def render_nlp_intelligence(persona=None, term_unit="Units", **kwargs):
             )
             st.metric("Detected Sentiment ($SI$)", f"{art_info.get('sentiment', -0.50):+.2f}")
 
-        headline_clean = art_info.get("title", "Signal")[:50] + "..."
+        headline_clean = art_info["title"][:50] + "..."
         domain_label = selected_domain.split(" ")[1] if len(selected_domain.split(" ")) > 1 else "Macro"
 
         st.button(
             "📡 Ingest Scraped Domain News Signal",
             key="btn_ingest_web",
             on_click=_propagate_signal_to_sop_cascade if "_propagate_signal_to_sop_cascade" in globals() else None,
-            kwargs={
+            args=({
                 "source_type": "Live Web Intelligence",
                 "title": f"[{domain_label}] {headline_clean}",
                 "demand_surge_units": web_impact,
                 "leadtime_delay_days": 4.0,
                 "sentiment_index": art_info.get("sentiment", -0.50),
-            },
+            },),
         )
 
     # =========================================================================
@@ -2389,22 +2013,18 @@ def render_nlp_intelligence(persona=None, term_unit="Units", **kwargs):
                     "units_val": 45000,
                 }
 
-        parsed = st.session_state.get("parsed_email_data", {})
-        v_name = parsed.get("vendor", parsed.get("supplier", "Global Smelting Corp"))
-        e_name = parsed.get("event", parsed.get("risk_event", "Smelter Outage"))
-        d_val = float(parsed.get("delay_val", parsed.get("delay_days", 13.5)))
-        u_val = int(parsed.get("units_val", parsed.get("buffer_units", 45000)))
+        parsed = st.session_state["parsed_email_data"]
 
         st.markdown("#### 📊 Extracted Entity Analysis")
         e_col1, e_col2, e_col3, e_col4 = st.columns(4)
         with e_col1:
-            st.metric("Detected Vendor", v_name)
+            st.metric("Detected Vendor", parsed["vendor"])
         with e_col2:
-            st.metric("Identified Risk Event", e_name)
+            st.metric("Identified Risk Event", parsed["event"])
         with e_col3:
-            st.metric("Est. Lead Time Delay", f"+{d_val:.1f} Days")
+            st.metric("Est. Lead Time Delay", f"+{parsed['delay_val']:.1f} Days")
         with e_col4:
-            st.metric("Recommended Safety Buffer", f"+{u_val:,} {term_unit}")
+            st.metric("Recommended Safety Buffer", f"+{parsed['units_val']:,} {term_unit}")
 
         st.caption("**NLP Confidence Score**: `94.2%` | **Sentiment Score**: `-0.68`")
 
@@ -2412,23 +2032,22 @@ def render_nlp_intelligence(persona=None, term_unit="Units", **kwargs):
             "⚡ Ingest Parsed Email Intelligence into Live S&OP Engine",
             key="btn_ingest_email_parser",
             on_click=_propagate_signal_to_sop_cascade if "_propagate_signal_to_sop_cascade" in globals() else None,
-            kwargs={
+            args=({
                 "source_type": "Supplier Email",
-                "title": f"[{v_name}] {e_name}",
-                "demand_surge_units": u_val,
-                "leadtime_delay_days": d_val,
+                "title": f"[{parsed['vendor']}] {parsed['event']}",
+                "demand_surge_units": parsed["units_val"],
+                "leadtime_delay_days": parsed["delay_val"],
                 "sentiment_index": -0.68,
-            },
+            },),
         )
 
     # =========================================================================
-    # TAB 3: LIVE FREIGHT, NOAA WEATHER & BLACK SWAN FEEDS
+    # TAB 3: LIVE FREIGHT, WEATHER & BLACK SWAN FEEDS
     # =========================================================================
     with tab3:
-        st.subheader("⚓ Freight, NOAA Weather & Black Swan Feeds")
+        st.subheader("⚓ Freight, Weather & Black Swan Feeds")
         st.caption(
-            "Track live sea freight (FBX / Freightos), air freight (TAC Index), AIS vessel tracking, "
-            "and NOAA severe weather / climate disruption telemetry."
+            "Track live sea freight (FBX / Freightos), air freight (TAC Index), AIS vessel tracking, and climate disruptions."
         )
 
         freight_live = get_freight_telemetry_sync() if "get_freight_telemetry_sync" in globals() else {}
@@ -2436,9 +2055,8 @@ def render_nlp_intelligence(persona=None, term_unit="Units", **kwargs):
         air_price = freight_live.get("air_freight_usd_kg", 2.48)
         vessel_count = freight_live.get("active_vessels_count", 3)
         telemetry_status = freight_live.get("telemetry_status", "ACTIVE")
-        noaa_status = freight_live.get("noaa_weather_alert", "Tropical Storm / High River Drought Alert")
 
-        w_col1, w_col2, w_col3, w_col4 = st.columns(4)
+        w_col1, w_col2, w_col3 = st.columns(3)
         with w_col1:
             st.metric("FBX Ocean Spot Rate", f"${ocean_price:,.0f} / FEU", delta="+14.8% WoW")
             st.caption(f"Status: `{telemetry_status}`")
@@ -2448,20 +2066,10 @@ def render_nlp_intelligence(persona=None, term_unit="Units", **kwargs):
         with w_col3:
             st.metric("Active AIS Vessels Tracked", f"{vessel_count} Containers", delta="Project44 Live Telemetry")
             st.caption("Real-Time GIS Vessel Ping")
-        with w_col4:
-            st.metric("NOAA Climate Severity Index", "Level 3 Warning", delta=noaa_status, delta_color="inverse")
-            st.caption("NOAA Severe Weather Telemetry")
 
         st.divider()
-        st.markdown("#### 🌍 Live Anomaly Feed Alerts (Including NOAA Environmental Disruptions)")
+        st.markdown("#### 🌍 Live Anomaly Feed Alerts")
         feed_df = pd.DataFrame([
-            {
-                "Region / Corridor": "US Gulf / Mississippi Waterway (NOAA Feed)",
-                "Disruption Type": "Severe Drought / Low Stage River Depth",
-                "Severity": "Critical",
-                "Transit Delay Impact": "+6 to 9 Days",
-                "Cost Impact": "+18% Barge Freight Surcharge",
-            },
             {
                 "Region / Corridor": "Suez / Red Sea Transit",
                 "Disruption Type": "Geopolitical Rerouting",
@@ -2470,8 +2078,8 @@ def render_nlp_intelligence(persona=None, term_unit="Units", **kwargs):
                 "Cost Impact": f"${ocean_price:,.0f} / FEU Spot Premium",
             },
             {
-                "Region / Corridor": "Panama Canal Transit (NOAA Climate Ingestion)",
-                "Disruption Type": "Low Water Level / Extended Drought",
+                "Region / Corridor": "Panama Canal Transit",
+                "Disruption Type": "Low Water Level / Drought",
                 "Severity": "Elevated",
                 "Transit Delay Impact": "+5 to 7 Days",
                 "Cost Impact": "+20% Booking Surcharge",
@@ -2487,37 +2095,21 @@ def render_nlp_intelligence(persona=None, term_unit="Units", **kwargs):
         st.dataframe(feed_df, use_container_width=True)
 
         st.button(
-            "⚡ Ingest Freight & NOAA Weather Signals into Logistics Engine",
+            "⚡ Ingest Freight & Weather Signals into Logistics Engine",
             key="btn_ingest_freight",
             on_click=_propagate_signal_to_sop_cascade if "_propagate_signal_to_sop_cascade" in globals() else None,
-            kwargs={
-                "source_type": "Maritime AIS & NOAA Weather Telemetry",
-                "title": "NOAA Gulf River Drought & Red Sea Transit Bottlenecks",
+            args=({
+                "source_type": "Maritime AIS & Weather Telemetry",
+                "title": "Red Sea & Transpacific Transit Bottlenecks",
                 "demand_surge_units": 150000,
                 "leadtime_delay_days": 10.0,
                 "sentiment_index": -0.75,
-            },
+            },),
         )
 
 
-# Maintain alias for router compatibility
+# Maintain alias to protect all navigation router calls
 render_nlp_sensing = render_nlp_intelligence
-
-
-# ---------------------------------------------------------------------------
-# CLI Execution & Verification Test
-# ---------------------------------------------------------------------------
-if __name__ == "__main__":
-    print("--- Executing Robot Feed Data Synchronization ---")
-    sync_output = sync_robot_feeds()
-    print("Sync Result Keys:", list(sync_output.keys()))
-    print("Global Telemetry:", sync_output.get("global_telemetry"))
-    print("Freight Telemetry:", sync_output.get("freight_telemetry"))
-
-    print("\n--- Running End-to-End S&OP Cascade Test ---")
-    cascade = run_end_to_end_sop_cascade()
-    print("EBITDA Impact:", cascade.get("exec_sop", {}).get("net_ebitda_impact_usd"))
-
 
 def render_demand_supply_match(
     persona=None,
