@@ -16,6 +16,9 @@ import numpy as np
 import re
 from bs4 import BeautifulSoup
 
+# Global HTTP configuration for all feed scrapers and APIs
+GLOBAL_TIMEOUT = httpx.Timeout(15.0, connect=5.0)
+
 # ---------------------------------------------------------------------------
 # 1. Focus Sector & Commodity Keywords & Exclusion Filters
 # ---------------------------------------------------------------------------
@@ -138,7 +141,7 @@ async def scrape_freightos_free_feeds() -> dict:
         "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8"
     }
 
-    async with httpx.AsyncClient(timeout=8.0, follow_redirects=True, headers=headers) as client:
+    async with httpx.AsyncClient(timeout=15.0, follow_redirects=True, headers=headers) as client:
         try:
             term_resp = await client.get("https://www.freightos.com/enterprise/terminal/freightos-baltic-index-global-container-pricing-index/")
             if term_resp.status_code == 200:
@@ -148,6 +151,7 @@ async def scrape_freightos_free_feeds() -> dict:
                     results["fbx_global_usd"] = float(fbx_match.group(1).replace(",", ""))
                     results["status"] = "FREIGHTOS_SCRAPED"
         except Exception as e:
+            print(f"[FEED LOG] Freightos web scrape error: {e}")
             results["status"] = f"SCRAPE_ERROR ({str(e)})"
 
     return results
@@ -168,10 +172,11 @@ async def fetch_live_sea_and_air_telemetry() -> dict:
     status_flags = []
     
     # NOAA Telemetry Defaults
-    noaa_severity = "Level 5 Extreme Critical"
-    noaa_summary = "64 Severe Maritime Disruptions | Flood Warning"
+    noaa_severity = "Level 1 Normal"
+    noaa_summary = "Clear Sea & River Waterways"
 
-    async with httpx.AsyncClient(timeout=5.0) as client:
+    # Expanded 15.0s timeout to prevent premature fallback on host environments
+    async with httpx.AsyncClient(timeout=15.0, follow_redirects=True) as client:
         # 1. Fetch Ocean Freight Benchmarks (FBX API or Freightos Web Scraper)
         if fbx_key:
             try:
@@ -182,7 +187,11 @@ async def fetch_live_sea_and_air_telemetry() -> dict:
                 if resp.status_code == 200:
                     ocean_rate = float(resp.json().get("fbx_global_value", ocean_rate))
                     status_flags.append("FBX_LIVE")
+                else:
+                    print(f"[FEED LOG] FBX API HTTP {resp.status_code}")
+                    status_flags.append(f"FBX_HTTP_{resp.status_code}")
             except Exception as e:
+                print(f"[FEED LOG] FBX API failed: {e}")
                 status_flags.append(f"FBX_FALLBACK ({str(e)})")
         else:
             # Fallback: Scrape live Freightos public terminal rates
@@ -204,7 +213,8 @@ async def fetch_live_sea_and_air_telemetry() -> dict:
                             pct_change = (curr_price - prev_close) / prev_close
                             ocean_rate = round(3850.0 * (1.0 + (pct_change * 0.4)), -1)
                             status_flags.append("YFINANCE_INDEXED")
-                except Exception:
+                except Exception as e:
+                    print(f"[FEED LOG] Yahoo Finance proxy error: {e}")
                     status_flags.append("FBX_SIMULATED")
 
         # 2. Fetch Air Freight Benchmarks (TAC Index API)
@@ -218,6 +228,7 @@ async def fetch_live_sea_and_air_telemetry() -> dict:
                     air_rate = float(resp.json().get("shanghai_chicago_usd_kg", air_rate))
                     status_flags.append("TAC_LIVE")
             except Exception as e:
+                print(f"[FEED LOG] TAC API failed: {e}")
                 status_flags.append(f"TAC_FALLBACK ({str(e)})")
         else:
             status_flags.append("TAC_SIMULATED")
@@ -233,6 +244,7 @@ async def fetch_live_sea_and_air_telemetry() -> dict:
                     active_vessels = resp.json().get("shipments", [])
                     status_flags.append("P44_LIVE")
             except Exception as e:
+                print(f"[FEED LOG] Project44 API failed: {e}")
                 status_flags.append(f"P44_FALLBACK ({str(e)})")
         else:
             status_flags.append("P44_SIMULATED")
@@ -246,19 +258,43 @@ async def fetch_live_sea_and_air_telemetry() -> dict:
             )
             if noaa_resp.status_code == 200:
                 raw_features = noaa_resp.json().get("features", [])
-                alert_count = len(raw_features)
                 
-                # Extract primary event title if available
-                top_event = "Active Weather Alerts"
-                if alert_count > 0:
-                    top_event = raw_features[0].get("properties", {}).get("event", "Severe Disruption")
+                # Filter specifically for Maritime, Coastal, River & Supply Chain Disruptions
+                maritime_keywords = ["Marine", "Coastal", "Flood", "Gale", "Storm", "Tropical", "Hurricane", "Drought", "River", "Surge"]
+                maritime_alerts = [
+                    f for f in raw_features
+                    if any(kw.lower() in f.get("properties", {}).get("event", "").lower() for kw in maritime_keywords)
+                ]
                 
-                noaa_severity = "Level 5 Extreme Critical"
-                noaa_summary = f"{alert_count} Active Alerts | {top_event}"
+                maritime_count = len(maritime_alerts)
+                
+                # Dynamic severity tiering based on filtered maritime alert volume
+                if maritime_count == 0:
+                    noaa_severity = "Level 1 Normal"
+                    noaa_summary = "Clear Sea & River Waterways"
+                elif maritime_count <= 5:
+                    top_event = maritime_alerts[0].get("properties", {}).get("event", "Localized Disruption")
+                    noaa_severity = "Level 2 Advisory"
+                    noaa_summary = f"{maritime_count} Marine Alerts | {top_event}"
+                elif maritime_count <= 15:
+                    top_event = maritime_alerts[0].get("properties", {}).get("event", "Waterway Disruption")
+                    noaa_severity = "Level 3 Warning"
+                    noaa_summary = f"{maritime_count} Active Coastal Alerts | {top_event}"
+                elif maritime_count <= 30:
+                    top_event = maritime_alerts[0].get("properties", {}).get("event", "Severe Marine Impact")
+                    noaa_severity = "Level 4 High Risk"
+                    noaa_summary = f"{maritime_count} Active Marine Alerts | {top_event}"
+                else:
+                    top_event = maritime_alerts[0].get("properties", {}).get("event", "Major Tropical/Marine Event")
+                    noaa_severity = "Level 5 Extreme Critical"
+                    noaa_summary = f"{maritime_count} Severe Maritime Disruptions | {top_event}"
+                    
                 status_flags.append("NOAA_LIVE")
             else:
+                print(f"[FEED LOG] NOAA returned HTTP {noaa_resp.status_code}")
                 status_flags.append("NOAA_SIMULATED")
-        except Exception:
+        except Exception as e:
+            print(f"[FEED LOG] NOAA API failed: {e}")
             status_flags.append("NOAA_SIMULATED")
 
     return {
@@ -273,7 +309,7 @@ async def fetch_live_sea_and_air_telemetry() -> dict:
 
 
 def get_freight_telemetry_sync() -> dict:
-    """Synchronous wrapper for fetch_live_sea_and_air_telemetry."""
+    """Synchronous wrapper for fetch_live_sea_and_air_telemetry with active event loop handling."""
     try:
         try:
             loop = asyncio.get_running_loop()
@@ -285,13 +321,14 @@ def get_freight_telemetry_sync() -> dict:
                 return pool.submit(lambda: asyncio.run(fetch_live_sea_and_air_telemetry())).result()
         else:
             return asyncio.run(fetch_live_sea_and_air_telemetry())
-    except Exception:
+    except Exception as e:
+        print(f"[FEED LOG] Synchronous wrapper failed: {e}")
         return {
             "ocean_freight_usd_feu": 3850.0,
             "air_freight_usd_kg": 2.48,
             "active_vessels_count": 3,
-            "noaa_severity_level": "Level 5 Extreme Critical",
-            "noaa_alert_summary": "64 Severe Maritime Disruptions | Flood Warning",
+            "noaa_severity_level": "Level 1 Normal",
+            "noaa_alert_summary": "Clear Sea & River Waterways",
             "telemetry_status": "FALLBACK_MODE"
         }
 
