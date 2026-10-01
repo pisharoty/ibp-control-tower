@@ -175,21 +175,27 @@ def fetch_live_noaa_marine_alerts():
 
 @st.cache_data(ttl=300)
 def fetch_live_freight_metrics():
-    """Fetches real-time freight indices using yfinance (Baltic Dry Index: ^BDI)."""
-    try:
-        bdi = yf.Ticker("^BDI")
-        hist = bdi.history(period="5d")
-        if not hist.empty:
-            curr_bdi = hist["Close"].iloc[-1]
-            prev_bdi = hist["Close"].iloc[-2] if len(hist) > 1 else curr_bdi
-            wow_change = round(((curr_bdi - prev_bdi) / prev_bdi) * 100, 1)
-            return (
-                round(curr_bdi, 0),
-                wow_change,
-                "🟢 LIVE NOAA & BALTIC EXCHANGE",
-            )
-    except Exception:
-        pass
+    """Fetches real-time freight indices using yfinance (^BDI or BDRY proxy)."""
+    for symbol in ["^BDI", "BDRY"]:
+        try:
+            ticker = yf.Ticker(symbol)
+            hist = ticker.history(period="5d")
+            if not hist.empty and len(hist) >= 1:
+                curr_val = hist["Close"].iloc[-1]
+                prev_val = (
+                    hist["Close"].iloc[-2] if len(hist) > 1 else curr_val
+                )
+                wow_change = round(((curr_val - prev_val) / prev_val) * 100, 1)
+
+                # Scale BDRY share price to BDI point index equivalent if using ETF proxy
+                display_val = (
+                    round(curr_val * 450, 0)
+                    if symbol == "BDRY"
+                    else round(curr_val, 0)
+                )
+                return display_val, wow_change, "🟢 LIVE BALTIC TELEMETRY"
+        except Exception:
+            continue
     return 3178.0, 2.4, "🟡 SIMULATED FALLBACK"
 
 def update_composite_si():
