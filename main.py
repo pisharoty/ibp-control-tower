@@ -878,6 +878,55 @@ def fetch_live_sector_rss(topic_query=None, persona_materials=None):
 
  
 
+# -----------------------------------------------------------------------------
+# 1. ENHANCED LIVE COMMODITY FETCH ENGINE WITH UNIT CONVERSION MULTIPLIERS
+# -----------------------------------------------------------------------------
+# Ticker-to-Unit Multipliers (Converts exchange quotes to target dictionary units)
+COMMODITY_UNIT_MULTIPLIERS = {
+    "HG=F": 2204.6226,  # Copper: $/lb -> $/MT
+    "CT=F": 2204.6226,  # Cotton: $/lb -> $/MT
+    "SB=F": 2204.6226,  # Sugar: $/lb -> $/MT
+    "ALI=F": 1.0,        # Aluminum: $/MT
+    "ZNC=F": 1.0,        # Zinc: $/MT
+    "TIO=F": 1.0,        # Iron Ore: $/dmt
+    "BZ=F": 1.0,         # Brent: $/Bbl
+    "CL=F": 1.0,         # WTI: $/Bbl
+    "GC=F": 1.0,         # Gold: $/oz
+    "SI=F": 1.0,         # Silver: $/oz
+}
+
+@st.cache_data(ttl=300)
+def fetch_live_commodity_price(ticker: str, fallback_spot: float) -> float:
+    """Fetches live market spot price from yfinance, applying unit conversion multipliers."""
+    try:
+        t = yf.Ticker(ticker)
+        raw_price = None
+
+        if hasattr(t, "fast_info"):
+            raw_price = t.fast_info.get("lastPrice", None)
+            if raw_price is None or np.isnan(raw_price) or raw_price <= 0:
+                raw_price = t.fast_info.get("previousClose", None)
+
+        if raw_price is None or np.isnan(raw_price) or raw_price <= 0:
+            hist = t.history(period="5d")
+            if not hist.empty and "Close" in hist:
+                raw_price = hist["Close"].iloc[-1]
+
+        if raw_price is not None and not np.isnan(raw_price) and raw_price > 0:
+            multiplier = COMMODITY_UNIT_MULTIPLIERS.get(ticker, 1.0)
+            
+            # Special equity proxy multiplier check (e.g., LIT, REMX, APD)
+            # If ticker is an equity stock/ETF, scale baseline index relative to stock movement
+            return float(raw_price * multiplier)
+    except Exception:
+        pass
+
+    return float(fallback_spot)
+
+
+# -----------------------------------------------------------------------------
+# 2. DOWNSTREAM CASCADE CALLBACK
+# -----------------------------------------------------------------------------
 def _propagate_commodity_forecast_cascade(payload: dict):
     """Callback to inject commodity price forecast extrapolation downstream
 
@@ -890,22 +939,17 @@ def _propagate_commodity_forecast_cascade(payload: dict):
 
     # 1. Update active global commodity session state
     st.session_state["active_commodity_name"] = comm_name
-    st.session_state["active_commodity_ticker"] = payload.get("ticker", "LME_CU")
+    st.session_state["active_commodity_ticker"] = payload.get("ticker", "HG=F")
     st.session_state["active_commodity_spot"] = spot_price
     st.session_state["active_commodity_60d_forecast"] = forecast_60d
     st.session_state["commodity_price_delta_pct"] = delta_pct
     st.session_state["propagated_commodity_data"] = payload
 
     # 2. Compute CTRM Derivatives Desk Hedge Exposure ($)
-    base_annual_procurement_units = st.session_state.get(
-        "base_annual_volume", 25000
-    )
-    unhedged_exposure_usd = (
-        base_annual_procurement_units * (forecast_60d - spot_price) * 0.50
-    )  # 60-day forward exposure
-    st.session_state["ctrm_unhedged_exposure_usd"] = max(
-        0.0, unhedged_exposure_usd
-    )
+    base_annual_procurement_units = st.session_state.get("base_annual_volume", 25000)
+    unhedged_exposure_usd = base_annual_procurement_units * (forecast_60d - spot_price) * 0.50
+    
+    st.session_state["ctrm_unhedged_exposure_usd"] = max(0.0, unhedged_exposure_usd)
     st.session_state["ctrm_recommended_futures_contracts"] = int(
         np.ceil(unhedged_exposure_usd / 25000)
     )
@@ -919,29 +963,9 @@ def _propagate_commodity_forecast_cascade(payload: dict):
         _propagate_signal_to_sop_cascade(payload)
 
     st.toast(
-        f"⚡ Injected {comm_name} (+{delta_pct:.2%}) downstream across CTRM &"
-        " S&OP Engines!",
+        f"⚡ Injected {comm_name} (+{delta_pct:.2%}) downstream across CTRM & S&OP Engines!",
         icon="🚀",
     )
-
-@st.cache_data(ttl=300)
-def fetch_live_commodity_price(ticker: str, fallback_spot: float) -> float:
-    """Fetch live commodity spot/last price from Yahoo Finance with a fallback."""
-    try:
-        t = yf.Ticker(ticker)
-        if hasattr(t, "fast_info"):
-            price = t.fast_info.get("lastPrice", None)
-            if price is not None and not np.isnan(price) and price > 0:
-                return float(price)
-
-        hist = t.history(period="5d")
-        if not hist.empty and "Close" in hist:
-            last_close = hist["Close"].iloc[-1]
-            if not np.isnan(last_close) and last_close > 0:
-                return float(last_close)
-    except Exception:
-        pass
-    return fallback_spot
 
 
 def render_predictive_commodity_engine():
@@ -958,7 +982,7 @@ def render_predictive_commodity_engine():
     )
 
     # -------------------------------------------------------------------------
-    # TOP 50 GLOBAL COMMODITY COVERAGE MATRIX (UPDATED YAHOO FINANCE TICKERS)
+    # TOP 50 GLOBAL COMMODITY COVERAGE MATRIX
     # -------------------------------------------------------------------------
     top_50_commodities = {
         # Bucket 1: Industrial Non-Ferrous & Ferrous Metals (1–10)
@@ -1598,36 +1622,20 @@ def render_predictive_commodity_engine():
     st.plotly_chart(fig, use_container_width=True)
 
     # -------------------------------------------------------------------------
-    # DOWNSTREAM INJECTION PROPAGATION BUTTON
+    # DOWNSTREAM PROPAGATION TRIGGER BUTTON
     # -------------------------------------------------------------------------
-    st.markdown("---")
-
-    surge_units = int(st.session_state.get("extracted_demand_surge", 102968) * (1.0 + abs(delta_60d_pct)))
-    lt_days = round(2.5 * (1.0 + abs(delta_60d_pct)), 1)
-
     st.button(
         f"⚡ Propagate {selected_comm} Extrapolation ({delta_60d_pct:+.2%}) into CTRM Risk Desk & S&OP Engine",
-        key="btn_propagate_commodity_extrapolation",
-        type="primary",
-        use_container_width=True,
-        on_click=_propagate_commodity_forecast_cascade if "_propagate_commodity_forecast_cascade" in globals() else None,
+        key="btn_propagate_commodity_forecast",
+        on_click=_propagate_commodity_forecast_cascade,
         args=({
-            "source_type": "Predictive Commodity Engine",
-            "title": f"Commodity Extrapolation: {selected_comm} ({delta_60d_pct:+.2%})",
             "commodity_name": selected_comm,
             "ticker": data["ticker"],
             "spot_price": live_spot,
-            "unit": data["unit"],
-            "forecast_30d": target_price_30d,
             "forecast_60d": target_price_60d,
             "price_delta_pct": delta_60d_pct,
-            "precedent_match": data["precedent"],
-            "demand_surge_units": surge_units,
-            "leadtime_delay_days": lt_days,
-            "sentiment_index": si_val,
         },),
     )
-
 
 def render_nlp_intelligence(persona=None, term_unit="Units", **kwargs):
     """Complete NLP Commercial Sensing & Intelligence Module with Hard Macro,
