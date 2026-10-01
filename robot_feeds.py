@@ -121,7 +121,7 @@ def analyze_text_sentiment(text: str) -> float:
 
 
 # ---------------------------------------------------------------------------
-# 4. Async Live Freight & Weather Ingestion Engine (Sea, Air, Vessel GIS, NOAA)
+# 4. Async Live Freight, Weather & Supply Chain News Engine
 # ---------------------------------------------------------------------------
 async def scrape_freightos_free_feeds() -> dict:
     """
@@ -157,10 +157,33 @@ async def scrape_freightos_free_feeds() -> dict:
     return results
 
 
+async def fetch_supply_chain_weather_news(client: httpx.AsyncClient) -> str:
+    """
+    Ingests live daily news RSS headlines specifically for weather-driven supply chain,
+    airport flight delays, and freight transit disruptions.
+    """
+    rss_url = "https://news.google.com/rss/search?q=supply+chain+weather+airport+delays+freight&hl=en-US&gl=US&ceid=US:en"
+    try:
+        resp = await client.get(rss_url, headers={"User-Agent": "Mozilla/5.0"})
+        if resp.status_code == 200:
+            root = ET.fromstring(resp.text)
+            items = root.findall("./channel/item")
+            if items:
+                top_item = items[0]
+                title = top_item.find("title").text if top_item.find("title") is not None else ""
+                pub_date = top_item.find("pubDate").text if top_item.find("pubDate") is not None else ""
+                
+                clean_date = pub_date[:16] if pub_date else "Today"
+                return f"[{clean_date}] {title}"
+    except Exception as e:
+        print(f"[FEED LOG] Weather/Supply Chain News RSS failed: {e}")
+
+    return "No major weather-related airport or sea transit delays reported today."
+
+
 async def fetch_live_sea_and_air_telemetry() -> dict:
     """
-    Fetches real-time ocean/air freight rates, active vessel tracking, and live NOAA severe weather alerts.
-    Falls back gracefully to Freightos scraped feeds or baseline metrics if API keys are unavailable.
+    Fetches real-time ocean/air freight rates, active vessel tracking, NOAA sea/airport alerts, and daily logistics news.
     """
     fbx_key = _get_secret("FBX_API_KEY")
     tac_key = _get_secret("TAC_API_KEY")
@@ -171,13 +194,16 @@ async def fetch_live_sea_and_air_telemetry() -> dict:
     active_vessels = []
     status_flags = []
     
-    # NOAA Telemetry Defaults
+    # Defaults
     noaa_severity = "Level 1 Normal"
-    noaa_summary = "Clear Sea & River Waterways"
+    noaa_summary = "Clear Sea, Air & River Corridors"
+    daily_news_snippet = "Ingesting daily logistics and weather news feeds..."
 
-    # Expanded 15.0s timeout to prevent premature fallback on host environments
     async with httpx.AsyncClient(timeout=15.0, follow_redirects=True) as client:
-        # 1. Fetch Ocean Freight Benchmarks (FBX API or Freightos Web Scraper)
+        # 1. Ingest Daily Supply Chain & Airport Delay News Snippet
+        daily_news_snippet = await fetch_supply_chain_weather_news(client)
+
+        # 2. Fetch Ocean Freight Benchmarks (FBX API or Freightos Web Scraper)
         if fbx_key:
             try:
                 resp = await client.get(
@@ -194,13 +220,11 @@ async def fetch_live_sea_and_air_telemetry() -> dict:
                 print(f"[FEED LOG] FBX API failed: {e}")
                 status_flags.append(f"FBX_FALLBACK ({str(e)})")
         else:
-            # Fallback: Scrape live Freightos public terminal rates
             scraped = await scrape_freightos_free_feeds()
             if scraped.get("fbx_global_usd"):
                 ocean_rate = scraped["fbx_global_usd"]
                 status_flags.append("FREIGHTOS_WEB_SCRAPED")
             else:
-                # Secondary fallback: Yahoo Finance Carrier Proxy Index
                 try:
                     yf_url = "https://query1.finance.yahoo.com/v8/finance/chart/ZIM?interval=1d&range=5d"
                     yf_resp = await client.get(yf_url, headers={"User-Agent": "Mozilla/5.0"})
@@ -217,7 +241,7 @@ async def fetch_live_sea_and_air_telemetry() -> dict:
                     print(f"[FEED LOG] Yahoo Finance proxy error: {e}")
                     status_flags.append("FBX_SIMULATED")
 
-        # 2. Fetch Air Freight Benchmarks (TAC Index API)
+        # 3. Fetch Air Freight Benchmarks (TAC Index API)
         if tac_key:
             try:
                 resp = await client.get(
@@ -233,7 +257,7 @@ async def fetch_live_sea_and_air_telemetry() -> dict:
         else:
             status_flags.append("TAC_SIMULATED")
 
-        # 3. Fetch Active Vessel/Container Tracking (Project44 API)
+        # 4. Fetch Active Vessel/Container Tracking (Project44 API)
         if p44_token:
             try:
                 resp = await client.get(
@@ -249,7 +273,7 @@ async def fetch_live_sea_and_air_telemetry() -> dict:
         else:
             status_flags.append("P44_SIMULATED")
 
-        # 4. Fetch & Parse Live NOAA Severe Weather Telemetry
+        # 5. Fetch & Parse Live NOAA Weather Telemetry (Maritime & Airport/Aviation Delays)
         try:
             noaa_headers = {"User-Agent": "IBPControlTower/1.0 (contact@ibp-tower.org)"}
             noaa_resp = await client.get(
@@ -259,36 +283,40 @@ async def fetch_live_sea_and_air_telemetry() -> dict:
             if noaa_resp.status_code == 200:
                 raw_features = noaa_resp.json().get("features", [])
                 
-                # Filter specifically for Maritime, Coastal, River & Supply Chain Disruptions
-                maritime_keywords = ["Marine", "Coastal", "Flood", "Gale", "Storm", "Tropical", "Hurricane", "Drought", "River", "Surge"]
-                maritime_alerts = [
-                    f for f in raw_features
-                    if any(kw.lower() in f.get("properties", {}).get("event", "").lower() for kw in maritime_keywords)
-                ]
-                
-                maritime_count = len(maritime_alerts)
-                
-                # Dynamic severity tiering based on filtered maritime alert volume
-                if maritime_count == 0:
+                maritime_keywords = ["marine", "coastal", "flood", "gale", "storm", "tropical", "hurricane", "drought", "river", "surge"]
+                aviation_keywords = ["aviation", "airport", "blizzard", "wind", "fog", "ice", "winter storm", "thunderstorm", "freeze", "tornado"]
+
+                maritime_alerts = []
+                airport_alerts = []
+
+                for f in raw_features:
+                    event = f.get("properties", {}).get("event", "").lower()
+                    headline = f.get("properties", {}).get("headline", "").lower()
+                    corpus = f"{event} {headline}"
+
+                    if any(kw in corpus for kw in maritime_keywords):
+                        maritime_alerts.append(f)
+                    if any(kw in corpus for kw in aviation_keywords):
+                        airport_alerts.append(f)
+
+                total_disruptions = len(maritime_alerts) + len(airport_alerts)
+
+                if total_disruptions == 0:
                     noaa_severity = "Level 1 Normal"
-                    noaa_summary = "Clear Sea & River Waterways"
-                elif maritime_count <= 5:
-                    top_event = maritime_alerts[0].get("properties", {}).get("event", "Localized Disruption")
+                    noaa_summary = "Clear Sea, Air & River Corridors"
+                elif total_disruptions <= 5:
                     noaa_severity = "Level 2 Advisory"
-                    noaa_summary = f"{maritime_count} Marine Alerts | {top_event}"
-                elif maritime_count <= 15:
-                    top_event = maritime_alerts[0].get("properties", {}).get("event", "Waterway Disruption")
+                    noaa_summary = f"{len(maritime_alerts)} Sea / {len(airport_alerts)} Airport Alerts Active"
+                elif total_disruptions <= 20:
                     noaa_severity = "Level 3 Warning"
-                    noaa_summary = f"{maritime_count} Active Coastal Alerts | {top_event}"
-                elif maritime_count <= 30:
-                    top_event = maritime_alerts[0].get("properties", {}).get("event", "Severe Marine Impact")
+                    noaa_summary = f"{len(maritime_alerts)} Sea / {len(airport_alerts)} Airport Corridor Delays"
+                elif total_disruptions <= 45:
                     noaa_severity = "Level 4 High Risk"
-                    noaa_summary = f"{maritime_count} Active Marine Alerts | {top_event}"
+                    noaa_summary = f"High Risk: {len(maritime_alerts)} Maritime | {len(airport_alerts)} Airport Alerts"
                 else:
-                    top_event = maritime_alerts[0].get("properties", {}).get("event", "Major Tropical/Marine Event")
                     noaa_severity = "Level 5 Extreme Critical"
-                    noaa_summary = f"{maritime_count} Severe Maritime Disruptions | {top_event}"
-                    
+                    noaa_summary = f"Extreme Disruptions: {len(maritime_alerts)} Marine | {len(airport_alerts)} Airport Alerts"
+
                 status_flags.append("NOAA_LIVE")
             else:
                 print(f"[FEED LOG] NOAA returned HTTP {noaa_resp.status_code}")
@@ -304,6 +332,7 @@ async def fetch_live_sea_and_air_telemetry() -> dict:
         "vessel_telemetry": active_vessels,
         "noaa_severity_level": noaa_severity,
         "noaa_alert_summary": noaa_summary,
+        "daily_news_snippet": daily_news_snippet,
         "telemetry_status": " | ".join(status_flags)
     }
 
@@ -329,6 +358,7 @@ def get_freight_telemetry_sync() -> dict:
             "active_vessels_count": 3,
             "noaa_severity_level": "Level 1 Normal",
             "noaa_alert_summary": "Clear Sea & River Waterways",
+            "daily_news_snippet": "No weather disruptions affecting major air or sea freight hubs today.",
             "telemetry_status": "FALLBACK_MODE"
         }
 
