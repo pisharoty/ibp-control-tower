@@ -848,10 +848,18 @@ def render_aggregated_deal_desk(
 
 def _propagate_signal_to_sop_cascade(signal_data: dict):
     """Helper to commit signal state and trigger end-to-end S&OP cascade execution."""
-    st.session_state["active_signal"] = signal_data
-    st.session_state["active_risk_signal_title"] = signal_data.get(
-        "title", "Market Signal Update"
+    if not isinstance(signal_data, dict):
+        signal_data = {}
+
+    # Safely handle None or missing title strings before slicing
+    signal_title = (
+        signal_data.get("title")
+        if signal_data.get("title")
+        else "Market Signal Update"
     )
+
+    st.session_state["active_signal"] = signal_data
+    st.session_state["active_risk_signal_title"] = signal_title
     st.session_state["si_composite"] = signal_data.get(
         "sentiment_index", -0.28
     )
@@ -862,7 +870,8 @@ def _propagate_signal_to_sop_cascade(signal_data: dict):
     )
     st.session_state["active_sop_cascade"] = cascade_output
     st.toast(
-        f"✅ Signal propagated to Executive Control Tower: {signal_data.get('title')[:30]}...",
+        f"✅ Signal propagated to Executive Control Tower:"
+        f" {signal_title[:30]}...",
         icon="🚀",
     )
 
