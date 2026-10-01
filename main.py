@@ -2167,20 +2167,19 @@ def render_nlp_intelligence(persona=None, term_unit="Units", **kwargs):
    # =========================================================================
     # TAB 3: LIVE FREIGHT, WEATHER & BLACK SWAN FEEDS
     # =========================================================================
-    with tab3:
-        st.subheader("⚓ Freight, NOAA Weather & Black Swan Feeds")
+   with tab3:
+    st.subheader("⚓ Freight, NOAA Weather & Black Swan Feeds")
 
-        bdi_val, bdi_change, sync_status = fetch_live_freight_metrics()
-        noaa_alerts = fetch_live_noaa_marine_alerts()
+    bdi_val, bdi_change, sync_status = fetch_live_freight_metrics()
+    noaa_alerts = fetch_live_noaa_marine_alerts()
 
-        current_time_str = datetime.utcnow().strftime("%H:%M:%S UTC")
-st.caption(
-    f"Status: **{sync_status}** | Last Live Telemetry Sync:"
-    f" `{current_time_str}`"
-)
+    current_time_str = datetime.utcnow().strftime("%H:%M:%S UTC")
+    st.caption(
+        f"Status: **{sync_status}** | Last Live Telemetry Sync:"
+        f" `{current_time_str}`"
+    )
 
-        w_col1, w_col2, w_col3, w_col4 = st.columns(4)
-
+    w_col1, w_col2, w_col3, w_col4 = st.columns(4)
         with w_col1:
             st.metric(
                 "Baltic Dry Freight Index",
