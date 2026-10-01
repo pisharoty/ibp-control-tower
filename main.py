@@ -1808,74 +1808,88 @@ def render_nlp_intelligence(persona=None, term_unit="Units", **kwargs):
         # -------------------------------------------------------------------------
         st.subheader("📱 Unified Social Media & Executive Field Intelligence Stream")
         st.caption(
-            "Direct ingestion from C-suite LinkedIn post-trade disclosures, industry newsletters, "
-            "and live commercial field intelligence."
+            "High-impact C-suite disclosures, Fortune 500 results announcements, "
+            "and commercial earnings guidance scanned for quantified supply chain impact."
         )
 
         # Resolve unit fallback cleanly
         display_unit = term_unit if "term_unit" in locals() or "term_unit" in globals() else "Units"
 
+        # Targeted Fortune 500 Enterprise Query Filter
+        FORTUNE_500_EXEC_QUERY = (
+            '("quarterly results" OR "earnings release" OR "financial guidance" OR "force majeure" OR '
+            '"capacity adjustment" OR "production cut" OR "supply chain forecast") AND '
+            '(Codelco OR "Rio Tinto" OR BHP OR Maersk OR BASF OR Dow OR Caterpillar OR TSMC OR Apple)'
+        )
+
+        # Ingest Gmail / Newsletter Feeds (if available)
         live_newsletters = latest_signals.get("newsletters") or (
             fetch_gmail_newsletters(max_emails=10) if "fetch_gmail_newsletters" in globals() else []
         )
 
-        # 1. Noise & Administrative Email Filter
-        EXCLUDE_KEYWORDS = ["welcome", "officially connected", "subscription confirmed", "verify your email", "newsletter update", "privacy policy"]
-        RELEVANCE_KEYWORDS = ["force majeure", "outage", "smelter", "capacity", "freight", "tariff", "shortage", "lead time", "delay", "maintenance", "surcharge", "copper", "aluminum", "resin", "shipping", "bunker"]
+        EXCLUDE_KEYWORDS = ["welcome", "officially connected", "subscription confirmed", "verify your email", "privacy policy"]
+        QUANTIFIABLE_KEYWORDS = ["revenue", "ebitda", "guidance", "capacity", "volume", "outage", "lead time", "delay", "force majeure", "shipments", "margin"]
 
         valid_social_items = []
 
+        # 1. Filter Ingested Newsletters for High-Pertinence Quantifiable Terms
         for news in live_newsletters:
             title = news.get("title", "")
             summary = news.get("summary", "")
             combined_text = f"{title} {summary}".lower()
 
-            # Skip generic welcome / admin emails
+            # Skip administrative noise
             if any(ex in combined_text for ex in EXCLUDE_KEYWORDS):
                 continue
             
-            # Enforce commercial & supply chain relevance
-            if any(rel in combined_text for rel in RELEVANCE_KEYWORDS):
+            # Enforce presence of quantifiable metrics
+            if any(kw in combined_text for kw in QUANTIFIABLE_KEYWORDS):
                 raw_sentiment = news.get("sentiment_score")
                 sentiment = raw_sentiment if raw_sentiment is not None else -0.45
 
                 valid_social_items.append({
-                    "source": news.get("source", "LinkedIn / Gmail Ingestion"),
-                    "author": news.get("author", "Automated Live Stream Ingestion"),
+                    "source": news.get("source", "Executive Briefing"),
+                    "author": news.get("author", "Fortune 500 Field Intelligence"),
                     "timestamp": news.get("published", "Live Ingested"),
                     "title": title,
                     "snippet": summary,
                     "sentiment": sentiment,
-                    "impact_demand": int(abs(sentiment) * 150000),
-                    "impact_leadtime": round(abs(sentiment) * 10, 1),
-                    "type": "Live Email / Newsletter Signal",
+                    "impact_demand": int(abs(sentiment) * 175000),
+                    "impact_leadtime": round(abs(sentiment) * 12, 1),
+                    "type": "C-Suite / Earnings Disclosure",
                 })
 
-        # 2. Dynamic Live Fallback (Replaces Hardcoded Mock Cards with Live Executive RSS)
-        if len(valid_social_items) < 3:
-            dynamic_exec_query = "(\"force majeure\" OR \"smelter outage\" OR \"supply chain disruption\" OR \"port congestion\") AND (Codelco OR Maersk OR Rio Tinto OR BASF OR Dow)"
-            
-            if "fetch_live_sector_rss" in globals():
-                rss_exec_feed = fetch_live_sector_rss(dynamic_exec_query)
-                for rss_item in rss_exec_feed[:4]:
-                    raw_est = rss_item.get("estimated_impact")
-                    impact_demand = int(raw_est) if raw_est is not None else 85000
+        # 2. Top 5 Fortune 500 Executive Live RSS Fetcher
+        if len(valid_social_items) < 5 and "fetch_live_sector_rss" in globals():
+            exec_rss_feed = fetch_live_sector_rss(FORTUNE_500_EXEC_QUERY)
+            for rss_item in exec_rss_feed:
+                if len(valid_social_items) >= 5:
+                    break
 
-                    valid_social_items.append({
-                        "source": f"Executive Feed | {rss_item.get('source', 'Web Disclosures')}",
-                        "author": "C-Suite Market Disclosure Engine",
-                        "timestamp": "Live Stream",
-                        "title": rss_item.get("title", "Market Disclosure"),
-                        "snippet": f"Dynamic live commercial disclosure extracted from web feed: {rss_item.get('title')}",
-                        "sentiment": rss_item.get("sentiment", -0.55),
-                        "impact_demand": impact_demand,
-                        "impact_leadtime": 5.5,
-                        "type": "Dynamic Executive Disclosure",
-                    })
+                raw_sentiment = rss_item.get("sentiment")
+                sentiment = raw_sentiment if raw_sentiment is not None else -0.55
 
-        # Render the filtered & dynamic feed items
-        if not valid_social_items:
-            st.info("No critical commercial disclosures detected in current live window.")
+                raw_est = rss_item.get("estimated_impact")
+                impact_demand = int(raw_est) if raw_est is not None else int(abs(sentiment) * 160000)
+
+                valid_social_items.append({
+                    "source": f"Fortune 500 Wire | {rss_item.get('source', 'Financial Disclosures')}",
+                    "author": "Corporate Results & Guidance Engine",
+                    "timestamp": "Live Wire",
+                    "title": rss_item.get("title", "Enterprise Results Disclosure"),
+                    "snippet": f"Quantified C-Suite results/guidance disclosure: {rss_item.get('title')}",
+                    "sentiment": sentiment,
+                    "impact_demand": impact_demand,
+                    "impact_leadtime": round(abs(sentiment) * 9.5, 1),
+                    "type": "Fortune 500 Executive Signal",
+                })
+
+        # Hard limit strictly to Top 5 Pertinent Disclosures
+        top_5_social_items = valid_social_items[:5]
+
+        # Render Top 5 Stream Cards
+        if not top_5_social_items:
+            st.info("No major Fortune 500 earnings or guidance disclosures detected in the current window.")
         else:
             # Safe handler resolution for button callback
             callback_fn = None
@@ -1884,7 +1898,7 @@ def render_nlp_intelligence(persona=None, term_unit="Units", **kwargs):
             elif "robot_feeds" in globals() and hasattr(robot_feeds, "_propagate_signal_to_sop_cascade"):
                 callback_fn = robot_feeds._propagate_signal_to_sop_cascade
 
-            for idx, item in enumerate(valid_social_items):
+            for idx, item in enumerate(top_5_social_items):
                 with st.container(border=True):
                     s_col1, s_col2 = st.columns([2.8, 1.2])
                     with s_col1:
@@ -1921,6 +1935,9 @@ def render_nlp_intelligence(persona=None, term_unit="Units", **kwargs):
         # -------------------------------------------------------------------------
         st.subheader("📡 Real-Time Dynamic Web & Commodity RSS News Stream")
 
+        # Resolve unit fallback cleanly
+        display_unit = term_unit if "term_unit" in locals() or "term_unit" in globals() else "Units"
+
         NEWS_DOMAINS = {
             "🌐 ALL RAW MATERIALS (Global Multi-Commodity Disruption Scan)": (
                 "(copper OR tin OR polymers OR petrochemicals OR resins OR lithium OR oil) AND (disruption OR outage OR force majeure OR shortage)"
@@ -1954,7 +1971,10 @@ def render_nlp_intelligence(persona=None, term_unit="Units", **kwargs):
             )
 
             topic_query = NEWS_DOMAINS[selected_domain]
-            live_rss_items = fetch_live_sector_rss(topic_query) if "fetch_live_sector_rss" in globals() else [
+            fetched_items = fetch_live_sector_rss(topic_query) if "fetch_live_sector_rss" in globals() else []
+            
+            # Fall back to mock list if live fetch is empty or unavailable
+            live_rss_items = fetched_items if fetched_items else [
                 {"title": "Panama Canal Transit Slots Auctioned at Record High Premiums", "source": "Reuters Commodities", "estimated_impact": 110000, "sentiment": -0.72, "link": "#"},
                 {"title": "Asian Electronics Component Lead Times Stabilize Margin", "source": "S&P Global Platts", "estimated_impact": 45000, "sentiment": 0.25, "link": "#"},
             ]
@@ -1975,29 +1995,44 @@ def render_nlp_intelligence(persona=None, term_unit="Units", **kwargs):
                 st.markdown(f"[🔗 Open Original Source Article]({art_info['link']})")
 
         with col_w2:
+            raw_impact = art_info.get("estimated_impact")
+            default_impact = int(raw_impact) if raw_impact is not None else 100000
+
             web_impact = st.number_input(
-                f"Extracted Signal Impact ({term_unit})",
-                value=int(art_info.get("estimated_impact", 100000)),
+                f"Extracted Signal Impact ({display_unit})",
+                value=default_impact,
                 step=5000,
                 key="web_signal_units",
             )
-            st.metric("Detected Sentiment ($SI$)", f"{art_info.get('sentiment', -0.50):+.2f}")
+
+            raw_sentiment = art_info.get("sentiment")
+            sentiment_val = raw_sentiment if raw_sentiment is not None else -0.50
+            st.metric("Detected Sentiment (SI)", f"{sentiment_val:+.2f}")
 
         headline_clean = art_info["title"][:50] + "..."
         domain_label = selected_domain.split(" ")[1] if len(selected_domain.split(" ")) > 1 else "Macro"
 
+        # Safe handler resolution for button callback
+        callback_fn = None
+        if "_propagate_signal_to_sop_cascade" in globals():
+            callback_fn = _propagate_signal_to_sop_cascade
+        elif "robot_feeds" in globals() and hasattr(robot_feeds, "_propagate_signal_to_sop_cascade"):
+            callback_fn = robot_feeds._propagate_signal_to_sop_cascade
+
         st.button(
             "📡 Ingest Scraped Domain News Signal",
             key="btn_ingest_web",
-            on_click=_propagate_signal_to_sop_cascade if "_propagate_signal_to_sop_cascade" in globals() else None,
+            on_click=callback_fn,
             args=({
                 "source_type": "Live Web Intelligence",
                 "title": f"[{domain_label}] {headline_clean}",
                 "demand_surge_units": web_impact,
                 "leadtime_delay_days": 4.0,
-                "sentiment_index": art_info.get("sentiment", -0.50),
+                "sentiment_index": sentiment_val,
             },),
         )
+
+        st.divider()
 
     # =========================================================================
     # TAB 2: EMAIL & EVENT DEBRIEF PARSER
