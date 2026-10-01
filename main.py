@@ -851,14 +851,12 @@ def _propagate_signal_to_sop_cascade(signal_data: dict):
     if not isinstance(signal_data, dict):
         signal_data = {}
 
-    # Safely handle None or missing title strings before slicing
-    signal_title = (
-        signal_data.get("title")
-        if signal_data.get("title")
-        else "Market Signal Update"
-    )
+    # Safely resolve title string to prevent NoneType slicing exceptions
+    signal_title = signal_data.get("title") or "Market Signal Update"
 
+    # Commit active signals into session state for Executive Control Tower feeds
     st.session_state["active_signal"] = signal_data
+    st.session_state["latest_signals"] = signal_data
     st.session_state["active_risk_signal_title"] = signal_title
     st.session_state["si_composite"] = signal_data.get(
         "sentiment_index", -0.28
@@ -869,6 +867,15 @@ def _propagate_signal_to_sop_cascade(signal_data: dict):
         base_demand_units=st.session_state.get("base_demand", 200000)
     )
     st.session_state["active_sop_cascade"] = cascade_output
+
+    # Dynamically update Treasury Working Capital in session state
+    base_treasury = 5_000_000.0
+    hedge_benefit = signal_data.get("hedge_benefit_usd", 140_000.0)
+    freight_surcharge = signal_data.get("freight_surcharge_usd", 570_000.0)
+    st.session_state["available_treasury_cash"] = (
+        base_treasury + hedge_benefit - freight_surcharge
+    )
+
     st.toast(
         f"✅ Signal propagated to Executive Control Tower:"
         f" {signal_title[:30]}...",
