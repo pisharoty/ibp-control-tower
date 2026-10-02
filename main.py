@@ -55,6 +55,60 @@ def init_session_state():
     )
     st.session_state.setdefault("signal_category", "Baseline S&OP")
 
+# =========================================================================
+# GLOBAL SESSION STATE INIT & TRADE EXECUTION HELPER
+# =========================================================================
+if "executed_hedges" not in st.session_state:
+    st.session_state["executed_hedges"] = []
+
+if "fix_executed" not in st.session_state:
+    st.session_state["fix_executed"] = False
+
+
+def execute_ctrm_trade(
+    trade_title="CTRM FIX Protocol Hedge", benefit_per_trade=140000.0
+):
+    """Global callback to execute a trade, update state, and force instant rerun."""
+    if "executed_hedges" not in st.session_state:
+        st.session_state["executed_hedges"] = []
+
+    trade_count = len(st.session_state["executed_hedges"]) + 1
+
+    new_trade = {
+        "title": f"{trade_title} #{trade_count}",
+        "source_type": "CTRM Desk Trade Execution",
+        "hedge_benefit_usd": benefit_per_trade,
+        "timestamp": datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S UTC"),
+    }
+
+    # 1. Append trade record
+    st.session_state["executed_hedges"].append(new_trade)
+    st.session_state["fix_executed"] = True
+
+    # 2. Recalculate total hedge benefit
+    st.session_state["total_hedge_benefit"] = sum(
+        t.get("hedge_benefit_usd", benefit_per_trade)
+        for t in st.session_state["executed_hedges"]
+    )
+
+    # 3. Update Treasury Cash ($5.0M base - $0.57M freight + cumulative hedges)
+    base_treasury = 5_000_000.0
+    freight_surcharge = st.session_state.get("freight_surcharge_usd", 570_000.0)
+    st.session_state["available_treasury_cash"] = (
+        base_treasury
+        + st.session_state["total_hedge_benefit"]
+        - freight_surcharge
+    )
+
+    st.toast(
+        f"🔒 Trade #{trade_count} Executed! Locked +${benefit_per_trade:,.2f}",
+        icon="🚀",
+    )
+
+    # 4. CRITICAL: Force immediate Streamlit rerun to update Tab 1 KPIs
+    st.rerun()
+
+
 # =====================================================================
 # 2. FIRST STREAMLIT EXECUTED COMMAND
 # =====================================================================
@@ -2891,6 +2945,10 @@ def render_ctrm_desk(
     st.title("🛡️ CTRM Event-Driven Hedging Desk")
     st.caption(f"Active Persona View: **{persona}**")
 
+    # Ensure central trade state exists
+    if "executed_hedges" not in st.session_state:
+        st.session_state["executed_hedges"] = []
+
     # 1. Pull dynamic state from Central Orchestrator & Propagated Commodity State
     cascade = st.session_state.get("active_sop_cascade", {})
     demand_data = cascade.get("demand", {})
@@ -2919,16 +2977,16 @@ def render_ctrm_desk(
         unit_base_price = prop_data["spot_price"]
     else:
         unit_base_price = (
-            3200.0 if "Merchant" in persona else (45.0 if "FMCG" in persona else 780.0)
+            3200.0
+            if "Merchant" in persona
+            else (45.0 if "FMCG" in persona else 780.0)
         )
 
     # 2. Derive Event-Driven CTRM Metrics
-    # Target Hedge Ratio (HR) expands dynamically as sentiment worsens
     target_hr = min(0.95, max(0.40, 0.50 - (si_score * 0.35)))
     required_hedged_vol = int(gross_surge * target_hr)
     unhedged_shortfall = max(0, required_hedged_vol - active_contracts)
 
-    # Scale risk margin buffer if commodity extrapolation is active
     base_buffer = unhedged_shortfall * unit_base_price * 0.08
     if prop_data:
         delta_pct = prop_data.get("price_delta_pct", 0.0)
@@ -2936,21 +2994,29 @@ def render_ctrm_desk(
     else:
         risk_margin_buffer = base_buffer
 
-    auto_horizon_days = 90 if si_score < -0.5 else (60 if si_score < 0 else 30)
+    auto_horizon_days = (
+        90 if si_score < -0.5 else (60 if si_score < 0 else 30)
+    )
 
-    # 3. Top Banner (Dynamically updates when commodity propagation is active)
+    # 3. Top Banner
     if prop_data:
         st.success(
-            f"⚡ **Propagated Commodity Signal Active**: Ingested **{prop_data['commodity_name']}** "
-            f"[{prop_data.get('ticker', 'LME_CU')}] | Spot: **${prop_data['spot_price']:,.2f}** ➔ "
-            f"60D Forecast: **${prop_data['forecast_60d']:,.2f}** ({prop_data['price_delta_pct']:+.2%}) | "
-            f"**Target Hedge Ratio: {target_hr * 100:.1f}%** | Unhedged Shortfall: **{unhedged_shortfall:,} {term_unit}**"
+            f"⚡ **Propagated Commodity Signal Active**: Ingested"
+            f" **{prop_data['commodity_name']}**"
+            f" [{prop_data.get('ticker', 'LME_CU')}] | Spot:"
+            f" **${prop_data['spot_price']:,.2f}** ➔ 60D Forecast:"
+            f" **${prop_data['forecast_60d']:,.2f}**"
+            f" ({prop_data['price_delta_pct']:+.2%}) | **Target Hedge Ratio:"
+            f" {target_hr * 100:.1f}%** | Unhedged Shortfall:"
+            f" **{unhedged_shortfall:,} {term_unit}**"
         )
     else:
         st.info(
-            f"⚡ **Active Risk Signal Ingested**: Triangulated Sentiment Index (**{si_score:.2f}**) [`{sig_title}`] | "
-            f"**Target Hedge Ratio: {target_hr * 100:.1f}%** | Unhedged Shortfall: **{unhedged_shortfall:,} {term_unit}** | "
-            f"Auto Horizon: **{auto_horizon_days} Days**"
+            f"⚡ **Active Risk Signal Ingested**: Triangulated Sentiment Index"
+            f" (**{si_score:.2f}**) [`{sig_title}`] | **Target Hedge Ratio:"
+            f" {target_hr * 100:.1f}%** | Unhedged Shortfall:"
+            f" **{unhedged_shortfall:,} {term_unit}** | Auto Horizon:"
+            f" **{auto_horizon_days} Days**"
         )
 
     # 4. Top Executive Metrics
@@ -2958,7 +3024,11 @@ def render_ctrm_desk(
     col_m1.metric(
         "Gross Demand Surge",
         f"{gross_surge:,} {term_unit}",
-        f"+{gross_surge - 200000:,} MT Metal" if "Heavy" in persona else "+Volume Surge",
+        (
+            f"+{gross_surge - 200000:,} MT Metal"
+            if "Heavy" in persona
+            else "+Volume Surge"
+        ),
     )
     col_m2.metric(
         "Target Hedge Ratio (HR)",
@@ -2975,7 +3045,11 @@ def render_ctrm_desk(
     col_m4.metric(
         "Required Risk Margin Buffer",
         f"${risk_margin_buffer:,.2f}",
-        delta=f"{prop_data['price_delta_pct']:+.2%} Commodity Impact" if prop_data else "+23.0% Volatility Load",
+        delta=(
+            f"{prop_data['price_delta_pct']:+.2%} Commodity Impact"
+            if prop_data
+            else "+23.0% Volatility Load"
+        ),
         delta_color="inverse",
     )
 
@@ -2995,7 +3069,11 @@ def render_ctrm_desk(
         with col_f1:
             intent = st.selectbox(
                 "Execution Intent",
-                ["Hedge Risk (Cover Shortfall)", "Speculative Delta", "Yield Capture"],
+                [
+                    "Hedge Risk (Cover Shortfall)",
+                    "Speculative Delta",
+                    "Yield Capture",
+                ],
                 key="fix_intent",
             )
         with col_f2:
@@ -3022,7 +3100,12 @@ def render_ctrm_desk(
         with col_g1:
             order_structure = st.selectbox(
                 "Order Structure",
-                ["Asian Call Collar", "European Swap", "Zero-Cost Collar", "Put Option Floor"],
+                [
+                    "Asian Call Collar",
+                    "European Swap",
+                    "Zero-Cost Collar",
+                    "Put Option Floor",
+                ],
                 key="fix_order_structure",
             )
         with col_g2:
@@ -3032,8 +3115,11 @@ def render_ctrm_desk(
                 key="fix_exchange",
             )
         with col_g3:
-            # 1 LME Contract Lot = 25 MT / Units
-            default_lots = max(1, int(unhedged_shortfall / 25)) if unhedged_shortfall > 0 else 285
+            default_lots = (
+                max(1, int(unhedged_shortfall / 25))
+                if unhedged_shortfall > 0
+                else 285
+            )
             lots = st.number_input(
                 "Lots / Contracts (LME 25 MT)",
                 value=default_lots,
@@ -3045,8 +3131,9 @@ def render_ctrm_desk(
         total_premium_required = total_hedge_volume * est_premium
 
         st.caption(
-            f"💰 **Total Premium Required**: **${total_premium_required:,.2f}** "
-            f"(Covering **{total_hedge_volume:,} {term_unit}** | Will be debited from Exec S&OP Cash Treasury)"
+            f"💰 **Total Premium Required**: **${total_premium_required:,.2f}**"
+            f" (Covering **{total_hedge_volume:,} {term_unit}** | Will be"
+            " debited from Exec S&OP Cash Treasury)"
         )
 
         if st.button(
@@ -3055,75 +3142,153 @@ def render_ctrm_desk(
             key="btn_execute_fix_44",
             disabled=fix_executed,
         ):
-            st.session_state["fix_executed"] = True
-            st.session_state["fix_executed_details"] = {
+            # 1. Create Hedging Trade Record
+            trade_benefit = 140_000.0  # Standard locked hedge benefit
+            order_id = f"FIX-44-LME-{np.random.randint(10000, 99999)}"
+
+            new_trade = {
+                "id": order_id,
+                "title": f"FIX 4.4 {order_structure} ({exchange})",
+                "source_type": "CTRM FIX Execution",
                 "structure": order_structure,
                 "lots": lots,
                 "volume": total_hedge_volume,
                 "premium": total_premium_required,
                 "exchange": exchange,
+                "hedge_benefit_usd": trade_benefit,
             }
 
+            # 2. Mutate Session State across all desks
+            st.session_state["fix_executed"] = True
+            st.session_state["fix_executed_details"] = new_trade
+            st.session_state["executed_hedges"].append(new_trade)
+
+            # Recalculate global hedge benefit & available cash
+            total_benefit = sum(
+                t.get("hedge_benefit_usd", 140_000.0)
+                for t in st.session_state["executed_hedges"]
+            )
+            st.session_state["total_hedge_benefit"] = total_benefit
+
+            base_treasury = 5_000_000.0
+            freight_surcharge = st.session_state.get(
+                "freight_surcharge_usd", 570_000.0
+            )
+            st.session_state["available_treasury_cash"] = (
+                base_treasury + total_benefit - freight_surcharge
+            )
+
             if "run_end_to_end_sop_cascade" in globals():
-                st.session_state["active_sop_cascade"] = run_end_to_end_sop_cascade(
-                    base_demand_units=st.session_state.get("base_demand", 200000)
+                st.session_state["active_sop_cascade"] = (
+                    run_end_to_end_sop_cascade(
+                        base_demand_units=st.session_state.get(
+                            "base_demand", 200000
+                        )
+                    )
                 )
 
             st.toast(
-                f"FIX 4.4 Order Routed: {lots} Lots ({total_hedge_volume:,} {term_unit}) via {exchange}.",
+                f"FIX 4.4 Order Routed: {lots} Lots ({total_hedge_volume:,}"
+                f" {term_unit}) via {exchange}.",
                 icon="✅",
             )
             st.rerun()
 
         if fix_executed:
+            details = st.session_state.get("fix_executed_details", {})
+            oid = details.get("id", "FIX-44-LME-99428")
+            vol = details.get("volume", total_hedge_volume)
+            exc = details.get("exchange", exchange)
+
             st.success(
-                f"🟢 **FIX Protocol Status: EXECUTED & BOUND** — Bound "
-                f"`{total_hedge_volume:,} {term_unit}` via `{exchange}` under Order ID `#FIX-44-LME-99428`."
+                f"🟢 **FIX Protocol Status: EXECUTED & BOUND** — Bound"
+                f" `{vol:,} {term_unit}` via `{exc}` under Order ID"
+                f" `{oid}`."
             )
             if st.button("Reset FIX Hedge Position", key="btn_reset_fix"):
                 st.session_state["fix_executed"] = False
                 st.session_state.pop("fix_executed_details", None)
+
+                # Filter out FIX executed trades from central hedge book
+                st.session_state["executed_hedges"] = [
+                    t
+                    for t in st.session_state.get("executed_hedges", [])
+                    if t.get("source_type") != "CTRM FIX Execution"
+                ]
+
+                # Recalculate global metrics
+                total_benefit = sum(
+                    t.get("hedge_benefit_usd", 140_000.0)
+                    for t in st.session_state["executed_hedges"]
+                )
+                st.session_state["total_hedge_benefit"] = total_benefit
+                base_treasury = 5_000_000.0
+                freight_surcharge = st.session_state.get(
+                    "freight_surcharge_usd", 570_000.0
+                )
+                st.session_state["available_treasury_cash"] = (
+                    base_treasury + total_benefit - freight_surcharge
+                )
+
                 st.rerun()
 
         st.divider()
 
         # Active Commodity Contracts & Hedge Book
         st.subheader("📋 Active Commodity Contracts & Net Hedge Book")
-        hedge_status = "ACTIVE (HEDGED)" if fix_executed else "OPEN (UNCOVERED)"
 
-        contracts_df = pd.DataFrame(
-            [
-                {
-                    "Contract ID": "CT-2026-Q4-01",
-                    "Type": "Baseline Fixed Swap",
-                    "Volume": f"74,000 {term_unit}",
-                    "Strike": f"${unit_base_price:,.2f}",
-                    "Status": "ACTIVE (CONTRACTED)",
-                },
-                {
-                    "Contract ID": "CT-2026-Q4-02",
-                    "Type": "Baseline Option Cap",
-                    "Volume": f"55,500 {term_unit}",
-                    "Strike": f"${unit_base_price * 1.05:,.2f}",
-                    "Status": "ACTIVE (CONTRACTED)",
-                },
-                {
-                    "Contract ID": "FIX-44-LME-99428",
-                    "Type": f"Net Hedge ({order_structure})",
-                    "Volume": f"{total_hedge_volume:,} {term_unit}",
-                    "Strike / Premium": f"${est_premium:.2f} Premium",
-                    "Status": hedge_status,
-                },
-            ]
+        rows = [
+            {
+                "Contract ID": "CT-2026-Q4-01",
+                "Type": "Baseline Fixed Swap",
+                "Volume": f"74,000 {term_unit}",
+                "Strike / Premium": f"${unit_base_price:,.2f}",
+                "Status": "ACTIVE (CONTRACTED)",
+            },
+            {
+                "Contract ID": "CT-2026-Q4-02",
+                "Type": "Baseline Option Cap",
+                "Volume": f"55,500 {term_unit}",
+                "Strike / Premium": f"${unit_base_price * 1.05:,.2f}",
+                "Status": "ACTIVE (CONTRACTED)",
+            },
+        ]
+
+        # Dynamically append executed trades from session state
+        for trade in st.session_state.get("executed_hedges", []):
+            rows.append({
+                "Contract ID": trade.get("id", "FIX-44-EXECUTED"),
+                "Type": f"Net Hedge ({trade.get('structure', order_structure)})",
+                "Volume": f"{trade.get('volume', total_hedge_volume):,} {term_unit}",
+                "Strike / Premium": (
+                    f"${trade.get('premium', total_premium_required):,.2f}"
+                    " Total Premium"
+                ),
+                "Status": "ACTIVE (HEDGED)",
+            })
+
+        if (
+            not st.session_state.get("executed_hedges")
+            and not fix_executed
+        ):
+            rows.append({
+                "Contract ID": "FIX-44-PENDING",
+                "Type": f"Uncovered Shortfall ({order_structure})",
+                "Volume": f"{total_hedge_volume:,} {term_unit}",
+                "Strike / Premium": f"${est_premium:.2f} Est. Premium",
+                "Status": "OPEN (UNCOVERED)",
+            })
+
+        st.dataframe(
+            pd.DataFrame(rows), use_container_width=True, hide_index=True
         )
-        st.dataframe(contracts_df, use_container_width=True, hide_index=True)
 
     # --- TAB 2: SYNTHETIC DERIVATIVE BUILDER & MODEL LAB ---
     with tab_synth:
         st.subheader("🧪 Synthetic Derivative Structurer")
         st.caption(
-            "Model customized derivative payoffs tailored to the net uncovered "
-            f"gap of **{net_units:,} {term_unit}**."
+            "Model customized derivative payoffs tailored to the net"
+            f" uncovered gap of **{net_units:,} {term_unit}**."
         )
 
         col_s1, col_s2 = st.columns([1, 1.4])
@@ -3140,26 +3305,36 @@ def render_ctrm_desk(
                 key="synth_struct_type",
             )
             cap_strike_pct = st.slider(
-                "Cap Strike % (Upper Protection)", 100, 130, 110, 1, key="synth_cap_pct"
+                "Cap Strike % (Upper Protection)",
+                100,
+                130,
+                110,
+                1,
+                key="synth_cap_pct",
             )
             floor_strike_pct = st.slider(
-                "Floor Strike % (Lower Subsidization)", 70, 100, 90, 1, key="synth_floor_pct"
+                "Floor Strike % (Lower Subsidization)",
+                70,
+                100,
+                90,
+                1,
+                key="synth_floor_pct",
             )
-            implied_vol = st.slider("Implied Volatility (σ %)", 10, 60, 28, 1, key="synth_vol")
+            implied_vol = st.slider(
+                "Implied Volatility (σ %)", 10, 60, 28, 1, key="synth_vol"
+            )
 
             cap_val = unit_base_price * (cap_strike_pct / 100.0)
             floor_val = unit_base_price * (floor_strike_pct / 100.0)
 
             st.markdown("**Net Deficit Pricing Summary**")
-            st.json(
-                {
-                    "Net Exposure Volume": f"{net_units:,} {term_unit}",
-                    "Underlying Spot": f"${unit_base_price:,.2f}",
-                    "Cap Strike": f"${cap_val:,.2f}",
-                    "Floor Strike": f"${floor_val:,.2f}",
-                    "Net Premium Cost": "$0.00 / Unit (Zero-Cost Verified)",
-                }
-            )
+            st.json({
+                "Net Exposure Volume": f"{net_units:,} {term_unit}",
+                "Underlying Spot": f"${unit_base_price:,.2f}",
+                "Cap Strike": f"${cap_val:,.2f}",
+                "Floor Strike": f"${floor_val:,.2f}",
+                "Net Premium Cost": "$0.00 / Unit (Zero-Cost Verified)",
+            })
 
         with col_s2:
             st.markdown("**2. Net Payoff Profile Simulation at Expiry**")
