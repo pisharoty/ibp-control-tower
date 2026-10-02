@@ -1942,6 +1942,33 @@ def render_nlp_intelligence(persona=None, term_unit="Units", **kwargs):
         "and ocean/air freight telemetry."
     )
 
+    # =========================================================================
+    # 🟢 SURGICAL EDIT 1: DYNAMIC STATE READS (INSERT RIGHT HERE)
+    # =========================================================================
+    cascade = st.session_state.get("active_sop_cascade", {})
+    demand_data = cascade.get("demand", {})
+    prop_data = st.session_state.get("propagated_commodity_data", {})
+
+    # Read SI & Surge dynamically from session_state instead of static hardcoded values
+    si_score = st.session_state.get("si_composite", -0.28)
+    demand_surge_units = demand_data.get(
+        "total_surge_units",
+        st.session_state.get("extracted_demand_surge", 15400)
+    )
+
+    # Commodity spot dynamically bound
+    spot_price = prop_data.get(
+        "spot_price", 
+        9820.0 if "Heavy" in str(persona) else 3200.0
+    )
+
+    # Freight & Risk derived dynamically from SI
+    lead_time_days = round(4.0 + (abs(si_score) * 3.5), 1)
+    baltic_index = int(2800 + (abs(si_score) * 600))
+    fbx_rate = round(2900.0 + (abs(si_score) * 800.0), 2)
+    risk_status = "HEDGE REQUIRED" if si_score < -0.4 else "MONITORING"
+    # =========================================================================
+
     tab1, tab2, tab3 = st.tabs([
         "📡 Live Web, Macro & Social Signals",
         "📧 Email & Event Debrief Parser",
@@ -2000,19 +2027,19 @@ def render_nlp_intelligence(persona=None, term_unit="Units", **kwargs):
         ):
             m_col1, m_col2, m_col3, m_col4, m_col5 = st.columns(5)
             with m_col1:
-                st.metric("NY Fed GSCPI", macro.get("ny_fed_gscpi", "+1.21 σ"), "Supply Pressure")
+                st.metric("NY Fed GSCPI", macro.get("ny_fed_gscpi", f"{+1.22 + (si_score * 0.4):+.2f} σ"), "Supply Pressure")
                 st.caption("Global Supply Chain Pressure")
             with m_col2:
-                st.metric("US FRED Mfg Index", macro.get("us_fred", "103.1 pts"), "St. Louis Fed")
+                st.metric("US FRED Mfg Index", macro.get("us_fred", f"{103.1 + (si_score * 3):.1f} pts"), "St. Louis Fed")
                 st.caption("US Industrial Output")
             with m_col3:
-                st.metric("World Bank Commodity", macro.get("world_bank", "142.8 Index"), macro.get("china_pmi", "50.4 (Expansion)"))
+                st.metric("World Bank Commodity", macro.get("world_bank", f"{142.8 * (spot_price / 9820.0):.1f} Index"), macro.get("china_pmi", "50.4 (Expansion)"))
                 st.caption("Global Benchmark / PBOC")
             with m_col4:
                 st.metric("Eurozone (ECB)", macro.get("eurozone_ecb", "2.65% (ECB Refi)"), "Industrial Trend")
                 st.caption("ECB Telemetry")
             with m_col5:
-                st.metric("Korea KOSPI / Japan", macro.get("kospi_korea", "2,645 pts"), macro.get("japan_pmi", "50.1"))
+                st.metric("Korea KOSPI / Japan", macro.get("kospi_korea", f"{int(2645 + si_score * 80):,} pts"), macro.get("japan_pmi", "50.1"))
                 st.caption("Asian Export Benchmark")
 
         # -------------------------------------------------------------------------
@@ -2032,23 +2059,23 @@ def render_nlp_intelligence(persona=None, term_unit="Units", **kwargs):
                 "weights": {"gscpi_index": 0.35, "noaa_environmental": 0.25, "freight_spot_rates": 0.25, "gep_volatility": 0.15},
             }
 
-        composite_si = comp_res.get("si_composite", -0.625)
-        st.session_state["si_composite"] = composite_si
+        # Bind dynamically to central session state SI and calculated surge
+        composite_si = st.session_state.get("si_composite", si_score)
         scores = comp_res.get("individual_scores", {})
         weights = comp_res.get("weights", {})
 
         base_dem = st.session_state.get("base_demand", 129500)
         if "compute_quantified_operational_impact" in globals():
             impact_res = compute_quantified_operational_impact(composite_si, base_dem)
-            surge_units = impact_res.get("delta_demand_units", 102968)
-            lt_days = impact_res.get("lead_time_buffer_days", 8.0)
+            surge_units = impact_res.get("delta_demand_units", demand_surge_units)
+            lt_days = impact_res.get("lead_time_buffer_days", lead_time_days)
             rec_text = impact_res.get("recommended_action", "Lock 60-Day Forward Exposure")
             ctrm_hedge = impact_res.get("target_hedge_pct", 60.0) >= 60.0
         else:
-            surge_units = 102968
-            lt_days = 8.0
+            surge_units = demand_surge_units
+            lt_days = lead_time_days
             rec_text = "Lock in 60-day raw material futures on CTRM Desk; extend vendor lead times in ERP."
-            ctrm_hedge = True
+            ctrm_hedge = composite_si < -0.4
 
         with st.container(border=True):
             st.markdown("### 🎯 Triangulated Composite Market Sentiment Index ($SI$)")
@@ -2080,18 +2107,32 @@ def render_nlp_intelligence(persona=None, term_unit="Units", **kwargs):
 
             st.info(f"**Quantified Action Plan**: {rec_text}")
 
-            st.button(
+            if st.button(
                 "⚡ Propagate Triangulated Composite Index across Platform",
                 key="btn_propagate_composite",
-                on_click=_propagate_signal_to_sop_cascade if "_propagate_signal_to_sop_cascade" in globals() else None,
-                args=({
-                    "source_type": "Macro & Social Triangulation Engine",
-                    "title": f"Triangulated Composite Index ({composite_si:+.3f})",
-                    "demand_surge_units": surge_units,
-                    "leadtime_delay_days": lt_days,
-                    "sentiment_index": composite_si,
-                },),
-            )
+                type="primary",
+                use_container_width=True,
+            ):
+                st.session_state["si_composite"] = composite_si
+                st.session_state["extracted_demand_surge"] = surge_units
+                st.session_state["propagated_commodity_data"] = {
+                    "commodity_name": "Copper (LME Grade A)",
+                    "ticker": "LME_CU",
+                    "spot_price": spot_price,
+                    "forecast_30d": spot_price * 1.053,
+                    "forecast_60d": spot_price * 1.076,
+                    "price_delta_pct": (spot_price - 9250.0) / 9250.0,
+                }
+                if "_propagate_signal_to_sop_cascade" in globals():
+                    _propagate_signal_to_sop_cascade({
+                        "source_type": "Macro & Social Triangulation Engine",
+                        "title": f"Triangulated Composite Index ({composite_si:+.3f})",
+                        "demand_surge_units": surge_units,
+                        "leadtime_delay_days": lt_days,
+                        "sentiment_index": composite_si,
+                    })
+                st.toast("✅ Composite Index & Surge Propagated Across Platform!", icon="🚀")
+                st.rerun()
 
         st.divider()
 
@@ -2401,10 +2442,7 @@ def render_nlp_intelligence(persona=None, term_unit="Units", **kwargs):
                 "sentiment_index": -0.68,
             },),
         )
-# =========================================================================
-    # TAB 3: LIVE FREIGHT, WEATHER & BLACK SWAN FEEDS
-    # =========================================================================
-    with tab3:
+with tab3:
         st.subheader("⚓ Freight, NOAA Weather & Black Swan Feeds")
 
         bdi_val, bdi_change, sync_status = fetch_live_freight_metrics()
@@ -2415,26 +2453,34 @@ def render_nlp_intelligence(persona=None, term_unit="Units", **kwargs):
             f"Status: **{sync_status}** | Last Live Telemetry Sync: `{current_time_str}`"
         )
 
+        # Dynamic freight & weather impact scaling based on active alerts
+        alert_count = len(noaa_alerts)
+        dynamic_surge_units = 100000 + (alert_count * 25000)
+        dynamic_lt_delay_days = round(5.0 + (alert_count * 2.5), 1)
+        fbx_spot_rate = int(3380 * (bdi_val / 1850.0)) if bdi_val else 3380
+
         w_col1, w_col2, w_col3, w_col4 = st.columns(4)
 
         with w_col1:
             st.metric(
                 "Baltic Dry Freight Index",
-                f"{bdi_val:,.0f} pts",
-                f"{bdi_change:+.1f}% WoW",
+                f"{bdi_val:,.0f} pts" if bdi_val else "1,850 pts",
+                f"{bdi_change:+.1f}% WoW" if bdi_change else "+0.0% WoW",
             )
             st.caption(f"Status: `{sync_status}`")
 
         with w_col2:
             st.metric(
-                "FBX Ocean Spot Rate Benchmark", "$3,380 / FEU", delta="+1.2% WoW"
+                "FBX Ocean Spot Rate Benchmark",
+                f"${fbx_spot_rate:,} / FEU",
+                delta=f"{bdi_change:+.1f}% WoW" if bdi_change else "+1.2% WoW",
             )
             st.caption("Asia-North America Corridor")
 
         with w_col3:
             st.metric(
                 "Active AIS Marine Anomalies",
-                f"{len(noaa_alerts)} Severe Zones Active",
+                f"{alert_count} Severe Zones Active",
                 delta="+ Project44 Telemetry",
             )
             st.caption("Real-Time GIS Vessel Ping")
@@ -2442,13 +2488,9 @@ def render_nlp_intelligence(persona=None, term_unit="Units", **kwargs):
         with w_col4:
             st.metric(
                 "NOAA Climate Threat Level",
-                (
-                    "Level 4 - Severe"
-                    if len(noaa_alerts) > 0
-                    else "Level 1 - Low"
-                ),
-                delta=f"{len(noaa_alerts)} Active Alerts",
-                delta_color="inverse" if len(noaa_alerts) > 0 else "normal",
+                "Level 4 - Severe" if alert_count > 0 else "Level 1 - Low",
+                delta=f"{alert_count} Active Alerts",
+                delta_color="inverse" if alert_count > 0 else "normal",
             )
             st.caption("NOAA Severe Weather Telemetry")
 
@@ -2459,17 +2501,16 @@ def render_nlp_intelligence(persona=None, term_unit="Units", **kwargs):
 
         if not noaa_alerts:
             st.success(
-                "No active critical NOAA marine warnings detected in monitored"
-                " shipping corridors."
+                "No active critical NOAA marine warnings detected in monitored shipping corridors."
             )
         else:
             table_data = [
                 {
-                    "Corridor / Region": alert["corridor"],
-                    "Disruption Event": alert["event"],
-                    "NOAA Severity": alert["severity"],
-                    "Official Advisory Summary": alert["headline"],
-                    "Effective Time": alert["timestamp"],
+                    "Corridor / Region": alert.get("corridor", "Global Maritime"),
+                    "Disruption Event": alert.get("event", "Severe Marine Advisory"),
+                    "NOAA Severity": alert.get("severity", "Warning"),
+                    "Official Advisory Summary": alert.get("headline", "N/A"),
+                    "Effective Time": alert.get("timestamp", "Live Telemetry"),
                 }
                 for alert in noaa_alerts
             ]
@@ -2479,25 +2520,32 @@ def render_nlp_intelligence(persona=None, term_unit="Units", **kwargs):
                 hide_index=True,
             )
 
-        st.button(
+        if st.button(
             "⚡ Ingest Freight & NOAA Weather Signals into Logistics Engine",
             key="btn_ingest_freight",
-            on_click=(
-                _propagate_signal_to_sop_cascade
-                if "_propagate_signal_to_sop_cascade" in globals()
-                else None
-            ),
-            args=({
-                "source_type": "Maritime AIS & NOAA Weather Telemetry",
-                "title": (
-                    f"NOAA Active Marine Alerts ({len(noaa_alerts)} Zones) &"
-                    " Freight Surcharges"
-                ),
-                "demand_surge_units": 150000,
-                "leadtime_delay_days": 10.0,
-                "sentiment_index": -0.75,
-            },),
-        )
+            type="primary",
+            use_container_width=True,
+        ):
+            st.session_state["extracted_demand_surge"] = dynamic_surge_units
+            st.session_state["freight_delay_days"] = dynamic_lt_delay_days
+            st.session_state["si_composite"] = -0.75 if alert_count > 0 else -0.20
+            st.session_state["freight_telemetry"] = {
+                "bdi_val": bdi_val,
+                "fbx_rate": fbx_spot_rate,
+                "active_alerts_count": alert_count,
+            }
+
+            if "_propagate_signal_to_sop_cascade" in globals():
+                _propagate_signal_to_sop_cascade({
+                    "source_type": "Maritime AIS & NOAA Weather Telemetry",
+                    "title": f"NOAA Active Marine Alerts ({alert_count} Zones) & Freight Surcharges",
+                    "demand_surge_units": dynamic_surge_units,
+                    "leadtime_delay_days": dynamic_lt_delay_days,
+                    "sentiment_index": -0.75 if alert_count > 0 else -0.20,
+                })
+
+            st.toast("✅ Freight & NOAA Weather Telemetry Ingested Across Platform!", icon="⚓")
+            st.rerun()
 
 # Maintain alias to protect all navigation router calls
 render_nlp_sensing = render_nlp_intelligence
