@@ -429,7 +429,7 @@ def render_executive_sop(
     term_unit="Units",
     **kwargs,
 ):
-    """Render Executive S&OP Control Tower with dynamic persona baselines, live sea/air telemetry, & Plotly waterfall."""
+    """Render Executive S&OP Control Tower with fully reconciled P&L, dynamic persona baselines, live telemetry, & Plotly waterfall."""
     st.title("📈 Executive S&OP Control Tower")
     st.caption(f"Active Persona View: **{persona}**")
     st.markdown(
@@ -437,7 +437,7 @@ def render_executive_sop(
         " benefit reconciliation."
     )
 
-    # 1. Dynamic Persona Baselines
+    # 1. Dynamic Persona Baselines & ASP/COGS Rates
     if "FMCG" in persona:
         base_aop_rev = 450_000_000.0
         unit_price = 45.0
@@ -451,112 +451,90 @@ def render_executive_sop(
         unit_price = 780.0
         cogs_pct = 0.65
 
-    # 2. Extract Central Cascade State, Live Signals & Propagated Commodity Data
+    # 2. Extract Central Cascade State & Live Signals
     cascade = st.session_state.get("active_sop_cascade", {})
     robot_signals = st.session_state.get("latest_robot_signals", {})
     prop_data = st.session_state.get("propagated_commodity_data")
 
     demand_data = cascade.get("demand", {})
-    exec_data = cascade.get("exec_sop", {})
-    ctrm_data = cascade.get("ctrm", {})
     logistics_data = cascade.get("logistics", {})
     baltic_data = robot_signals.get("baltic_indices", {})
 
-    # Ingest spot price from commodity propagation if active
     if prop_data and "spot_price" in prop_data:
         unit_price = prop_data["spot_price"]
 
     si_score = cascade.get(
         "si_composite", st.session_state.get("si_composite", -0.28)
     )
-    surge_units = demand_data.get("total_surge_units", 102968)
-    delta_units = demand_data.get("delta_surge_units", 0)
+    surge_units = demand_data.get(
+        "total_surge_units",
+        st.session_state.get("extracted_demand_surge", 102968),
+    )
 
-    # Extract Live Sea & Air Telemetry + Modal Shift Details
-    modal_shift_air = logistics_data.get("modal_shift_air", False)
-    freight_surcharge = logistics_data.get("total_freight_surcharge_usd", 0.0)
+    # Extract Live Telemetry & Freight Surcharge ($0.57M default)
+    modal_shift_air = logistics_data.get("modal_shift_air", True)
+    freight_surcharge = st.session_state.get("freight_surcharge_usd", 570_000.0)
     fbx_sea_rate = baltic_data.get("freightos_fbx_ocean", {}).get("value", 3850)
     tac_air_rate = baltic_data.get("baltic_air_tac", {}).get("value", 2.48)
 
-    # Financial inputs derived from Orchestrator Cascade
-    revenue_upside = exec_data.get(
-        "delta_revenue_usd", delta_units * unit_price
-    )
-    unconstrained_rev = base_aop_rev + revenue_upside
-
-    fix_executed = st.session_state.get("fix_executed", False)
-    mc_res = st.session_state.get("mc_results", None)
-
-    # Dynamic COGS drag calculation
-    if mc_res:
-        cogs_drag = mc_res["mean_cost"]
-        var_95_drag = mc_res["var_95"]
-    else:
-        cogs_drag = exec_data.get("delta_cogs_usd", 0.0) + freight_surcharge
-        if cogs_drag == 0.0:
-            cogs_drag = (base_aop_rev * 0.025) * (1.0 + abs(si_score) * 2.5)
-        
-        # Scale drag if commodity forecast extrapolation is propagated
-        if prop_data:
-            cogs_drag *= (1.0 + max(0.0, prop_data.get("price_delta_pct", 0.0)))
-
-        var_95_drag = cogs_drag * 1.4
-
-    # Dynamic CTRM Hedge Benefit
-    if fix_executed:
-        ctrm_hedge_benefit = ctrm_data.get(
-            "capital_committed_usd",
-            cogs_drag * 0.42,
-        )
-    elif prop_data:
-        # Extrapolated hedge benefit calculation under active commodity signal
-        ctrm_hedge_benefit = cogs_drag * 0.35 * (1.0 + prop_data.get("price_delta_pct", 0.0))
-    else:
-        ctrm_hedge_benefit = 0.0
-
-    net_cogs_drag = cogs_drag - ctrm_hedge_benefit
-    base_cogs = base_aop_rev * cogs_pct
-    net_ebitda = unconstrained_rev - base_cogs - net_cogs_drag
-    sop_cash = st.session_state.get("sop_cash_balance", 5_000_000.0)
-
-# =========================================================================
-    # TAB 1: EXECUTIVE S&OP TOP METRICS ROW (UNIFIED CTRM AGGREGATOR)
-    # =========================================================================
-    # Gather hedges across all potential session state trade keys
+    # 3. Unified CTRM Trade Aggregation
     raw_executed_hedges = st.session_state.get("executed_hedges", [])
     raw_ctrm_trades = st.session_state.get("ctrm_trades", [])
     raw_ctrm_hedges = st.session_state.get("ctrm_hedges", [])
+    all_executed_trades = (
+        raw_executed_hedges + raw_ctrm_trades + raw_ctrm_hedges
+    )
 
-    # Combine all active trade records
-    all_executed_trades = raw_executed_hedges + raw_ctrm_trades + raw_ctrm_hedges
-
-    # Check for legacy FIX execution toggle
     if not all_executed_trades and st.session_state.get("fix_executed", False):
         all_executed_trades = [
             {"title": "FIX Protocol Order", "hedge_benefit_usd": 140_000.0}
         ]
 
     hedge_count = len(all_executed_trades)
-
-    # Calculate cumulative CTRM Hedge Benefit
-    if hedge_count > 0:
-        ctrm_hedge_benefit = sum(
-            t.get("hedge_benefit_usd", 140_000.0) if isinstance(t, dict) else 140_000.0
+    ctrm_hedge_benefit = (
+        sum(
+            (
+                t.get("hedge_benefit_usd", 140_000.0)
+                if isinstance(t, dict)
+                else 140_000.0
+            )
             for t in all_executed_trades
         )
-    else:
-        ctrm_hedge_benefit = 0.0
+        if hedge_count > 0
+        else 0.0
+    )
 
-    # Calculate dynamic Treasury Cash reserve
-    base_treasury = 5_000_000.0
-    freight_surcharge = 570_000.0  # Air/Ocean Freight surcharge drag
-    sop_cash = base_treasury + ctrm_hedge_benefit - freight_surcharge
-
-    # Save aggregated values back to session state for downstream views
+    # Save back to session state
     st.session_state["total_hedge_benefit"] = ctrm_hedge_benefit
+
+    # 4. Reconciled Financial Engine ($ USD)
+    revenue_upside = surge_units * unit_price
+    unconstrained_rev = base_aop_rev + revenue_upside
+
+    base_cogs = base_aop_rev * cogs_pct
+    surge_cogs = revenue_upside * cogs_pct  # Deduct variable COGS for surge
+
+    # Reconciled Net EBITDA Calculation
+    net_ebitda = (
+        base_aop_rev
+        - base_cogs
+        + revenue_upside
+        - surge_cogs
+        - freight_surcharge
+        + ctrm_hedge_benefit
+    )
+
+    # Treasury Cash Reconciliation
+    base_treasury = 5_000_000.0
+    sop_cash = base_treasury + ctrm_hedge_benefit - freight_surcharge
     st.session_state["available_treasury_cash"] = sop_cash
 
-    # Render dynamic KPI cards
+    mc_res = st.session_state.get("mc_results", None)
+    var_95_drag = (
+        mc_res["var_95"] if mc_res else (freight_surcharge + surge_cogs) * 1.4
+    )
+
+    # 5. Top Metric Cards Row
     col_m1, col_m2, col_m3, col_m4 = st.columns(4)
     with col_m1:
         st.metric(
@@ -568,15 +546,14 @@ def render_executive_sop(
         st.metric(
             "Unconstrained Demand",
             f"${unconstrained_rev / 1e6:.2f}M",
-            f"+{surge_units:,} {term_unit}",
+            f"+{surge_units:,} {term_unit} (+${revenue_upside / 1e6:.2f}M)",
         )
     with col_m3:
         st.metric(
             "CTRM Hedge Benefit",
             f"+${ctrm_hedge_benefit / 1e6:.2f}M",
             (
-                f"{hedge_count} Active"
-                f" Trade{'s' if hedge_count != 1 else ''} Executed"
+                f"{hedge_count} Active Trade{'s' if hedge_count != 1 else ''} Executed"
                 if hedge_count > 0
                 else "0% Cover (Floating Risk)"
             ),
@@ -594,23 +571,22 @@ def render_executive_sop(
                 if sop_cash < 0
                 else f"{treasury_shift_pct:+.2f}% Working Capital Shift"
             ),
-            delta_color="normal" if sop_cash >= 0 else "inverse",
+            delta_color="normal" if sop_cash >= base_treasury else "inverse",
         )
 
     st.divider()
 
     if sop_cash < 0 or (mc_res and mc_res.get("insolvency_risk", 0) > 10):
         st.error(
-            f"🚨 **STRESSED FINANCIAL RISK DETECTED**: Monte Carlo VaR indicates"
-            f" **${var_95_drag / 1e6:.2f}M (95% VaR)** potential cost drag."
-            f" Current Treasury Cash balance is **${sop_cash:,.2f}**."
+            f"🚨 **STRESSED FINANCIAL RISK DETECTED**: Potential cost drag"
+            f" **${var_95_drag / 1e6:.2f}M (95% VaR)**. Treasury Cash balance"
+            f" **${sop_cash:,.2f}**."
         )
 
-    # 4. Interactive Visual Waterfall & Desk Feeds
+    # 6. Interactive Visual Waterfall & Live Operational Desk Feeds
     col_p1, col_p2 = st.columns([1.3, 1])
     with col_p1:
         st.subheader("💵 Financial P&L Margin Waterfall")
-        # Mathematically reconciled P&L waterfall
         fig = go.Figure(
             go.Waterfall(
                 name="P&L Reconciliation",
@@ -621,13 +597,15 @@ def render_executive_sop(
                     "relative",
                     "relative",
                     "relative",
+                    "relative",
                     "total",
                 ],
                 x=[
                     "Base AOP Rev",
                     "Base COGS",
-                    "Demand Upside",
-                    "Cost & Freight Drag",
+                    "Surge Rev",
+                    "Surge COGS",
+                    "Freight Drag",
                     "Hedge Benefit",
                     "Net EBITDA",
                 ],
@@ -636,7 +614,8 @@ def render_executive_sop(
                     f"${base_aop_rev / 1e6:.1f}M",
                     f"-${base_cogs / 1e6:.1f}M",
                     f"+${revenue_upside / 1e6:.2f}M",
-                    f"-${cogs_drag / 1e6:.2f}M",
+                    f"-${surge_cogs / 1e6:.2f}M",
+                    f"-${freight_surcharge / 1e6:.2f}M",
                     f"+${ctrm_hedge_benefit / 1e6:.2f}M",
                     f"${net_ebitda / 1e6:.2f}M",
                 ],
@@ -644,9 +623,10 @@ def render_executive_sop(
                     base_aop_rev / 1e6,
                     -base_cogs / 1e6,
                     revenue_upside / 1e6,
-                    -cogs_drag / 1e6,
+                    -surge_cogs / 1e6,
+                    -freight_surcharge / 1e6,
                     ctrm_hedge_benefit / 1e6,
-                    net_ebitda / 1e6,
+                    0,
                 ],
                 connector={"line": {"color": "rgb(63, 63, 63)"}},
                 decreasing={"marker": {"color": "#ef553b"}},
@@ -668,21 +648,21 @@ def render_executive_sop(
             "active_risk_signal_title", "Baseline Operations Target"
         )
 
-        # Ingested Commodity Extrapolation Feed
         if prop_data:
             st.success(
                 f"⚡ **Predictive Commodity Engine Feed Active**\n\n"
-                f"**Ingested Commodity:** {prop_data['commodity_name']} [{prop_data.get('ticker', 'LME_CU')}]\n\n"
-                f"**Spot:** ${prop_data['spot_price']:,.2f} ➔ **60D Target:** ${prop_data['forecast_60d']:,.2f} "
-                f"({prop_data['price_delta_pct']:+.2%})\n\n"
-                f"*Margin Waterfall & CTRM Desk updated.*"
+                f"**Ingested Commodity:** {prop_data['commodity_name']}"
+                f" [{prop_data.get('ticker', 'LME_CU')}]\n\n"
+                f"**Spot:** ${prop_data['spot_price']:,.2f} ➔ **60D Target:**"
+                f" ${prop_data['forecast_60d']:,.2f}"
+                f" ({prop_data['price_delta_pct']:+.2%})\n\n*Margin Waterfall"
+                " & CTRM Desk updated.*"
             )
 
         st.info(
             f"🔹 **Active NLP Signal**: `{sig_title}` ($SI = {si_score:+.2f}$)"
         )
 
-        # Air vs. Ocean Logistics Desk Indicator
         if modal_shift_air:
             st.warning(
                 "✈️ **Logistics Desk**: **AIR FREIGHT MODAL SHIFT ACTIVE**\n\n"
@@ -697,15 +677,15 @@ def render_executive_sop(
                 f" **${tac_air_rate:.2f}/kg**"
             )
 
-        if fix_executed:
+        if hedge_count > 0:
             st.success(
-                f"🟢 **CTRM Risk Desk**: FIX Protocol Order Executed. Hedge"
+                f"🟢 **CTRM Risk Desk**: {hedge_count} Order(s) Executed. Hedge"
                 f" benefit locked at **+${ctrm_hedge_benefit / 1e6:.2f}M**."
             )
         else:
             st.warning(
                 f"🔸 **CTRM Risk Desk**: Unhedged Volatility Gap ="
-                f" **{delta_units:,} {term_unit}**."
+                f" **{surge_units:,} {term_unit}**."
             )
 
         if mc_res:
@@ -1005,7 +985,7 @@ def commit_demand_supply_rebalance(revised_demand_units, region_corridor):
 
     st.session_state["extracted_demand_surge"] = revised_demand_units
     _propagate_signal_to_sop_cascade(demand_payload)
-    
+
 
 def _propagate_signal_to_sop_cascade(signal_data: dict):
     """Helper to commit signal state and trigger end-to-end S&OP cascade execution."""
