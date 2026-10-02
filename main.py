@@ -519,33 +519,50 @@ def render_executive_sop(
     net_ebitda = unconstrained_rev - base_cogs - net_cogs_drag
     sop_cash = st.session_state.get("sop_cash_balance", 5_000_000.0)
 
-   # 3. Top KPI Cards (Dynamic Session State & Cascade Integration)
-    executed_hedges = st.session_state.get("executed_hedges", [])
+# =========================================================================
+    # TAB 1: EXECUTIVE S&OP TOP METRICS ROW (UNIFIED CTRM AGGREGATOR)
+    # =========================================================================
+    # Gather hedges across all potential session state trade keys
+    raw_executed_hedges = st.session_state.get("executed_hedges", [])
+    raw_ctrm_trades = st.session_state.get("ctrm_trades", [])
+    raw_ctrm_hedges = st.session_state.get("ctrm_hedges", [])
 
-    # Calculate cumulative CTRM Hedge Benefit across all executed hedges
-    if executed_hedges:
+    # Combine all active trade records
+    all_executed_trades = raw_executed_hedges + raw_ctrm_trades + raw_ctrm_hedges
+
+    # Check for legacy FIX execution toggle
+    if not all_executed_trades and st.session_state.get("fix_executed", False):
+        all_executed_trades = [
+            {"title": "FIX Protocol Order", "hedge_benefit_usd": 140_000.0}
+        ]
+
+    hedge_count = len(all_executed_trades)
+
+    # Calculate cumulative CTRM Hedge Benefit
+    if hedge_count > 0:
         ctrm_hedge_benefit = sum(
-            h.get("hedge_benefit_usd", 140_000.0) for h in executed_hedges
+            t.get("hedge_benefit_usd", 140_000.0) if isinstance(t, dict) else 140_000.0
+            for t in all_executed_trades
         )
     else:
-        ctrm_hedge_benefit = st.session_state.get(
-            "total_hedge_benefit", 140_000.0
-        )
+        ctrm_hedge_benefit = 0.0
 
     # Calculate dynamic Treasury Cash reserve
     base_treasury = 5_000_000.0
-    freight_surcharge = 570_000.0
-    sop_cash = st.session_state.get(
-        "available_treasury_cash",
-        base_treasury + ctrm_hedge_benefit - freight_surcharge,
-    )
+    freight_surcharge = 570_000.0  # Air/Ocean Freight surcharge drag
+    sop_cash = base_treasury + ctrm_hedge_benefit - freight_surcharge
 
+    # Save aggregated values back to session state for downstream views
+    st.session_state["total_hedge_benefit"] = ctrm_hedge_benefit
+    st.session_state["available_treasury_cash"] = sop_cash
+
+    # Render dynamic KPI cards
     col_m1, col_m2, col_m3, col_m4 = st.columns(4)
     with col_m1:
         st.metric(
             "Annual Operating Plan (AOP)",
             f"${base_aop_rev / 1e6:.1f}M",
-            "+4.2% YoY",
+            "+4.2% YoY Target",
         )
     with col_m2:
         st.metric(
@@ -554,13 +571,12 @@ def render_executive_sop(
             f"+{surge_units:,} {term_unit}",
         )
     with col_m3:
-        hedge_count = len(executed_hedges)
         st.metric(
             "CTRM Hedge Benefit",
             f"+${ctrm_hedge_benefit / 1e6:.2f}M",
             (
                 f"{hedge_count} Active"
-                f" Hedge{'s' if hedge_count != 1 else ''} Executed"
+                f" Trade{'s' if hedge_count != 1 else ''} Executed"
                 if hedge_count > 0
                 else "0% Cover (Floating Risk)"
             ),
@@ -724,17 +740,25 @@ def render_aggregated_deal_desk(
         " derivative hedges, and pending NLP-triggered trade executions."
     )
 
-    # 1. Pull Session State Metrics
+    # 1. Pull Session State Metrics & Trade Lists
     surge_units = st.session_state.get("extracted_demand_surge", 102968)
     si_score = st.session_state.get("si_composite", -0.33)
-    fix_executed = st.session_state.get("fix_executed", False)
     active_sig = st.session_state.get("active_signal", {})
+
+    # Retrieve accumulated hedges list
+    if "executed_hedges" not in st.session_state:
+        st.session_state["executed_hedges"] = []
+
+    executed_hedges = st.session_state["executed_hedges"]
+    hedge_count = len(executed_hedges)
+    fix_executed = st.session_state.get("fix_executed", False) or (
+        hedge_count > 0
+    )
 
     # 2. Derive Persona Baseline Contract Values
     raw_contracts = get_persona_contracts(persona)
     contracts_df = pd.DataFrame(raw_contracts)
 
-    # Enrich contracts with synthetic risk & valuation metrics
     if "Merchant" in persona:
         multiplier = 3500.0
     elif "FMCG" in persona:
@@ -743,10 +767,20 @@ def render_aggregated_deal_desk(
         multiplier = 850.0
 
     base_deal_vol = 185000
-    hedged_vol = base_deal_vol if fix_executed else int(base_deal_vol * 0.35)
-    unhedged_vol = max(0, surge_units + base_deal_vol - hedged_vol)
+    total_target_vol = base_deal_vol + surge_units
 
-    total_pipeline_val = (base_deal_vol + surge_units) * multiplier
+    # Scale hedged volume dynamically with each executed trade (35% baseline + 32.5% per trade up to 100%)
+    if hedge_count > 0:
+        coverage_ratio = min(1.0, 0.35 + (0.325 * hedge_count))
+    elif fix_executed:
+        coverage_ratio = 1.0
+    else:
+        coverage_ratio = 0.35
+
+    hedged_vol = int(total_target_vol * coverage_ratio)
+    unhedged_vol = max(0, total_target_vol - hedged_vol)
+
+    total_pipeline_val = total_target_vol * multiplier
     hedged_val = hedged_vol * multiplier
     exposure_val = unhedged_vol * multiplier
 
@@ -760,15 +794,17 @@ def render_aggregated_deal_desk(
         st.metric(
             "Covered / Hedged Value",
             f"${hedged_val / 1e6:.1f}M",
-            delta="100% Covered" if fix_executed else "35% Covered",
-            delta_color="normal" if fix_executed else "inverse",
+            delta=(
+                f"{int(coverage_ratio * 100)}% Covered ({hedge_count} Trade{'s' if hedge_count != 1 else ''})"
+            ),
+            delta_color="normal" if coverage_ratio >= 0.9 else "inverse",
         )
     with kpi3:
         st.metric(
             "Unhedged Floating Exposure",
             f"${exposure_val / 1e6:.1f}M",
             delta=f"{unhedged_vol:,} {term_unit} Gap",
-            delta_color="inverse",
+            delta_color="normal" if unhedged_vol == 0 else "inverse",
         )
     with kpi4:
         st.metric(
@@ -786,12 +822,17 @@ def render_aggregated_deal_desk(
     with c_left:
         st.subheader("📊 Physical Allocation vs. Derivatives Hedge Cover")
 
-        categories = ["Base Physical", "Surge Volume", "CTRM Hedge", "Net Open"]
+        categories = [
+            "Base Physical",
+            "Surge Volume",
+            "CTRM Hedge",
+            "Net Open",
+        ]
         volumes = [
             base_deal_vol,
             surge_units,
             -hedged_vol,
-            (base_deal_vol + surge_units - hedged_vol),
+            unhedged_vol,
         ]
 
         fig = go.Figure(
@@ -813,23 +854,63 @@ def render_aggregated_deal_desk(
 
     with c_right:
         st.subheader("⚡ Executive Quick Actions")
-        st.info(f"**Active Signal**: {active_sig.get('title', 'Baseline Target')}")
+        st.info(
+            f"**Active Signal**: {active_sig.get('title', 'Baseline Target')}"
+        )
 
-        if not fix_executed:
+        if coverage_ratio < 1.0:
             st.warning(
-                "⚠️ **Action Required**: Unhedged price exposure detected."
+                f"⚠️ **Action Required**: Unhedged price exposure detected ({int((1 - coverage_ratio)*100)}% floating)."
             )
-            if st.button(
-                "🚀 Execute Auto-Hedge Order on CTRM Desk",
-                key="btn_deal_desk_fix",
-            ):
-                st.session_state["fix_executed"] = True
-                st.toast("FIX Protocol Order Executed Globally!", icon="🔒")
-                st.rerun()
         else:
-            st.success("🟢 **Status**: FIX Hedge Active & Executed.")
-            if st.button("🔄 Reset Hedge Position", key="btn_reset_hedge"):
+            st.success("🟢 **Status**: 100% Covered & Fully Hedged.")
+
+        # Trade Execution Action Button
+        if st.button(
+            "🚀 Execute Auto-Hedge Order on CTRM Desk",
+            key="btn_deal_desk_fix",
+        ):
+            st.session_state["fix_executed"] = True
+
+            # Construct structured trade dictionary
+            trade_number = len(st.session_state["executed_hedges"]) + 1
+            new_trade = {
+                "title": f"CTRM FIX Hedge #{trade_number}",
+                "source_type": "CTRM Desk Trade Execution",
+                "hedge_benefit_usd": 140_000.0,
+                "demand_surge_units": surge_units,
+                "timestamp": datetime.utcnow().strftime(
+                    "%Y-%m-%d %H:%M:%S UTC"
+                ),
+            }
+
+            # Append to accumulated trade list
+            st.session_state["executed_hedges"].append(new_trade)
+
+            # Propagate cascade to S&OP Control Tower & Treasury
+            _propagate_signal_to_sop_cascade(new_trade)
+
+            st.toast(
+                f"FIX Protocol Trade #{trade_number} Executed & S&OP Cascade Updated!",
+                icon="🔒",
+            )
+            st.rerun()
+
+        # Position Reset Button
+        if hedge_count > 0 or fix_executed:
+            if st.button("🔄 Reset Hedge Positions", key="btn_reset_hedge"):
                 st.session_state["fix_executed"] = False
+                st.session_state["executed_hedges"] = []
+                st.session_state["total_hedge_benefit"] = 0.0
+
+                # Reset Treasury Cash back to baseline
+                base_treasury = 5_000_000.0
+                freight_surcharge = 570_000.0
+                st.session_state["available_treasury_cash"] = (
+                    base_treasury - freight_surcharge
+                )
+
+                st.toast("Hedge portfolio reset to baseline floating risk.")
                 st.rerun()
 
     st.divider()
@@ -837,7 +918,6 @@ def render_aggregated_deal_desk(
     # 5. Consolidated Master Deal Ledger
     st.subheader("📑 Consolidated Physical & Financial Deal Ledger")
 
-    # Blend physical contracts with live signals
     deal_records = []
     for idx, row in contracts_df.iterrows():
         deal_records.append({
@@ -850,16 +930,28 @@ def render_aggregated_deal_desk(
             "Hedge State": "Physical Covered",
         })
 
-    # Add dynamic CTRM and Signal entries
-    deal_records.append({
-        "Deal ID": "CTRM-FIX-9942",
-        "Counterparty": "LME / CME Clearinghouse",
-        "Commodity / Material": f"Index Derivative Futures ({term_unit})",
-        "Contract Type": "Financial Hedge",
-        "Volume": f"{hedged_vol:,} {term_unit}",
-        "Status": "🟢 Executed" if fix_executed else "🟡 Pending FIX Call",
-        "Hedge State": "Financial Cover" if fix_executed else "Floating Risk",
-    })
+    # Render each executed trade in the master ledger
+    if executed_hedges:
+        for idx, trade in enumerate(executed_hedges):
+            deal_records.append({
+                "Deal ID": f"CTRM-FIX-99{42 + idx}",
+                "Counterparty": "LME / CME Clearinghouse",
+                "Commodity / Material": f"Index Derivative Futures ({term_unit})",
+                "Contract Type": "Financial Hedge",
+                "Volume": f"{int(hedged_vol / max(1, hedge_count)):,} {term_unit}",
+                "Status": "🟢 Executed",
+                "Hedge State": "Financial Cover",
+            })
+    else:
+        deal_records.append({
+            "Deal ID": "CTRM-FIX-9942",
+            "Counterparty": "LME / CME Clearinghouse",
+            "Commodity / Material": f"Index Derivative Futures ({term_unit})",
+            "Contract Type": "Financial Hedge",
+            "Volume": f"{hedged_vol:,} {term_unit}",
+            "Status": "🟡 Pending FIX Call",
+            "Hedge State": "Floating Risk",
+        })
 
     deal_records.append({
         "Deal ID": "NLP-SIGNAL-018",
@@ -867,13 +959,53 @@ def render_aggregated_deal_desk(
         "Commodity / Material": active_sig.get("title", "Market Surge Signal"),
         "Contract Type": "Inferred Demand Spike",
         "Volume": f"+{surge_units:,} {term_unit}",
-        "Status": "🔴 Unhedged Surge",
-        "Hedge State": "Open Exposure",
+        "Status": "🔴 Unhedged Surge" if unhedged_vol > 0 else "🟢 Covered",
+        "Hedge State": (
+            "Open Exposure" if unhedged_vol > 0 else "Fully Hedged"
+        ),
     })
 
     st.dataframe(pd.DataFrame(deal_records), use_container_width=True)
 
+# =========================================================================
+# CASCADE PROPAGATION HELPERS (TOP-LEVEL SCOPE)
+# =========================================================================
 
+
+def commit_physical_procurement_contract(
+    vendor_name, material_type, contract_units, unit_price_usd
+):
+    """Callback for Physical Procurement Desk contract signing."""
+    procurement_payload = {
+        "title": f"Physical Contract: {vendor_name} ({material_type})",
+        "source_type": "Physical Procurement Desk",
+        "demand_surge_units": 0,
+        "cogs_impact_usd": contract_units * unit_price_usd,
+        "freight_surcharge_usd": 0.0,
+        "hedge_benefit_usd": 0.0,
+        "timestamp": datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S UTC"),
+    }
+
+    if "physical_contracts" not in st.session_state:
+        st.session_state["physical_contracts"] = []
+    st.session_state["physical_contracts"].append(procurement_payload)
+
+    _propagate_signal_to_sop_cascade(procurement_payload)
+
+
+def commit_demand_supply_rebalance(revised_demand_units, region_corridor):
+    """Callback for Demand/Supply Load Balancer allocation changes."""
+    demand_payload = {
+        "title": f"Demand Allocation Shift: {region_corridor}",
+        "source_type": "Demand/Supply Load Balancer",
+        "demand_surge_units": revised_demand_units,
+        "sentiment_index": st.session_state.get("si_composite", -0.28),
+        "timestamp": datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S UTC"),
+    }
+
+    st.session_state["extracted_demand_surge"] = revised_demand_units
+    _propagate_signal_to_sop_cascade(demand_payload)
+    
 
 def _propagate_signal_to_sop_cascade(signal_data: dict):
     """Helper to commit signal state and trigger end-to-end S&OP cascade execution."""
