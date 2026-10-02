@@ -519,7 +519,27 @@ def render_executive_sop(
     net_ebitda = unconstrained_rev - base_cogs - net_cogs_drag
     sop_cash = st.session_state.get("sop_cash_balance", 5_000_000.0)
 
-    # 3. Top KPI Cards
+   # 3. Top KPI Cards (Dynamic Session State & Cascade Integration)
+    executed_hedges = st.session_state.get("executed_hedges", [])
+
+    # Calculate cumulative CTRM Hedge Benefit across all executed hedges
+    if executed_hedges:
+        ctrm_hedge_benefit = sum(
+            h.get("hedge_benefit_usd", 140_000.0) for h in executed_hedges
+        )
+    else:
+        ctrm_hedge_benefit = st.session_state.get(
+            "total_hedge_benefit", 140_000.0
+        )
+
+    # Calculate dynamic Treasury Cash reserve
+    base_treasury = 5_000_000.0
+    freight_surcharge = 570_000.0
+    sop_cash = st.session_state.get(
+        "available_treasury_cash",
+        base_treasury + ctrm_hedge_benefit - freight_surcharge,
+    )
+
     col_m1, col_m2, col_m3, col_m4 = st.columns(4)
     with col_m1:
         st.metric(
@@ -534,20 +554,29 @@ def render_executive_sop(
             f"+{surge_units:,} {term_unit}",
         )
     with col_m3:
+        hedge_count = len(executed_hedges)
         st.metric(
             "CTRM Hedge Benefit",
             f"+${ctrm_hedge_benefit / 1e6:.2f}M",
-            "FIX Covered" if fix_executed else ("Signal Propagated" if prop_data else "0% Cover (Floating Risk)"),
-            delta_color="normal" if (fix_executed or prop_data) else "inverse",
+            (
+                f"{hedge_count} Active"
+                f" Hedge{'s' if hedge_count != 1 else ''} Executed"
+                if hedge_count > 0
+                else "0% Cover (Floating Risk)"
+            ),
+            delta_color="normal" if hedge_count > 0 else "inverse",
         )
     with col_m4:
+        treasury_shift_pct = (
+            (sop_cash - base_treasury) / base_treasury
+        ) * 100
         st.metric(
             "Available Treasury Cash",
             f"${sop_cash:,.2f}",
             delta=(
                 "CRITICAL CASH RISK"
                 if sop_cash < 0
-                else f"SI Impact ({si_score:+.2f})"
+                else f"{treasury_shift_pct:+.2f}% Working Capital Shift"
             ),
             delta_color="normal" if sop_cash >= 0 else "inverse",
         )
@@ -854,7 +883,18 @@ def _propagate_signal_to_sop_cascade(signal_data: dict):
     # Safely resolve title string to prevent NoneType slicing exceptions
     signal_title = signal_data.get("title") or "Market Signal Update"
 
-    # Commit active signals into session state for Executive Control Tower feeds
+    # Initialize accumulation list if not present in session state
+    if "executed_hedges" not in st.session_state:
+        st.session_state["executed_hedges"] = []
+
+    # If this signal contains hedge telemetry or CTRM data, append to accumulation list
+    if (
+        "hedge_benefit_usd" in signal_data
+        or "CTRM" in signal_data.get("source_type", "")
+    ):
+        st.session_state["executed_hedges"].append(signal_data)
+
+    # Commit active signal state
     st.session_state["active_signal"] = signal_data
     st.session_state["latest_signals"] = signal_data
     st.session_state["active_risk_signal_title"] = signal_title
@@ -868,17 +908,27 @@ def _propagate_signal_to_sop_cascade(signal_data: dict):
     )
     st.session_state["active_sop_cascade"] = cascade_output
 
+    # Recalculate cumulative hedge benefits across all executed hedges
+    total_hedge_benefit = (
+        sum(
+            h.get("hedge_benefit_usd", 140_000.0)
+            for h in st.session_state["executed_hedges"]
+        )
+        if st.session_state["executed_hedges"]
+        else signal_data.get("hedge_benefit_usd", 140_000.0)
+    )
+
+    st.session_state["total_hedge_benefit"] = total_hedge_benefit
+
     # Dynamically update Treasury Working Capital in session state
     base_treasury = 5_000_000.0
-    hedge_benefit = signal_data.get("hedge_benefit_usd", 140_000.0)
     freight_surcharge = signal_data.get("freight_surcharge_usd", 570_000.0)
     st.session_state["available_treasury_cash"] = (
-        base_treasury + hedge_benefit - freight_surcharge
+        base_treasury + total_hedge_benefit - freight_surcharge
     )
 
     st.toast(
-        f"✅ Signal propagated to Executive Control Tower:"
-        f" {signal_title[:30]}...",
+        f"✅ Signal propagated to Executive Control Tower: {signal_title[:30]}...",
         icon="🚀",
     )
 
