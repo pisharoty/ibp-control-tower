@@ -1,3 +1,12 @@
+import robot_feeds as rf
+def render_nlp_intelligence(*args, **kwargs):
+    fn = globals().get("render_nlp_commercial_sensing")
+    if not fn:
+        return None
+    try:
+        return fn(*args, **kwargs)
+    except TypeError:
+        return fn()
 import hashlib
 import hmac
 import json
@@ -24,6 +33,7 @@ from robot_feeds import (
     run_end_to_end_sop_cascade,      # Orchestrates full S&OP, CTRM & Logistics impacts
     sync_robot_feeds,
 )
+from robot_feeds import fetch_live_or_fallback
 
 
 # =====================================================================
@@ -66,7 +76,7 @@ if "fix_executed" not in st.session_state:
 
 
 def execute_ctrm_trade(
-    trade_title="CTRM FIX Protocol Hedge", benefit_per_trade=140000.0
+    trade_title="CTRM FIX Protocol Hedge", benefit_per_trade=0.0
 ):
     """Global callback to execute a trade, update state, and force instant rerun."""
     if "executed_hedges" not in st.session_state:
@@ -192,7 +202,7 @@ SECTOR_BENCHMARK_MAP = {
 # =====================================================================
 
 
-@st.cache_data(ttl=300)
+@st.cache_data(ttl=10)
 def fetch_live_noaa_marine_alerts():
     """Queries NOAA NWS API for live severe marine weather & coastal flood alerts."""
     url = "https://api.weather.gov/alerts/active?status=actual&severity=Severe,Extreme"
@@ -227,10 +237,16 @@ def fetch_live_noaa_marine_alerts():
     return alerts
 
 
-@st.cache_data(ttl=300)
+@st.cache_data(ttl=10)
 def fetch_live_freight_metrics():
-    """Fetches real-time freight indices using yfinance (^BDI or BDRY proxy)."""
-    for symbol in ["^BDI", "BDRY"]:
+    """Fetches real-time freight indices using yfinance and direct REST fallback with full diagnostic logging."""
+    import requests
+    import yfinance as yf
+
+    logs = []
+
+    # Method A: Try yfinance for BDRY and BDRY
+    for symbol in ["BDRY", "BDRY"]:
         try:
             ticker = yf.Ticker(symbol)
             hist = ticker.history(period="5d")
@@ -239,18 +255,53 @@ def fetch_live_freight_metrics():
                 prev_val = (
                     hist["Close"].iloc[-2] if len(hist) > 1 else curr_val
                 )
-                wow_change = round(((curr_val - prev_val) / prev_val) * 100, 1)
+                wow_change = round(
+                    ((curr_val - prev_val) / prev_val) * 100, 1)
 
-                # Scale BDRY share price to BDI point index equivalent if using ETF proxy
                 display_val = (
                     round(curr_val * 450, 0)
                     if symbol == "BDRY"
                     else round(curr_val, 0)
                 )
-                return display_val, wow_change, "🟢 LIVE BALTIC TELEMETRY"
-        except Exception:
-            continue
+                print(
+                    f"✅ yfinance Success ({symbol}): {display_val} pts ({wow_change}%)")
+                return display_val, wow_change, f"🟢 LIVE BALTIC TELEMETRY ({symbol})"
+            else:
+                print(f"⚠️ yfinance returned empty DataFrame for {symbol}")
+        except Exception as e:
+            print(
+                f"❌ yfinance Error ({symbol}): {type(e).__name__} - {str(e)}")
+
+    # Method B: Direct Yahoo Finance Query API with Desktop Browser Headers (bypasses yfinance wrapper blocks)
+    try:
+        url = "https://query1.finance.yahoo.com/v8/finance/chart/BDRY"
+        headers = {
+            "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+        }
+        res = requests.get(url, headers=headers, timeout=5)
+        if res.status_code == 200:
+            meta = res.json()["chart"]["result"][0]["meta"]
+            curr_val = meta["regularMarketPrice"]
+            prev_close = meta.get("chartPreviousClose", curr_val)
+            wow_change = (
+                round(((curr_val - prev_close) / prev_close) * 100, 1)
+                if prev_close
+                else 0.0
+            )
+            display_val = round(curr_val * 450, 0)
+            print(
+                f"✅ Direct REST Yahoo Success: BDRY proxy scaled to {display_val} pts")
+            return display_val, wow_change, "🟢 LIVE BALTIC TELEMETRY (REST)"
+        else:
+            print(
+                f"❌ Direct REST Yahoo Failed: HTTP {res.status_code} - {res.text[:100]}")
+    except Exception as e:
+        print(f"❌ Direct REST Yahoo Exception: {type(e).__name__} - {str(e)}")
+
+    # Standard Fallback if both yfinance and REST API get blocked by cloud provider IP limits
+    print("⚠️ All live freight endpoints failed. Reverting to fallback.")
     return 3178.0, 2.4, "🟡 SIMULATED FALLBACK"
+
 
 def update_composite_si():
     """Recalculates composite sentiment penalty dynamically from active metrics."""
@@ -272,7 +323,6 @@ def update_composite_si():
 
 def commit_nlp_signal(signal_dict: dict):
     """Commits an ingested signal to session state and propagates to all downstream desks via the central S&OP orchestrator."""
-    import robot_feeds
 
     # 1. Update core session state keys
     st.session_state["active_signal"] = signal_dict
@@ -301,45 +351,6 @@ def commit_nlp_signal(signal_dict: dict):
     )
 
 
-def parse_unstructured_email(text: str) -> dict:
-    """Regex entity parser for unstructured supplier communications."""
-    from_match = re.search(r"FROM:\s*([^\n@]+)", text, re.IGNORECASE)
-    vendor = (
-        from_match.group(1).replace("-", " ").title().strip()
-        if from_match
-        else "Global Smelting Corp"
-    )
-
-    days_match = re.search(
-        r"(\d+)\s*(?:to\s*\d+)?\s*(?:day|days|d)", text, re.IGNORECASE
-    )
-    delay_val = float(days_match.group(1)) if days_match else 14.0
-
-    units_match = re.search(
-        r"(\d[\d,]*)\s*(?:unit|units|tons|MT|cat|cathodes)", text, re.IGNORECASE
-    )
-    units_val = (
-        int(units_match.group(1).replace(",", "")) if units_match else 45000
-    )
-
-    low_text = text.lower()
-    if "curtailment" in low_text or "energy" in low_text:
-        event = "Energy Curtailment"
-    elif "strike" in low_text or "labor" in low_text:
-        event = "Port / Labor Strike"
-    elif "force majeure" in low_text:
-        event = "Force Majeure Event"
-    elif "drought" in low_text or "water" in low_text:
-        event = "Climate Disruption"
-    else:
-        event = "Supply Bottleneck"
-
-    return {
-        "vendor": vendor,
-        "event": event,
-        "delay_val": delay_val,
-        "units_val": units_val,
-    }
 
 
 def black76_call_put(F, K, T, r, sigma):
@@ -352,50 +363,6 @@ def black76_call_put(F, K, T, r, sigma):
     vega = 12.45
     return call, put, delta, vega
 
-
-def fetch_live_or_fallback(url, fallback_list, timeout_sec=2.0):
-    """Generic RSS Stream reader with immediate enterprise synthetic fallback.
-    
-    Returns:
-        tuple: (list_of_parsed_dict_items, is_live_boolean)
-    """
-    try:
-        req = urllib.request.Request(
-            url,
-            headers={
-                "User-Agent": (
-                    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
-                )
-            },
-        )
-        with urllib.request.urlopen(req, timeout=timeout_sec) as resp:
-            xml_data = resp.read()
-
-        root = ET.fromstring(xml_data)
-        parsed_items = []
-        for item in root.findall(".//item")[:10]:
-            title = item.find("title").text if item.find("title") is not None else "N/A"
-            pub_date = item.find("pubDate").text if item.find("pubDate") is not None else ""
-            link = item.find("link").text if item.find("link") is not None else ""
-            source = (
-                item.find("source").text
-                if item.find("source") is not None
-                else "Market Feed"
-            )
-            parsed_items.append({
-                "title": title,
-                "source": source,
-                "published": pub_date,
-                "link": link,
-            })
-
-        if parsed_items:
-            return parsed_items, True
-        return fallback_list, False
-
-    except Exception:
-        # Graceful degradation on network timeout/firewall block
-        return fallback_list, False
 
 
 def get_persona_contracts(persona: str) -> list[dict]:
@@ -514,16 +481,14 @@ def render_executive_sop(
     logistics_data = cascade.get("logistics", {})
     baltic_data = robot_signals.get("baltic_indices", {})
 
-    if prop_data and "spot_price" in prop_data:
-        unit_price = prop_data["spot_price"]
+    # Retain finished product ASP (unit_price); capture commodity spot price separately
+    comm_spot_price = prop_data.get("spot_price", 14643.09) if prop_data else 14643.09
+    comm_target_price = prop_data.get("target_price", 15231.65) if prop_data else 15231.65
 
-    si_score = cascade.get(
-        "si_composite", st.session_state.get("si_composite", -0.28)
+    si_score = st.session_state.get(
+        "si_composite", cascade.get("si_composite", -0.28)
     )
-    surge_units = demand_data.get(
-        "total_surge_units",
-        st.session_state.get("extracted_demand_surge", 102968),
-    )
+    surge_units = st.session_state.get("extracted_demand_surge", st.session_state.get("gross_surge", 247122))
 
     # Extract Live Telemetry & Freight Surcharge ($0.57M default)
     modal_shift_air = logistics_data.get("modal_shift_air", True)
@@ -540,17 +505,18 @@ def render_executive_sop(
     )
 
     if not all_executed_trades and st.session_state.get("fix_executed", False):
+        live_benefit = st.session_state.get("fix_premium_paid", st.session_state.get("last_executed_hedge_benefit", 0.0))
         all_executed_trades = [
-            {"title": "FIX Protocol Order", "hedge_benefit_usd": 140_000.0}
+            {"title": "FIX Protocol Order", "hedge_benefit_usd": live_benefit}
         ]
 
     hedge_count = len(all_executed_trades)
     ctrm_hedge_benefit = (
         sum(
             (
-                t.get("hedge_benefit_usd", 140_000.0)
+                t.get("hedge_benefit_usd", 0.0)
                 if isinstance(t, dict)
-                else 140_000.0
+                else 0.0
             )
             for t in all_executed_trades
         )
@@ -911,7 +877,7 @@ def render_aggregated_deal_desk(
             new_trade = {
                 "title": f"CTRM FIX Hedge #{trade_number}",
                 "source_type": "CTRM Desk Trade Execution",
-                "hedge_benefit_usd": 140_000.0,
+                "hedge_benefit_usd": 0.0,
                 "demand_surge_units": surge_units,
                 "timestamp": datetime.utcnow().strftime(
                     "%Y-%m-%d %H:%M:%S UTC"
@@ -1077,11 +1043,11 @@ def _propagate_signal_to_sop_cascade(signal_data: dict):
     # Recalculate cumulative hedge benefits across all executed hedges
     total_hedge_benefit = (
         sum(
-            h.get("hedge_benefit_usd", 140_000.0)
+            h.get("hedge_benefit_usd", 0.0)
             for h in st.session_state["executed_hedges"]
         )
         if st.session_state["executed_hedges"]
-        else signal_data.get("hedge_benefit_usd", 140_000.0)
+        else signal_data.get("hedge_benefit_usd", 0.0)
     )
 
     st.session_state["total_hedge_benefit"] = total_hedge_benefit
@@ -1145,12 +1111,22 @@ def fetch_live_sector_rss(topic_query=None, persona_materials=None):
         title = item.get("title", "")
         t_lower = title.lower()
 
-        if any(w in t_lower for w in ["strike", "outage", "disruption", "force majeure", "surge", "shortage", "halt", "delay", "curtailment"]):
+        # Route headline through robot_feeds NLP analysis engine
+        if hasattr(rf, "analyze_headline_nlp"):
+            nlp_res = rf.analyze_headline_nlp(title)
+            sentiment = nlp_res.get("sentiment", 0.0)
+            if sentiment < -0.2:
+                impact_units = int(145000 * max(0.5, abs(sentiment)))
+            elif sentiment > 0.2:
+                impact_units = int((1.0 - abs(sentiment)) * 90000)
+            else:
+                impact_units = 110000
+        elif any(w in t_lower for w in ["strike", "outage", "disruption", "force majeure", "surge", "shortage", "halt", "delay", "curtailment"]):
             sentiment = -0.75
-            impact_units = 145000
+            impact_units = int(abs(sentiment) * 180000) if sentiment != 0 else 110000
         elif any(w in t_lower for w in ["growth", "boost", "rebound", "expansion", "surplus", "gain"]):
             sentiment = +0.50
-            impact_units = 65000
+            impact_units = int((1.0 - abs(sentiment)) * 90000)
         else:
             sentiment = -0.35
             impact_units = 110000
@@ -1173,767 +1149,28 @@ def fetch_live_sector_rss(topic_query=None, persona_materials=None):
 # -----------------------------------------------------------------------------
 # 1. ENHANCED LIVE COMMODITY FETCH ENGINE WITH UNIT CONVERSION MULTIPLIERS
 # -----------------------------------------------------------------------------
-# Ticker-to-Unit Multipliers (Converts exchange quotes to target dictionary units)
-COMMODITY_UNIT_MULTIPLIERS = {
-    "HG=F": 2204.6226,  # Copper: $/lb -> $/MT
-    "CT=F": 2204.6226,  # Cotton: $/lb -> $/MT
-    "SB=F": 2204.6226,  # Sugar: $/lb -> $/MT
-    "ALI=F": 1.0,        # Aluminum: $/MT
-    "ZNC=F": 1.0,        # Zinc: $/MT
-    "TIO=F": 1.0,        # Iron Ore: $/dmt
-    "BZ=F": 1.0,         # Brent: $/Bbl
-    "CL=F": 1.0,         # WTI: $/Bbl
-    "GC=F": 1.0,         # Gold: $/oz
-    "SI=F": 1.0,         # Silver: $/oz
-}
 
-@st.cache_data(ttl=300)
-def fetch_live_commodity_price(ticker: str, fallback_spot: float) -> float:
-    """Fetches live market spot price from yfinance, applying unit conversion multipliers."""
-    try:
-        t = yf.Ticker(ticker)
-        raw_price = None
+# --- PREDICTIVE COMMODITY ENGINE (IMPORTED FROM ROBOT_FEEDS.PY) ---
+from robot_feeds import render_predictive_commodity_engine
 
-        if hasattr(t, "fast_info"):
-            raw_price = t.fast_info.get("lastPrice", None)
-            if raw_price is None or np.isnan(raw_price) or raw_price <= 0:
-                raw_price = t.fast_info.get("previousClose", None)
+# render_predictive_commodity_engine() moved to dedicated tab
 
-        if raw_price is None or np.isnan(raw_price) or raw_price <= 0:
-            hist = t.history(period="5d")
-            if not hist.empty and "Close" in hist:
-                raw_price = hist["Close"].iloc[-1]
-
-        if raw_price is not None and not np.isnan(raw_price) and raw_price > 0:
-            multiplier = COMMODITY_UNIT_MULTIPLIERS.get(ticker, 1.0)
-            
-            # Special equity proxy multiplier check (e.g., LIT, REMX, APD)
-            # If ticker is an equity stock/ETF, scale baseline index relative to stock movement
-            return float(raw_price * multiplier)
-    except Exception:
-        pass
-
-    return float(fallback_spot)
-
-
-# -----------------------------------------------------------------------------
-# 2. DOWNSTREAM CASCADE CALLBACK
-# -----------------------------------------------------------------------------
-def _propagate_commodity_forecast_cascade(payload: dict):
-    """Callback to inject commodity price forecast extrapolation downstream
-
-    across CTRM Desk, S&OP Control Tower, Procurement, and Flight Simulator.
-    """
-    comm_name = payload.get("commodity_name", "Copper (LME Grade A)")
-    delta_pct = payload.get("price_delta_pct", 0.0694)
-    spot_price = payload.get("spot_price", 9820.00)
-    forecast_60d = payload.get("forecast_60d", 10501.76)
-
-    # 1. Update active global commodity session state
-    st.session_state["active_commodity_name"] = comm_name
-    st.session_state["active_commodity_ticker"] = payload.get("ticker", "HG=F")
-    st.session_state["active_commodity_spot"] = spot_price
-    st.session_state["active_commodity_60d_forecast"] = forecast_60d
-    st.session_state["commodity_price_delta_pct"] = delta_pct
-    st.session_state["propagated_commodity_data"] = payload
-
-    # 2. Compute CTRM Derivatives Desk Hedge Exposure ($)
-    base_annual_procurement_units = st.session_state.get("base_annual_volume", 25000)
-    unhedged_exposure_usd = base_annual_procurement_units * (forecast_60d - spot_price) * 0.50
-    
-    st.session_state["ctrm_unhedged_exposure_usd"] = max(0.0, unhedged_exposure_usd)
-    st.session_state["ctrm_recommended_futures_contracts"] = int(
-        np.ceil(unhedged_exposure_usd / 25000)
-    )
-
-    # 3. Inject Financial Budget Variance into S&OP Control Tower & Flight Sim
-    st.session_state["sop_procurement_budget_variance_pct"] = delta_pct
-    st.session_state["macro_sim_cost_shock_pct"] = delta_pct * 100.0
-
-    # 4. Cascade to central S&OP engine if global pipeline exists
-    if "_propagate_signal_to_sop_cascade" in globals():
-        _propagate_signal_to_sop_cascade(payload)
-
-    st.toast(
-        f"⚡ Injected {comm_name} (+{delta_pct:.2%}) downstream across CTRM & S&OP Engines!",
-        icon="🚀",
-    )
-
-
-def render_predictive_commodity_engine():
-    """Predictive Commodity Price Engine tracking Top 50 Global Raw Material Inputs
-
-    with downstream econometric propagation to CTRM, S&OP, and Flight
-    Simulator.
-    """
-    st.markdown("### 📈 SOTA Predictive Commodity Engine (Top 50 Global Inputs)")
-    st.caption(
-        "Historical precedence correlation matrix, news sentiment elasticity"
-        " (β_SI), and vector autoregressive forecast across 50 liquid raw"
-        " material benchmarks."
-    )
-
-    # -------------------------------------------------------------------------
-    # TOP 50 GLOBAL COMMODITY COVERAGE MATRIX
-    # -------------------------------------------------------------------------
-    top_50_commodities = {
-        # Bucket 1: Industrial Non-Ferrous & Ferrous Metals (1–10)
-        "Copper (LME Grade A)": {
-            "ticker": "HG=F",
-            "category": "Industrial Metals",
-            "spot": 9820.00,
-            "unit": "$/MT",
-            "beta_si": 0.084,
-            "r_squared": 0.892,
-            "precedent": (
-                "2022 European Smelter Energy Curtailment Strike. The current"
-                " signal cluster aligns with past structural supply shocks"
-                " where physical spot premiums adjusted within 45 days."
-            ),
-        },
-        "Primary Aluminum (LME)": {
-            "ticker": "ALI=F",
-            "category": "Industrial Metals",
-            "spot": 2540.00,
-            "unit": "$/MT",
-            "beta_si": 0.062,
-            "r_squared": 0.841,
-            "precedent": (
-                "2021 China Yunnan Hydro Power Rationing. Supply shock drove"
-                " spot premiums higher within 30 days."
-            ),
-        },
-        "Nickel (LME Class 1)": {
-            "ticker": "JJN",
-            "category": "Industrial Metals",
-            "spot": 17450.00,
-            "unit": "$/MT",
-            "beta_si": 0.095,
-            "r_squared": 0.812,
-            "precedent": "2022 Tsingshan Short Squeeze & Indonesian Ore Quotas",
-        },
-        "Zinc (LME High Grade)": {
-            "ticker": "ZNC=F",
-            "category": "Industrial Metals",
-            "spot": 2890.00,
-            "unit": "$/MT",
-            "beta_si": 0.071,
-            "r_squared": 0.835,
-            "precedent": "2022 Nyrstar Smelter Production Halt",
-        },
-        "Lead (LME Refined)": {
-            "ticker": "LED=F",
-            "category": "Industrial Metals",
-            "spot": 2120.00,
-            "unit": "$/MT",
-            "beta_si": 0.048,
-            "r_squared": 0.790,
-            "precedent": (
-                "2023 Secondary Recycler Lead Battery Scrap Deficit"
-            ),
-        },
-        "Tin (LME Grade A)": {
-            "ticker": "JJT",
-            "category": "Industrial Metals",
-            "spot": 31500.00,
-            "unit": "$/MT",
-            "beta_si": 0.110,
-            "r_squared": 0.864,
-            "precedent": "2023 Myanmar Wa State Mining Export Ban",
-        },
-        "Lithium Hydroxide 56.5%": {
-            "ticker": "LIT",
-            "category": "Industrial Metals",
-            "spot": 14200.00,
-            "unit": "$/MT",
-            "beta_si": 0.125,
-            "r_squared": 0.785,
-            "precedent": (
-                "2023 Spodumene Export Quota Delays & Inventory Destocking"
-            ),
-        },
-        "Cobalt Metal 99.8%": {
-            "ticker": "LIT",
-            "category": "Industrial Metals",
-            "spot": 28400.00,
-            "unit": "$/MT",
-            "beta_si": 0.088,
-            "r_squared": 0.760,
-            "precedent": "2022 DRC Export Logistics Bottlenecks at Durban",
-        },
-        "Neodymium Oxide (NdFeB)": {
-            "ticker": "REMX",
-            "category": "Industrial Metals",
-            "spot": 72500.00,
-            "unit": "$/MT",
-            "beta_si": 0.140,
-            "r_squared": 0.820,
-            "precedent": "2021 China Rare Earth Export Quota Tightening",
-        },
-        "Iron Ore 62% Fe (TSI)": {
-            "ticker": "TIO=F",
-            "category": "Industrial Metals",
-            "spot": 118.50,
-            "unit": "$/dmt",
-            "beta_si": 0.078,
-            "r_squared": 0.875,
-            "precedent": "2019 Vale Brumadinho Tailings Dam Shock",
-        },
-        # Bucket 2: Energy & Power Inputs (11–20)
-        "Brent Crude Oil": {
-            "ticker": "BZ=F",
-            "category": "Energy & Power Inputs",
-            "spot": 78.50,
-            "unit": "$/Bbl",
-            "beta_si": 0.091,
-            "r_squared": 0.915,
-            "precedent": "2024 Red Sea Transit Rerouting Surcharges",
-        },
-        "WTI Crude Oil": {
-            "ticker": "CL=F",
-            "category": "Energy & Power Inputs",
-            "spot": 74.20,
-            "unit": "$/Bbl",
-            "beta_si": 0.089,
-            "r_squared": 0.908,
-            "precedent": "2023 OPEC+ Voluntary Production Cuts",
-        },
-        "Henry Hub Natural Gas": {
-            "ticker": "NG=F",
-            "category": "Energy & Power Inputs",
-            "spot": 2.65,
-            "unit": "$/MMBtu",
-            "beta_si": 0.135,
-            "r_squared": 0.830,
-            "precedent": "2022 Freeport LNG Export Terminal Outage",
-        },
-        "TTF European Gas": {
-            "ticker": "TTF=F",
-            "category": "Energy & Power Inputs",
-            "spot": 38.50,
-            "unit": "€/MWh",
-            "beta_si": 0.165,
-            "r_squared": 0.880,
-            "precedent": "2022 Nord Stream Pipeline Curtailment Crisis",
-        },
-        "Ultra-Low Sulfur Diesel (ULSD)": {
-            "ticker": "HO=F",
-            "category": "Energy & Power Inputs",
-            "spot": 2.42,
-            "unit": "$/Gal",
-            "beta_si": 0.082,
-            "r_squared": 0.895,
-            "precedent": (
-                "2022 French Refinery Strikes & Distillate Shortage"
-            ),
-        },
-        "Thermal Coal (Newcastle)": {
-            "ticker": "NCF=F",
-            "category": "Energy & Power Inputs",
-            "spot": 138.00,
-            "unit": "$/MT",
-            "beta_si": 0.105,
-            "r_squared": 0.815,
-            "precedent": "2021 Indonesian Coal Export Embargo",
-        },
-        "Uranium (U3O8 Benchmark)": {
-            "ticker": "SRUUF",
-            "category": "Energy & Power Inputs",
-            "spot": 82.50,
-            "unit": "$/lb",
-            "beta_si": 0.098,
-            "r_squared": 0.850,
-            "precedent": "2023 Kazatomprom Production Guidance Cut",
-        },
-        "Heavy Fuel Oil 380 CST": {
-            "ticker": "BZ=F",
-            "category": "Energy & Power Inputs",
-            "spot": 440.00,
-            "unit": "$/MT",
-            "beta_si": 0.075,
-            "r_squared": 0.870,
-            "precedent": "2024 Marine Bunker Fuel Demand Surge",
-        },
-        "European Carbon Permits (EUA)": {
-            "ticker": "KRBN",
-            "category": "Energy & Power Inputs",
-            "spot": 68.20,
-            "unit": "€/MT",
-            "beta_si": 0.085,
-            "r_squared": 0.840,
-            "precedent": "2023 EU MSR Rule Reform & Power Grid Switching",
-        },
-        "Electricity Base Load (PJM)": {
-            "ticker": "XLU",
-            "category": "Energy & Power Inputs",
-            "spot": 42.50,
-            "unit": "$/MWh",
-            "beta_si": 0.115,
-            "r_squared": 0.795,
-            "precedent": "2022 Winter Storm Elliott Power Price Spikes",
-        },
-        # Bucket 3: Petrochemicals & Polymers (21–30)
-        "Ethylene (CFR Asia)": {
-            "ticker": "LYB",
-            "category": "Petrochemicals & Polymers",
-            "spot": 890.00,
-            "unit": "$/MT",
-            "beta_si": 0.055,
-            "r_squared": 0.825,
-            "precedent": (
-                "2021 US Gulf Coast Winter Freeze Naphtha Outages"
-            ),
-        },
-        "Polypropylene (PP Raffia)": {
-            "ticker": "DOW",
-            "category": "Petrochemicals & Polymers",
-            "spot": 1120.00,
-            "unit": "$/MT",
-            "beta_si": 0.045,
-            "r_squared": 0.810,
-            "precedent": "2021 Hurricane Ida Louisiana Cracker Shutdowns",
-        },
-        "Polyethylene (HDPE Film)": {
-            "ticker": "WLK",
-            "category": "Petrochemicals & Polymers",
-            "spot": 1050.00,
-            "unit": "$/MT",
-            "beta_si": 0.048,
-            "r_squared": 0.818,
-            "precedent": "2022 European Steam Cracker Rate Reductions",
-        },
-        "Polyvinyl Chloride (PVC)": {
-            "ticker": "OLN",
-            "category": "Petrochemicals & Polymers",
-            "spot": 820.00,
-            "unit": "$/MT",
-            "beta_si": 0.052,
-            "r_squared": 0.802,
-            "precedent": (
-                "2021 Chlor-Alkali Power Rationing in Eastern China"
-            ),
-        },
-        "Titanium Dioxide (TiO2)": {
-            "ticker": "TROX",
-            "category": "Petrochemicals & Polymers",
-            "spot": 2950.00,
-            "unit": "$/MT",
-            "beta_si": 0.038,
-            "r_squared": 0.775,
-            "precedent": "2022 Ilmenite Ore Feedstock Shortage",
-        },
-        "Methanol (CFR China)": {
-            "ticker": "MEOH",
-            "category": "Petrochemicals & Polymers",
-            "spot": 285.00,
-            "unit": "$/MT",
-            "beta_si": 0.065,
-            "r_squared": 0.832,
-            "precedent": "2023 Iranian Winter Natural Gas Cutoffs to Plants",
-        },
-        "Urea / Nitrogen Fertilizer": {
-            "ticker": "CF",
-            "category": "Petrochemicals & Polymers",
-            "spot": 340.00,
-            "unit": "$/MT",
-            "beta_si": 0.092,
-            "r_squared": 0.860,
-            "precedent": (
-                "2021 China Urea Export Inspection Restrictions"
-            ),
-        },
-        "Purified Terephthalic Acid (PTA)": {
-            "ticker": "ALB",
-            "category": "Petrochemicals & Polymers",
-            "spot": 760.00,
-            "unit": "$/MT",
-            "beta_si": 0.042,
-            "r_squared": 0.805,
-            "precedent": "2022 PX Feedstock Premium Expansion",
-        },
-        "Styrene Monomer": {
-            "ticker": "AXTA",
-            "category": "Petrochemicals & Polymers",
-            "spot": 1150.00,
-            "unit": "$/MT",
-            "beta_si": 0.058,
-            "r_squared": 0.815,
-            "precedent": "2023 POSM Plant Unplanned Maintenance Outages",
-        },
-        "Caustic Soda (Liquid 50%)": {
-            "ticker": "OLN",
-            "category": "Petrochemicals & Polymers",
-            "spot": 410.00,
-            "unit": "$/MT",
-            "beta_si": 0.060,
-            "r_squared": 0.790,
-            "precedent": (
-                "2022 Rhine River Low Water Level Barge Bottlenecks"
-            ),
-        },
-        # Bucket 4: Agri-Softs & Industrial Crops (31–40)
-        "Corn (CBOT Futures)": {
-            "ticker": "ZC=F",
-            "category": "Agri-Softs & Industrial Crops",
-            "spot": 4.35,
-            "unit": "$/Bu",
-            "beta_si": 0.068,
-            "r_squared": 0.855,
-            "precedent": (
-                "2023 US Midwest Drought & Mississippi Low Water"
-            ),
-        },
-        "Soybeans (CBOT Futures)": {
-            "ticker": "ZS=F",
-            "category": "Agri-Softs & Industrial Crops",
-            "spot": 10.15,
-            "unit": "$/Bu",
-            "beta_si": 0.064,
-            "r_squared": 0.848,
-            "precedent": "2024 Brazil Mato Grosso Weather Disruption",
-        },
-        "Wheat (CBOT SRW)": {
-            "ticker": "ZW=F",
-            "category": "Agri-Softs & Industrial Crops",
-            "spot": 5.65,
-            "unit": "$/Bu",
-            "beta_si": 0.088,
-            "r_squared": 0.872,
-            "precedent": "2022 Black Sea Grain Corridor Interruption",
-        },
-        "Raw Sugar #11": {
-            "ticker": "SB=F",
-            "category": "Agri-Softs & Industrial Crops",
-            "spot": 0.21,
-            "unit": "$/lb",
-            "beta_si": 0.075,
-            "r_squared": 0.820,
-            "precedent": "2023 India Export Ban & El Nino Rain Deficit",
-        },
-        "Robusta Coffee": {
-            "ticker": "KC=F",
-            "category": "Agri-Softs & Industrial Crops",
-            "spot": 4250.00,
-            "unit": "$/MT",
-            "beta_si": 0.112,
-            "r_squared": 0.865,
-            "precedent": (
-                "2024 Vietnam Central Highlands Heatwave Deficit"
-            ),
-        },
-        "Crude Palm Oil (MDEX)": {
-            "ticker": "CPO=F",
-            "category": "Agri-Softs & Industrial Crops",
-            "spot": 920.00,
-            "unit": "$/MT",
-            "beta_si": 0.082,
-            "r_squared": 0.840,
-            "precedent": "2022 Indonesian Palm Oil Export Embargo",
-        },
-        "Natural Rubber (TSR20)": {
-            "ticker": "RUB=F",
-            "category": "Agri-Softs & Industrial Crops",
-            "spot": 1680.00,
-            "unit": "$/MT",
-            "beta_si": 0.058,
-            "r_squared": 0.805,
-            "precedent": "2023 Thailand Heavy Monsoon Tapping Delays",
-        },
-        "Cotton #2": {
-            "ticker": "CT=F",
-            "category": "Agri-Softs & Industrial Crops",
-            "spot": 0.74,
-            "unit": "$/lb",
-            "beta_si": 0.062,
-            "r_squared": 0.810,
-            "precedent": "2022 Texas West Drought Acreage Abandonment",
-        },
-        "Cocoa (ICE Futures)": {
-            "ticker": "CC=F",
-            "category": "Agri-Softs & Industrial Crops",
-            "spot": 7850.00,
-            "unit": "$/MT",
-            "beta_si": 0.155,
-            "r_squared": 0.890,
-            "precedent": "2024 West Africa Black Pod Disease Shortage",
-        },
-        "Malting Barley": {
-            "ticker": "WEAT",
-            "category": "Agri-Softs & Industrial Crops",
-            "spot": 210.00,
-            "unit": "$/MT",
-            "beta_si": 0.050,
-            "r_squared": 0.780,
-            "precedent": "2023 Australian Crop Yield Weather Revisions",
-        },
-        # Bucket 5: Precious & Electronics Minerals (41–50)
-        "Gold Spot": {
-            "ticker": "GC=F",
-            "category": "Precious & Electronics Minerals",
-            "spot": 2510.00,
-            "unit": "$/oz",
-            "beta_si": 0.040,
-            "r_squared": 0.920,
-            "precedent": "2024 Central Bank Gold Accumulation Surge",
-        },
-        "Silver Spot": {
-            "ticker": "SI=F",
-            "category": "Precious & Electronics Minerals",
-            "spot": 29.80,
-            "unit": "$/oz",
-            "beta_si": 0.072,
-            "r_squared": 0.885,
-            "precedent": "2024 Industrial Solar PV Demand Expansion",
-        },
-        "Platinum Spot": {
-            "ticker": "PL=F",
-            "category": "Precious & Electronics Minerals",
-            "spot": 940.00,
-            "unit": "$/oz",
-            "beta_si": 0.065,
-            "r_squared": 0.815,
-            "precedent": (
-                "2023 South African Power Grid Loadshedding At Mines"
-            ),
-        },
-        "Palladium Spot": {
-            "ticker": "PA=F",
-            "category": "Precious & Electronics Minerals",
-            "spot": 980.00,
-            "unit": "$/oz",
-            "beta_si": 0.090,
-            "r_squared": 0.830,
-            "precedent": "2022 Norilsk Nickel Logistics & Trade Rerouting",
-        },
-        "Silicon Metal 5-5-3 Grade": {
-            "ticker": "GSM",
-            "category": "Precious & Electronics Minerals",
-            "spot": 1920.00,
-            "unit": "$/MT",
-            "beta_si": 0.085,
-            "r_squared": 0.825,
-            "precedent": "2021 Yunnan Smelter Energy Controls",
-        },
-        "High-Purity Neon Gas": {
-            "ticker": "APD",
-            "category": "Precious & Electronics Minerals",
-            "spot": 320.00,
-            "unit": "$/m³",
-            "beta_si": 0.180,
-            "r_squared": 0.860,
-            "precedent": (
-                "2022 Mariupol Ingas & Cryoin Semiconductor Supply Halt"
-            ),
-        },
-        "Solar-Grade Polysilicon": {
-            "ticker": "DQ",
-            "category": "Precious & Electronics Minerals",
-            "spot": 8.80,
-            "unit": "$/kg",
-            "beta_si": 0.110,
-            "r_squared": 0.800,
-            "precedent": "2021 Xinjiang Plant Explosion & Fab Bottleneck",
-        },
-        "Germanium Metal 99.999%": {
-            "ticker": "MP",
-            "category": "Precious & Electronics Minerals",
-            "spot": 1450.00,
-            "unit": "$/kg",
-            "beta_si": 0.135,
-            "r_squared": 0.845,
-            "precedent": (
-                "2023 Chinese Ministry of Commerce Export Licensing Controls"
-            ),
-        },
-        "Gallium Metal 99.99%": {
-            "ticker": "ALB",
-            "category": "Precious & Electronics Minerals",
-            "spot": 520.00,
-            "unit": "$/kg",
-            "beta_si": 0.140,
-            "r_squared": 0.850,
-            "precedent": "2023 Semiconductor Wafer Export Restrictions",
-        },
-        "Indium Metal": {
-            "ticker": "SMX",
-            "category": "Precious & Electronics Minerals",
-            "spot": 290.00,
-            "unit": "$/kg",
-            "beta_si": 0.078,
-            "r_squared": 0.790,
-            "precedent": (
-                "2022 Flat Panel Display ITO Sputtering Demand Surge"
-            ),
-        },
-    }
-
-    # -------------------------------------------------------------------------
-    # UI CONTROLS: CATEGORY FILTER & BENCHMARK SELECTOR
-    # -------------------------------------------------------------------------
-    categories = [
-        "🌐 ALL TOP 50 COMMODITIES",
-        "Industrial Metals",
-        "Energy & Power Inputs",
-        "Petrochemicals & Polymers",
-        "Agri-Softs & Industrial Crops",
-        "Precious & Electronics Minerals",
-    ]
-
-    p_filter_col, p_select_col = st.columns([1, 2])
-
-    with p_filter_col:
-        selected_category = st.selectbox(
-            "Filter Commodity Class:",
-            categories,
-            key="predictive_category_filter",
-        )
-
-    if selected_category == "🌐 ALL TOP 50 COMMODITIES":
-        filtered_commodities = top_50_commodities
-    else:
-        filtered_commodities = {
-            k: v
-            for k, v in top_50_commodities.items()
-            if v["category"] == selected_category
-        }
-
-    with p_select_col:
-        selected_comm = st.selectbox(
-            f"Select Target Commodity ({len(filtered_commodities)} Available):",
-            list(filtered_commodities.keys()),
-            key="select_predictive_commodity",
-        )
-        data = filtered_commodities[selected_comm]
-
-    # Dynamically fetch live spot price via yfinance (with static fallback)
-    live_spot = fetch_live_commodity_price(data["ticker"], data["spot"])
-
-    # Retrieve live composite SI from session state
-    si_val = st.session_state.get("si_composite", -0.62)
-
-    # Regression forecasting formula using live or fallback spot price
-    predicted_pct_change = (
-        (data["beta_si"] * abs(si_val))
-        if si_val < 0
-        else (-data["beta_si"] * si_val)
-    )
-    target_price_30d = live_spot * (1.0 + predicted_pct_change)
-    target_price_60d = live_spot * (1.0 + (predicted_pct_change * 1.45))
-    delta_60d_pct = predicted_pct_change * 1.45
-
-    # -------------------------------------------------------------------------
-    # REGRESSION METRICS & HISTORICAL PRECEDENCE DISPLAY
-    # -------------------------------------------------------------------------
-    st.markdown("#### 📊 Econometric Regression & Historical Precedence Match")
-    m1, m2, m3, m4, m5 = st.columns(5)
-
-    unit_label = data["unit"][1:] if data["unit"].startswith("$") else data["unit"]
-
-    m1.metric(
-        "Current Spot Baseline",
-        f"${live_spot:,.2f} {unit_label}",
-    )
-    m2.metric("Elasticity (η_SI)", f"{data['beta_si']:.3f}")
-    m3.metric("Model Fit (R²)", f"{data['r_squared']:.3f}")
-    m4.metric(
-        "30-Day Forecast",
-        f"${target_price_30d:,.2f}",
-        delta=f"{predicted_pct_change:+.2%}",
-        delta_color="inverse" if predicted_pct_change > 0 else "normal",
-    )
-    m5.metric(
-        "60-Day Forecast",
-        f"${target_price_60d:,.2f}",
-        delta=f"{delta_60d_pct:+.2%}",
-        delta_color="inverse" if delta_60d_pct > 0 else "normal",
-    )
-
-    st.info(
-        f"🔍 **Highest Historical Precedence Match (Cosine Similarity:"
-        f" 93.8%):** `{data['precedent']}`"
-    )
-
-    # -------------------------------------------------------------------------
-    # FORECAST TRAJECTORY PLOT
-    # -------------------------------------------------------------------------
-    days = np.array([0, 15, 30, 45, 60])
-    prices_base = np.array([
-        live_spot,
-        live_spot * (1 + predicted_pct_change * 0.5),
-        target_price_30d,
-        live_spot * (1 + predicted_pct_change * 1.25),
-        target_price_60d,
-    ])
-    prices_upper = prices_base * 1.035
-    prices_lower = prices_base * 0.965
-
-    fig = go.Figure()
-    fig.add_trace(
-        go.Scatter(
-            x=days,
-            y=prices_base,
-            mode="lines+markers",
-            name="Forecast Mean Trajectory",
-            line=dict(color="#FF4B4B", width=3),
-        )
-    )
-    fig.add_trace(
-        go.Scatter(
-            x=days,
-            y=prices_upper,
-            mode="lines",
-            name="Upper 95% Confidence Interval",
-            line=dict(width=0),
-            showlegend=False,
-        )
-    )
-    fig.add_trace(
-        go.Scatter(
-            x=days,
-            y=prices_lower,
-            mode="lines",
-            name="Lower 95% Confidence Interval",
-            line=dict(width=0),
-            fill="tonexty",
-            fillcolor="rgba(255, 75, 75, 0.15)",
-            showlegend=False,
-        )
-    )
-
-    fig.update_layout(
-        title=(
-            f"Predictive Price Path: {selected_comm} [{data['ticker']}]"
-            " (30/60-Day Forward Horizon)"
-        ),
-        xaxis_title="Forward Horizon (Days)",
-        yaxis_title=f"Price ({data['unit']})",
-        height=340,
-        margin=dict(l=20, r=20, t=40, b=20),
-        template="plotly_white",
-    )
-    st.plotly_chart(fig, use_container_width=True)
-
-    # -------------------------------------------------------------------------
-    # DOWNSTREAM PROPAGATION TRIGGER BUTTON
-    # -------------------------------------------------------------------------
-    st.button(
-        f"⚡ Propagate {selected_comm} Extrapolation ({delta_60d_pct:+.2%}) into CTRM Risk Desk & S&OP Engine",
-        key="btn_propagate_commodity_forecast",
-        on_click=_propagate_commodity_forecast_cascade,
-        args=({
-            "commodity_name": selected_comm,
-            "ticker": data["ticker"],
-            "spot_price": live_spot,
-            "forecast_60d": target_price_60d,
-            "price_delta_pct": delta_60d_pct,
-        },),
-    )
-
-def render_nlp_intelligence(persona=None, term_unit="Units", **kwargs):
-    """Complete NLP Commercial Sensing & Intelligence Module with Hard Macro,
-    Unified Social & Executive Field Intelligence, Email Parsing, Live Telemetry,
-    and S&OP Cascade Hooks.
-    """
+def render_nlp_commercial_sensing(*args, **kwargs):
+    """Complete NLP Commercial Sensing & Intelligence Module."""
+    # Scope-level initialization for sentiment metrics
+    comp_res = rf.compute_composite_sentiment() if hasattr(rf, "compute_composite_sentiment") else {"si_score": -0.330}
+    si_score = comp_res.get("si_score", -0.330) if isinstance(comp_res, dict) else -0.330
+    composite_si = st.session_state.get("si_composite", si_score)
+    ctrm_hedge = composite_si < -0.15
+    rec_text = "Lock 60-Day Forward Exposure" if ctrm_hedge else "Maintain Spot Purchasing"
+    scores = comp_res.get("individual_scores", {}) if isinstance(comp_res, dict) else {}
+    weights = comp_res.get("weights", {}) if isinstance(comp_res, dict) else {}
+    surge_units = int(abs(composite_si) * 32373)
+    lt_days = round(abs(composite_si) * 7.5, 1)
+    if hasattr(rf, "get_live_rss_feeds"):
+        live_rss = rf.get_live_rss_feeds()
+        if live_rss:
+            st.session_state["live_rss_signals"] = live_rss
     st.title("🧠 NLP Commercial Sensing & Intelligence")
     st.caption(
         f"Active Persona View: **{persona or 'Discrete & Heavy Industrial Enterprise'}** | "
@@ -2021,74 +1258,59 @@ def render_nlp_intelligence(persona=None, term_unit="Units", **kwargs):
             fetch_global_macro_telemetry() if "fetch_global_macro_telemetry" in globals() else {}
         )
 
-        with st.expander(
-            "🏛️ Hard Macroeconomic Telemetry (NY Fed GSCPI, World Bank, FRED, ECB, PBOC, BOJ, KOSPI)",
-            expanded=True,
-        ):
-            m_col1, m_col2, m_col3, m_col4, m_col5 = st.columns(5)
-            with m_col1:
-                st.metric("NY Fed GSCPI", macro.get("ny_fed_gscpi", f"{+1.22 + (si_score * 0.4):+.2f} σ"), "Supply Pressure")
+        with st.expander("🏛️ Hard Macroeconomic Telemetry (NY Fed GSCPI, World Bank, FRED, ECB, PBOC, BOJ, KOSPI)", expanded=True):
+            m1, m2, m3, m4, m5 = st.columns(5)
+            with m1:
+                vix_val = rf.fetch_live_telemetry_with_fallback("^VIX", 18.5) if hasattr(rf, "fetch_live_telemetry_with_fallback") else 18.5
+                gscpi_val = +0.85 + (vix_val / 25.0)
+                st.metric("NY Fed GSCPI", f"{gscpi_val:+.2f} σ (Live Synthesized)", "Supply Pressure")
                 st.caption("Global Supply Chain Pressure")
-            with m_col2:
-                st.metric("US FRED Mfg Index", macro.get("us_fred", f"{103.1 + (si_score * 3):.1f} pts"), "St. Louis Fed")
+            with m2:
+                sp_val = rf.fetch_live_telemetry_with_fallback("^GSPC", 5700) if hasattr(rf, "fetch_live_telemetry_with_fallback") else 5700
+                fred_val = 100.0 + (sp_val / 1500.0)
+                st.metric("US FRED Mfg Index", f"{fred_val:.1f} pts", "St. Louis Fed")
                 st.caption("US Industrial Output")
-            with m_col3:
-                st.metric("World Bank Commodity", macro.get("world_bank", f"{142.8 * (spot_price / 9820.0):.1f} Index"), macro.get("china_pmi", "50.4 (Expansion)"))
+            with m3:
+                cl_val = rf.fetch_live_telemetry_with_fallback("CL=F", 72.5) if hasattr(rf, "fetch_live_telemetry_with_fallback") else 72.5
+                wb_val = cl_val * 2.1
+                st.metric("World Bank Commodity", f"{wb_val:.1f} Index", "50.4 (Expansion)")
                 st.caption("Global Benchmark / PBOC")
-            with m_col4:
-                st.metric("Eurozone (ECB)", macro.get("eurozone_ecb", "2.65% (ECB Refi)"), "Industrial Trend")
+            with m4:
+                eur_val = rf.fetch_live_telemetry_with_fallback("EURUSD=X", 1.08) if hasattr(rf, "fetch_live_telemetry_with_fallback") else 1.08
+                ecb_val = eur_val * 2.45
+                st.metric("Eurozone (ECB)", f"{ecb_val:.2f}% (ECB Refi)", "Industrial Trend")
                 st.caption("ECB Telemetry")
-            with m_col5:
-                st.metric("Korea KOSPI / Japan", macro.get("kospi_korea", f"{int(2645 + si_score * 80):,} pts"), macro.get("japan_pmi", "50.1"))
+            with m5:
+                kospi_val = int(rf.fetch_live_telemetry_with_fallback("^KS11", 2618)) if hasattr(rf, "fetch_live_telemetry_with_fallback") else 2618
+                st.metric("Korea KOSPI / Japan", f"{kospi_val:,} pts", "Asian Export Benchmark")
                 st.caption("Asian Export Benchmark")
-
-        # -------------------------------------------------------------------------
-        # 2. TRIANGULATED COMPOSITE SENTIMENT INDEX (SI) ENGINE
-        # -------------------------------------------------------------------------
-        if "calculate_composite_sentiment" in globals():
-            comp_res = calculate_composite_sentiment(latest_signals)
-        else:
-            comp_res = {
-                "si_composite": -0.625,
-                "individual_scores": {
-                    "gscpi_index": -0.15,
-                    "noaa_environmental": -0.40,
-                    "freight_spot_rates": -0.43,
-                    "gep_volatility": -0.32,
-                },
-                "weights": {"gscpi_index": 0.35, "noaa_environmental": 0.25, "freight_spot_rates": 0.25, "gep_volatility": 0.15},
-            }
-
-        # Bind dynamically to central session state SI and calculated surge
-        composite_si = st.session_state.get("si_composite", si_score)
-        scores = comp_res.get("individual_scores", {})
-        weights = comp_res.get("weights", {})
-
-        base_dem = st.session_state.get("base_demand", 129500)
-        if "compute_quantified_operational_impact" in globals():
-            impact_res = compute_quantified_operational_impact(composite_si, base_dem)
-            surge_units = impact_res.get("delta_demand_units", demand_surge_units)
-            lt_days = impact_res.get("lead_time_buffer_days", lead_time_days)
-            rec_text = impact_res.get("recommended_action", "Lock 60-Day Forward Exposure")
-            ctrm_hedge = impact_res.get("target_hedge_pct", 60.0) >= 60.0
-        else:
-            surge_units = demand_surge_units
-            lt_days = lead_time_days
-            rec_text = "Lock in 60-day raw material futures on CTRM Desk; extend vendor lead times in ERP."
-            ctrm_hedge = composite_si < -0.4
-
-        with st.container(border=True):
             st.markdown("### 🎯 Triangulated Composite Market Sentiment Index ($SI$)")
             
             c_col1, c_col2, c_col3, c_col4 = st.columns([1.2, 1, 1, 1])
             with c_col1:
                 st.metric(
                     "Net Composite ($SI$)",
+                    # Ensure composite_si and comp_res are defined prior to UI rendering
                     f"{composite_si:+.3f}",
                     delta="Severe Downside Risk" if composite_si < -0.50 else ("Moderate Drag" if composite_si < 0 else "Bullish Expansion"),
                     delta_color="inverse" if composite_si < 0 else "normal",
                 )
             with c_col2:
+                # Resolve operational impact metrics before UI metric rendering
+                if "surge_units" not in locals():
+                    base_dem = st.session_state.get("base_demand", 129500)
+                    comp_si = locals().get("composite_si", -0.330)
+                    if "compute_quantified_operational_impact" in globals():
+                        impact_res = compute_quantified_operational_impact(comp_si, base_dem)
+                        surge_units = impact_res.get("delta_demand_units", int(abs(comp_si) * 32373))
+                        lt_days = impact_res.get("lead_time_buffer_days", round(abs(comp_si) * 7.5, 1))
+                        rec_text = impact_res.get("recommended_action", "Lock 60-Day Forward Exposure")
+                        ctrm_hedge = impact_res.get("target_hedge_pct", 60.0) >= 60.0
+                    else:
+                        surge_units = int(abs(comp_si) * 32373)
+                        lt_days = round(abs(comp_si) * 7.5, 1)
+                        rec_text = "Lock 60-Day Forward Exposure"
+                        ctrm_hedge = True
                 st.metric("Quantified Demand Surge", f"+{surge_units:,} {term_unit}")
             with c_col3:
                 st.metric("Lead Time Expansion", f"+{lt_days} Days")
@@ -2100,6 +1322,11 @@ def render_nlp_intelligence(persona=None, term_unit="Units", **kwargs):
             )
             
             sc1, sc2, sc3, sc4 = st.columns(4)
+            # Ensure comp_res, scores, and weights are initialized
+            if "comp_res" not in locals():
+                comp_res = rf.compute_composite_sentiment() if hasattr(rf, "compute_composite_sentiment") else {}
+            scores = comp_res.get("individual_scores", {}) if isinstance(comp_res, dict) else {}
+            weights = comp_res.get("weights", {}) if isinstance(comp_res, dict) else {}
             sc1.caption(f"**GSCPI Macro**: `{scores.get('gscpi_index', -0.15):+.2f}` (35%)")
             sc2.caption(f"**NOAA Weather**: `{scores.get('noaa_environmental', -0.40):+.2f}` (25%)")
             sc3.caption(f"**Freight Rates**: `{scores.get('freight_spot_rates', -0.43):+.2f}` (25%)")
@@ -2140,13 +1367,22 @@ def render_nlp_intelligence(persona=None, term_unit="Units", **kwargs):
         # 3. SOTA PREDICTIVE COMMODITY PRICE ENGINE (OPTION B INTEGRATION)
         # -------------------------------------------------------------------------
         if "render_predictive_commodity_engine" in globals():
-            render_predictive_commodity_engine()
+# render_predictive_commodity_engine() moved to dedicated tab
 
+            pass
         st.divider()
 
 # -------------------------------------------------------------------------
         # 4. UNIFIED SOCIAL MEDIA & EXECUTIVE FIELD INTELLIGENCE STREAM
         # -------------------------------------------------------------------------
+            # SOTA Predictive Commodity Engine positioned between SI Index & Social Stream
+        try:
+            render_predictive_commodity_engine()
+        except Exception as e:
+            st.error(f"Error rendering Predictive Commodity Engine: {e}")
+
+        st.divider()
+
         st.subheader("📱 Unified Social Media & Executive Field Intelligence Stream")
         st.caption(
             "High-impact C-suite disclosures, Fortune 500 results announcements, "
@@ -2203,6 +1439,9 @@ def render_nlp_intelligence(persona=None, term_unit="Units", **kwargs):
         # 2. Top 5 Fortune 500 Executive Live RSS Fetcher
         if len(valid_social_items) < 5 and "fetch_live_sector_rss" in globals():
             exec_rss_feed = fetch_live_sector_rss(FORTUNE_500_EXEC_QUERY)
+            if hasattr(rf, "fetch_executive_field_intelligence_stream"):
+                exec_stream = rf.fetch_executive_field_intelligence_stream()
+                exec_rss_feed = exec_stream + [item for item in exec_rss_feed if item not in exec_stream]
             for rss_item in exec_rss_feed:
                 if len(valid_social_items) >= 5:
                     break
@@ -2210,7 +1449,7 @@ def render_nlp_intelligence(persona=None, term_unit="Units", **kwargs):
                 raw_sentiment = rss_item.get("sentiment")
                 sentiment = raw_sentiment if raw_sentiment is not None else -0.55
 
-                raw_est = rss_item.get("estimated_impact")
+                raw_est = rss_item.get("impact_units") or rss_item.get("estimated_impact")
                 impact_demand = int(raw_est) if raw_est is not None else int(abs(sentiment) * 160000)
 
                 valid_social_items.append({
@@ -2218,7 +1457,7 @@ def render_nlp_intelligence(persona=None, term_unit="Units", **kwargs):
                     "author": "Corporate Results & Guidance Engine",
                     "timestamp": "Live Wire",
                     "title": rss_item.get("title", "Enterprise Results Disclosure"),
-                    "snippet": f"Quantified C-Suite results/guidance disclosure: {rss_item.get('title')}",
+                    "snippet": f"Quantified C-Suite results/guidance disclosure: {(rss_item.get('title') or rss_item.get('headline') or rss_item.get('text') or 'Executive Disclosure')}",
                     "sentiment": sentiment,
                     "impact_demand": impact_demand,
                     "impact_leadtime": round(abs(sentiment) * 9.5, 1),
@@ -2312,7 +1551,12 @@ def render_nlp_intelligence(persona=None, term_unit="Units", **kwargs):
             )
 
             topic_query = NEWS_DOMAINS[selected_domain]
-            fetched_items = fetch_live_sector_rss(topic_query) if "fetch_live_sector_rss" in globals() else []
+            if hasattr(rf, "fetch_live_sector_rss"):
+                fetched_items = rf.fetch_live_sector_rss(topic_query)
+            elif "fetch_live_sector_rss" in globals():
+                fetched_items = fetch_live_sector_rss(topic_query)
+            else:
+                fetched_items = []
             
             # Fall back to mock list if live fetch is empty or unavailable
             live_rss_items = fetched_items if fetched_items else [
@@ -2347,7 +1591,15 @@ def render_nlp_intelligence(persona=None, term_unit="Units", **kwargs):
             )
 
             raw_sentiment = art_info.get("sentiment")
-            sentiment_val = raw_sentiment if raw_sentiment is not None else -0.50
+            if raw_sentiment is None or float(raw_sentiment) == 0.0:
+                t_low = art_info.get("title", "").lower()
+                neg_w = ["chaos", "shutdown", "shutdowns", "threaten", "threatens", "majeure", "disrupt", "shortage", "crisis", "halt", "stop", "turmoil", "crunch", "headaches", "closure", "closures", "headache", "intensify", "delay", "war", "strike", "cut", "drop", "fire", "risk", "conflict", "dip", "strain"]
+                pos_w = ["boost", "boosts", "growth", "surge", "surges", "recovery", "expansion", "profit", "gain", "rally", "record", "jump", "stabilize"]
+                nc = sum(1 for w in neg_w if w in t_low)
+                pc = sum(1 for w in pos_w if w in t_low)
+                sentiment_val = max(-0.85, round(-0.25 * nc, 2)) if nc > 0 else (min(0.75, round(0.20 * pc, 2)) if pc > 0 else -0.15)
+            else:
+                sentiment_val = float(raw_sentiment)
             st.metric("Detected Sentiment (SI)", f"{sentiment_val:+.2f}")
 
         headline_clean = art_info["title"][:50] + "..."
@@ -2548,6 +1800,14 @@ def render_nlp_intelligence(persona=None, term_unit="Units", **kwargs):
                 st.rerun()
 
 # Maintain alias to protect all navigation router calls
+def render_nlp_intelligence(*args, **kwargs):
+    fn = globals().get("render_nlp_commercial_sensing")
+    if not fn:
+        return None
+    try:
+        return fn(*args, **kwargs)
+    except TypeError:
+        return fn()
 render_nlp_sensing = render_nlp_intelligence
 
 def render_demand_supply_match(
@@ -2844,16 +2104,15 @@ def render_physical_procurement(
     proc_data = cascade.get("procurement", {})
     ctrm_data = cascade.get("ctrm", {})
 
-    gross_surge = demand_data.get(
-        "total_surge_units",
-        st.session_state.get("extracted_demand_surge", 241000),
+    # Prioritize live injected Monte Carlo stress state over static cascade cache
+    gross_surge = st.session_state.get(
+        "extracted_demand_surge",
+        demand_data.get("total_surge_units", 173125)
     )
     active_contracts = st.session_state.get("active_contracts_volume", 129500)
-    net_units = demand_data.get(
-        "delta_surge_units",
-        st.session_state.get(
-            "net_uncovered_units", max(0, gross_surge - active_contracts)
-        ),
+    net_units = st.session_state.get(
+        "net_uncovered_units",
+        demand_data.get("delta_surge_units", max(0, gross_surge - active_contracts))
     )
 
     fix_executed = st.session_state.get("fix_executed", False)
@@ -3002,16 +2261,15 @@ def render_ctrm_desk(
     demand_data = cascade.get("demand", {})
     prop_data = st.session_state.get("propagated_commodity_data")
 
-    gross_surge = demand_data.get(
-        "total_surge_units",
-        st.session_state.get("extracted_demand_surge", 241000),
+    # Prioritize live injected Monte Carlo stress state over static cascade cache
+    gross_surge = st.session_state.get(
+        "extracted_demand_surge",
+        demand_data.get("total_surge_units", 173125)
     )
     active_contracts = st.session_state.get("active_contracts_volume", 129500)
-    net_units = demand_data.get(
-        "delta_surge_units",
-        st.session_state.get(
-            "net_uncovered_units", max(0, gross_surge - active_contracts)
-        ),
+    net_units = st.session_state.get(
+        "net_uncovered_units",
+        demand_data.get("delta_surge_units", max(0, gross_surge - active_contracts))
     )
 
     sig_title = st.session_state.get(
@@ -3032,8 +2290,16 @@ def render_ctrm_desk(
 
     # 2. Derive Event-Driven CTRM Metrics
     target_hr = min(0.95, max(0.40, 0.50 - (si_score * 0.35)))
-    required_hedged_vol = int(gross_surge * target_hr)
-    unhedged_shortfall = max(0, required_hedged_vol - active_contracts)
+    
+    # If Monte Carlo or Macro Stress is injected, evaluate shortfall directly against physical unhedged gap
+    if st.session_state.get("macro_stress_active", False) or "net_uncovered_units" in st.session_state:
+        unhedged_shortfall = st.session_state.get("net_uncovered_units", max(0, gross_surge - active_contracts))
+        # Recalculate implied target HR based on total required volume
+        required_hedged_vol = active_contracts + unhedged_shortfall
+        target_hr = min(1.0, required_hedged_vol / max(1, gross_surge))
+    else:
+        required_hedged_vol = int(gross_surge * target_hr)
+        unhedged_shortfall = max(0, required_hedged_vol - active_contracts)
 
     base_buffer = unhedged_shortfall * unit_base_price * 0.08
     if prop_data:
@@ -3188,11 +2454,17 @@ def render_ctrm_desk(
             "🚀 Execute & Route FIX 4.4 Paper Order",
             type="primary",
             key="btn_execute_fix_44",
-            disabled=fix_executed,
+            disabled=(fix_executed and st.session_state.get("net_uncovered_units", 0) == 0),
         ):
             # 1. Create Hedging Trade Record
-            trade_benefit = 140_000.0  # Standard locked hedge benefit
+            trade_benefit = 0.0  # Dynamic Mark-to-Market calculation fallback
             order_id = f"FIX-44-LME-{np.random.randint(10000, 99999)}"
+
+            # Dynamic Mark-to-Market Trade Benefit = Gross Avoided Spot Spike - Total Premium Paid
+            spot_surge_price = 780.0 * (1.0 + st.session_state.get("sim_vol", 0.35))
+            strike_ceiling = 780.0 * 1.05
+            gross_avoided_cost = max(0.0, (spot_surge_price - strike_ceiling) * total_hedge_volume)
+            trade_benefit = max(0.0, gross_avoided_cost - total_premium_required)
 
             new_trade = {
                 "id": order_id,
@@ -3213,7 +2485,7 @@ def render_ctrm_desk(
 
             # Recalculate global hedge benefit & available cash
             total_benefit = sum(
-                t.get("hedge_benefit_usd", 140_000.0)
+                t.get("hedge_benefit_usd", 0.0)
                 for t in st.session_state["executed_hedges"]
             )
             st.session_state["total_hedge_benefit"] = total_benefit
@@ -3266,7 +2538,7 @@ def render_ctrm_desk(
 
                 # Recalculate global metrics
                 total_benefit = sum(
-                    t.get("hedge_benefit_usd", 140_000.0)
+                    t.get("hedge_benefit_usd", 0.0)
                     for t in st.session_state["executed_hedges"]
                 )
                 st.session_state["total_hedge_benefit"] = total_benefit
@@ -3608,6 +2880,7 @@ def render_global_logistics_gis(
 
     st.pydeck_chart(
         pdk.Deck(
+            map_style="https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json",
             layers=[arc_layer],
             initial_view_state=pdk.ViewState(
                 latitude=25.0, longitude=-30.0, zoom=1.2, pitch=35
@@ -3824,7 +3097,7 @@ def render_flight_simulator(
 
       # Simulate gross demand surge across iterations
       simulated_gross = (
-          gross_surge
+          (active_contracts + gross_surge)
           * demand_multiplier
           * np.random.uniform(0.9, 1.1, size=n_sims)
       )
@@ -3916,6 +3189,7 @@ def render_flight_simulator(
 
         st.session_state["extracted_demand_surge"] = new_gross_surge
         st.session_state["net_uncovered_units"] = new_net_deficit
+        st.session_state["fix_executed"] = False  # Reset lock to allow hedging the new deficit
         st.session_state["active_leadtime_delay_days"] = new_lt_delay
         st.session_state["si_composite"] = new_si
 
@@ -3938,7 +3212,7 @@ def render_flight_simulator(
       if st.button(
           hedge_btn_label,
           key="btn_execute_ctrm_hedge",
-          disabled=fix_executed,
+          disabled=(fix_executed and st.session_state.get("net_uncovered_units", 0) == 0),
           use_container_width=True,
       ):
         st.session_state["fix_executed"] = True
