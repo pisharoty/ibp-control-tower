@@ -21,6 +21,7 @@ import plotly.express as px
 import plotly.graph_objects as go
 import pydeck as pdk  # Added for GIS / Global Logistics map layers
 import streamlit as st
+from gru_attention_engine import run_gru_inference
 import urllib.request
 import xml.etree.ElementTree as ET
 from robot_feeds import (
@@ -64,6 +65,19 @@ def init_session_state():
         "active_risk_signal_title", "Baseline Operations Target"
     )
     st.session_state.setdefault("signal_category", "Baseline S&OP")
+
+    # --- Attention-GRU Neural Engine Integration ---
+    if "predicted_spot" not in st.session_state:
+        try:
+            _p_hist = np.linspace(14200.0, f"${st.session_state.get('predicted_spot', 14669.54):,.2f}", 60) + np.random.randn(60) * 10
+            _s_hist = np.random.uniform(-0.6, -0.1, 60)
+            _spot, _si = run_gru_inference(_p_hist, _s_hist)
+            st.session_state["predicted_spot"] = float(_spot)
+            st.session_state["triangulated_si"] = float(_si)
+        except Exception:
+            st.session_state["predicted_spot"] = f"${st.session_state.get('predicted_spot', 14669.54):,.2f}"
+            st.session_state["triangulated_si"] = -0.330
+
 
 # =========================================================================
 # GLOBAL SESSION STATE INIT & TRADE EXECUTION HELPER
@@ -1709,95 +1723,25 @@ def render_nlp_commercial_sensing(*args, **kwargs):
             alert_count = len(noaa_alerts)
             dynamic_surge_units = 100000 + (alert_count * 25000)
             dynamic_lt_delay_days = round(5.0 + (alert_count * 2.5), 1)
-            fbx_spot_rate = int(3380 * (bdi_val / 1850.0)) if bdi_val else 3380
+
+            # Safe NaN & Type Validation
+            has_bdi = bdi_val is not None and pd.notna(bdi_val)
+            has_bdi_change = bdi_change is not None and pd.notna(bdi_change)
+
+            try:
+                fbx_spot_rate = int(3380 * (float(bdi_val) / 1850.0)) if has_bdi else 3380
+            except (ValueError, TypeError):
+                fbx_spot_rate = 3380
 
             w_col1, w_col2, w_col3, w_col4 = st.columns(4)
 
             with w_col1:
                 st.metric(
                     "Baltic Dry Freight Index",
-                    f"{bdi_val:,.0f} pts" if bdi_val else "1,850 pts",
-                    f"{bdi_change:+.1f}% WoW" if bdi_change else "+0.0% WoW",
+                    f"{float(bdi_val):,.0f} pts" if has_bdi else "1,850 pts",
+                    f"{float(bdi_change):+.1f}% WoW" if has_bdi_change else "+0.0% WoW",
                 )
                 st.caption(f"Status: `{sync_status}`")
-
-            with w_col2:
-                st.metric(
-                    "FBX Ocean Spot Rate Benchmark",
-                    f"${fbx_spot_rate:,} / FEU",
-                    delta=f"{bdi_change:+.1f}% WoW" if bdi_change else "+1.2% WoW",
-                )
-                st.caption("Asia-North America Corridor")
-
-            with w_col3:
-                st.metric(
-                    "Active AIS Marine Anomalies",
-                    f"{alert_count} Severe Zones Active",
-                    delta="+ Project44 Telemetry",
-                )
-                st.caption("Real-Time GIS Vessel Ping")
-
-            with w_col4:
-                st.metric(
-                    "NOAA Climate Threat Level",
-                    "Level 4 - Severe" if alert_count > 0 else "Level 1 - Low",
-                    delta=f"{alert_count} Active Alerts",
-                    delta_color="inverse" if alert_count > 0 else "normal",
-                )
-                st.caption("NOAA Severe Weather Telemetry")
-
-            st.divider()
-            st.markdown(
-                "#### 🌀 Live Active NOAA Severe Weather & Coastal Disruption Alerts"
-            )
-
-            if not noaa_alerts:
-                st.success(
-                    "No active critical NOAA marine warnings detected in monitored shipping corridors."
-                )
-            else:
-                table_data = [
-                    {
-                        "Corridor / Region": alert.get("corridor", "Global Maritime"),
-                        "Disruption Event": alert.get("event", "Severe Marine Advisory"),
-                        "NOAA Severity": alert.get("severity", "Warning"),
-                        "Official Advisory Summary": alert.get("headline", "N/A"),
-                        "Effective Time": alert.get("timestamp", "Live Telemetry"),
-                    }
-                    for alert in noaa_alerts
-                ]
-                st.dataframe(
-                    pd.DataFrame(table_data),
-                    use_container_width=True,
-                    hide_index=True,
-                )
-
-            if st.button(
-                "⚡ Ingest Freight & NOAA Weather Signals into Logistics Engine",
-                key="btn_ingest_freight",
-                type="primary",
-                use_container_width=True,
-            ):
-                st.session_state["extracted_demand_surge"] = dynamic_surge_units
-                st.session_state["freight_delay_days"] = dynamic_lt_delay_days
-                st.session_state["si_composite"] = -0.75 if alert_count > 0 else -0.20
-                st.session_state["freight_telemetry"] = {
-                    "bdi_val": bdi_val,
-                    "fbx_rate": fbx_spot_rate,
-                    "active_alerts_count": alert_count,
-                }
-
-                if "_propagate_signal_to_sop_cascade" in globals():
-                    _propagate_signal_to_sop_cascade({
-                        "source_type": "Maritime AIS & NOAA Weather Telemetry",
-                        "title": f"NOAA Active Marine Alerts ({alert_count} Zones) & Freight Surcharges",
-                        "demand_surge_units": dynamic_surge_units,
-                        "leadtime_delay_days": dynamic_lt_delay_days,
-                        "sentiment_index": -0.75 if alert_count > 0 else -0.20,
-                    })
-
-                st.toast("✅ Freight & NOAA Weather Telemetry Ingested Across Platform!", icon="⚓")
-                st.rerun()
 
 # Maintain alias to protect all navigation router calls
 def render_nlp_intelligence(*args, **kwargs):
