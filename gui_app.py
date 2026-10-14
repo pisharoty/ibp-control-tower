@@ -8,6 +8,7 @@ import math
 import requests
 import xml.etree.ElementTree as ET
 from scipy.stats import norm
+from robot_feeds import fetch_live_or_fallback
 
 # =====================================================================
 # BULLETPROOF ENGINE FALLBACK / IN-MEMORY CONNECTOR
@@ -895,25 +896,6 @@ def render_demand_supply_match(persona, term_unit="Units", plant1_name="Detroit 
     if st.session_state.get("demand_plan_committed", False):
         st.success(f"✅ **Demand Plan Committed**: Horizon plan locked at **{st.session_state.get('committed_horizon_demand', total_horizon_demand):,} {term_unit}**. ERP Purchase Orders and BOM Engine updated!")
 
-
-def fetch_live_or_fallback(feed_url, fallback_headlines, timeout_sec=1.5):
-    if not feed_url:
-        return fallback_headlines, False
-
-    try:
-        response = requests.get(feed_url, timeout=timeout_sec)
-        if response.status_code == 200:
-            root = ET.fromstring(response.content)
-            live_items = []
-            for item in root.findall('.//item')[:3]:
-                title = item.find('title').text if item.find('title') is not None else "Live News Event"
-                live_items.append(f"🟢 [LIVE] {title} [Impact: 90,000 Units]")
-            if live_items:
-                return live_items, True
-    except Exception:
-        pass
-    
-    return fallback_headlines, False
 
 
 def parse_demand_from_text(text):

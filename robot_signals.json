@@ -1,12 +1,81 @@
 {
   "status": "synced",
+  "sync_timestamp": "2026-10-05T17:57:01.161380",
+  "freight_telemetry": {
+    "ocean_freight_usd_feu": 3880.0,
+    "air_freight_usd_kg": 2.48,
+    "active_vessels_count": 3,
+    "vessel_telemetry": [],
+    "noaa_severity_level": "Level 4 High Risk",
+    "noaa_alert_summary": "High Risk: 33 Maritime | 1 Airport Alerts",
+    "daily_news_snippet": "[Sat, 25 Jul 2026] Air cargo delays hit South China as Typhoon Noul nears coast - STAT Times",
+    "telemetry_status": "YFINANCE_INDEXED | TAC_SIMULATED | NOAA_LIVE"
+  },
   "newsletters": [
     {
       "source": "LinkedIn Newsletters",
-      "status": "GMAIL_APP_PASS is missing. Please set it in secrets or environment variables.",
+      "status": "GMAIL_APP_PASS is missing in secrets or environment.",
       "is_live": false,
-      "sentiment_score": 0.0
+      "sentiment_score": -0.1
     }
   ],
-  "linkedin_score": 0.0
+  "linkedin_score": -0.1,
+  "global_telemetry": {
+    "ny_fed_gscpi": "+0.97 \u03c3 (Live Synthesized)",
+    "gscpi_value": 0.97,
+    "us_fred": "103.1 pts",
+    "world_bank": "151.8 Index",
+    "china_pmi": "50.4 (Expansion)",
+    "eurozone_ecb": "2.65% (ECB Refi)"
+  },
+  "gep_index": {
+    "source": "GEP Global Supply Chain Volatility Index",
+    "index_value": -0.83,
+    "status": "High Risk: 33 Maritime | 1 Airport Alerts",
+    "volatility_score": -0.83,
+    "leadtime_delay_days": 5.0,
+    "demand_surge_units": 86400,
+    "summary": "GEP Volatility linked to Section 4: Weather severity tier 'Level 4 High Risk' @ $3,880/FEU."
+  },
+  "baltic_indices": {
+    "baltic_dry_bdi": {
+      "value": 1910,
+      "unit": "pts",
+      "change": "+3.2%"
+    },
+    "freightos_fbx_ocean": {
+      "value": 3880.0,
+      "unit": "USD/FEU",
+      "status": "YFINANCE_INDEXED | TAC_SIMULATED | NOAA_LIVE"
+    },
+    "baltic_air_tac": {
+      "value": 2.48,
+      "unit": "USD/kg",
+      "status": "YFINANCE_INDEXED | TAC_SIMULATED | NOAA_LIVE"
+    },
+    "status": "Bound to Section 4 Telemetry"
+  },
+  "kospi_apac": {
+    "kospi_index": "2,618 pts",
+    "semiconductor_export_trend": "+12.4% YoY",
+    "leadtime_status": "Normal Lead Times"
+  },
+  "noaa_environmental": {
+    "weather_alert": "High Risk: 33 Maritime | 1 Airport Alerts",
+    "severity_level": "Level 4 High Risk",
+    "port_delay_risk": "+6 to 9 Days Transit Buffer",
+    "noaa_score": -0.75
+  },
+  "hard_macro": {
+    "gscpi_raw": 0.97,
+    "gscpi_sentiment": -0.32,
+    "world_bank": {
+      "value": 151.8,
+      "display": "151.8 Index"
+    },
+    "fred": {
+      "value": 103.1,
+      "display": "103.1 pts"
+    }
+  }
 }

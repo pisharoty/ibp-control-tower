@@ -35,7 +35,7 @@ from robot_feeds import (
     sync_robot_feeds,
 )
 from robot_feeds import fetch_live_or_fallback
-
+from inventory_manager import init_session_state_inventory, render_inventory_position_manager
 
 # =====================================================================
 # 1. SESSION STATE INITIALIZATION ENGINE
@@ -69,15 +69,17 @@ def init_session_state():
     # --- Attention-GRU Neural Engine Integration ---
     if "predicted_spot" not in st.session_state:
         try:
-            _p_hist = np.linspace(14200.0, f"${st.session_state.get('predicted_spot', 14669.54):,.2f}", 60) + np.random.randn(60) * 10
+            _p_hist = np.linspace(14200.0, 14669.54, 60) + np.random.randn(60) * 10
             _s_hist = np.random.uniform(-0.6, -0.1, 60)
             _spot, _si = run_gru_inference(_p_hist, _s_hist)
             st.session_state["predicted_spot"] = float(_spot)
             st.session_state["triangulated_si"] = float(_si)
         except Exception:
-            st.session_state["predicted_spot"] = f"${st.session_state.get('predicted_spot', 14669.54):,.2f}"
+            st.session_state["predicted_spot"] = 14669.54
             st.session_state["triangulated_si"] = -0.330
 
+    # Ensure inventory tables are initialized
+    init_session_state_inventory()
 
 # =========================================================================
 # GLOBAL SESSION STATE INIT & TRADE EXECUTION HELPER
@@ -3460,7 +3462,6 @@ Response Stream:
     # 4. RETAIN EXISTING HANDSHAKE SIMULATOR HELPER
     render_handshake_simulator()
 
-
 def render_sidebar_navigation():
   st.sidebar.title("⚡ IBP Control Tower")
 
@@ -3475,6 +3476,10 @@ def render_sidebar_navigation():
   )
 
   config = get_persona_config(persona)
+
+  # Dynamically inject Enterprise Inventory & Position Manager if missing from persona list
+  if "📦 Enterprise Inventory & Position Manager" not in config["modules"]:
+      config["modules"].insert(1, "📦 Enterprise Inventory & Position Manager")
 
   selected_module = st.sidebar.radio(
       "Navigation Modules:", config["modules"], key="sidebar_module_radio"
@@ -3683,6 +3688,12 @@ if any(
     ]
 ):
   render_executive_sop(persona=persona, term_unit=term_unit)
+
+elif any(
+    term in selected_module
+    for term in ["Inventory", "Position Manager"]
+):
+  render_inventory_position_manager()
 
 elif any(
     term in selected_module
