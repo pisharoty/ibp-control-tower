@@ -2357,3 +2357,25 @@ def apply_genspark_forecast_shock(commodity_name, base_price, forward_days=60):
         }
     except Exception:
         return {"si_applied": 0.0, "forecast_30d": base_price, "forecast_60d": base_price, "curve": []}
+
+
+def get_genspark_signal_for_commodity(commodity_name):
+    """Extracts Genspark signal using fuzzy string token matching."""
+    merged = get_merged_market_signals()
+    if commodity_name in merged:
+        return merged[commodity_name]
+    
+    clean_name = re.sub(r"[^\w\s]", "", commodity_name).lower()
+    tokens = [t for t in clean_name.split() if t not in ["lme", "grade", "primary", "battery", "carbonate", "cathode", "ingot", "high"]]
+    
+    for key, signal in merged.items():
+        clean_key = re.sub(r"[^\w\s]", "", key).lower()
+        if any(token in clean_key for token in tokens if len(token) > 2):
+            return signal
+            
+    return {
+        "si_composite": 0.00,
+        "sentiment_label": "Neutral / Stable",
+        "demand_surge_flag": False,
+        "supply_disruption_flag": False
+    }

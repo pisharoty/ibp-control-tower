@@ -26,6 +26,7 @@ from gru_attention_engine import run_gru_inference
 import urllib.request
 import xml.etree.ElementTree as ET
 from robot_feeds import (
+    get_genspark_signal_for_commodity,
     calculate_composite_sentiment,
     compute_quantified_operational_impact,
     fetch_baltic_indices,            # Exports live ocean FBX & air TAC rates
