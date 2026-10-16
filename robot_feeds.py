@@ -2284,3 +2284,43 @@ def render_genspark_overlay():
             st.markdown("---")
     except Exception as e:
         st.warning(f"Genspark UI Overlay notice: {e}")
+
+
+def get_merged_market_signals():
+    import os, json
+    from inventory_manager import TOP_50_COMMODITIES_REGISTRY
+    ROBOT_SIGNALS_FILE = "robot_signals.json"
+    merged_signals = {}
+    for commodity_name, details in TOP_50_COMMODITIES_REGISTRY.items():
+        merged_signals[commodity_name] = {
+            "commodity": commodity_name,
+            "category": details.get("category", "General"),
+            "si_composite": 0.00,
+            "sentiment_label": "Neutral / Stable",
+            "demand_surge_flag": False,
+            "supply_disruption_flag": False,
+            "headline_summary": "No active tactical disruptions reported in last Genspark scan.",
+            "top_source_url": "",
+            "source": "Baseline Engine"
+        }
+    if os.path.exists(ROBOT_SIGNALS_FILE):
+        try:
+            with open(ROBOT_SIGNALS_FILE, "r") as f:
+                data = json.load(f)
+            signals_list = data if isinstance(data, list) else data.get("signals", [])
+            for item in signals_list:
+                if isinstance(item, dict):
+                    name = item.get("commodity")
+                    if name in merged_signals:
+                        merged_signals[name].update({
+                            "si_composite": float(item.get("si_composite", 0.0)),
+                            "sentiment_label": item.get("sentiment_label", "Active Event"),
+                            "demand_surge_flag": bool(item.get("demand_surge_flag", False)),
+                            "supply_disruption_flag": bool(item.get("supply_disruption_flag", False)),
+                            "headline_summary": item.get("headline_summary", ""),
+                            "top_source_url": item.get("top_source_url", ""),
+                            "source": "📡 Genspark Agent"
+                        })
+        except Exception:
+            pass
+    return merged_signals

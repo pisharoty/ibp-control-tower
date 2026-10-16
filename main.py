@@ -1272,6 +1272,8 @@ def render_nlp_commercial_sensing(*args, **kwargs):
         # -------------------------------------------------------------------------
         # 1. HARD MACROECONOMIC TELEMETRY DASHBOARD
         # -------------------------------------------------------------------------
+        if isinstance(latest_signals, list):
+            latest_signals = {"signals": latest_signals}
         macro = latest_signals.get("global_telemetry") or (
             fetch_global_macro_telemetry() if "fetch_global_macro_telemetry" in globals() else {}
         )
