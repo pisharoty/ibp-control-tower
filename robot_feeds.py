@@ -6,7 +6,13 @@ from inventory_manager import TOP_50_COMMODITIES_REGISTRY
 ROBOT_SIGNALS_FILE = "robot_signals.json"
 
 def get_merged_market_signals():
+    """Option B Hybrid Pipeline:
+    - Maintains full coverage for all 50 registry commodities.
+    - Superimposes active Genspark tactical news signals when present.
+    """
     merged_signals = {}
+
+    # Step 1: Default all 50 commodities to neutral baseline
     for commodity_name, details in TOP_50_COMMODITIES_REGISTRY.items():
         merged_signals[commodity_name] = {
             "commodity": commodity_name,
@@ -20,6 +26,7 @@ def get_merged_market_signals():
             "source": "Baseline Engine"
         }
 
+    # Step 2: Superimpose active Genspark tactical signals
     if os.path.exists(ROBOT_SIGNALS_FILE):
         try:
             with open(ROBOT_SIGNALS_FILE, "r") as f:
@@ -45,6 +52,7 @@ def get_merged_market_signals():
     return merged_signals
 
 def render_genspark_overlay():
+    """Renders the Genspark Live Signals banner inside Streamlit UI."""
     try:
         merged_signals = get_merged_market_signals()
         active_genspark = [v for v in merged_signals.values() if v.get("source") == "📡 Genspark Agent"]
