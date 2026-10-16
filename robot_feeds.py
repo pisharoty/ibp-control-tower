@@ -2324,3 +2324,28 @@ def get_merged_market_signals():
         except Exception:
             pass
     return merged_signals
+
+
+def apply_genspark_forecast_shock(commodity_name, base_price, forward_days=60):
+    """Dynamically adjusts 30/60-day forecast curves using live Genspark SI composite scores."""
+    try:
+        merged = get_merged_market_signals()
+        signal = merged.get(commodity_name, {})
+        si = float(signal.get("si_composite", 0.0))
+        elasticity = 0.084  # Default macro-structural price elasticity
+        
+        # Calculate time-weighted sentiment shock factor
+        shock_factor = 1.0 + (elasticity * si)
+        forecast_curve = [
+            round(base_price * (1 + (0.0005 * day)) * shock_factor, 2)
+            for day in range(1, forward_days + 1)
+        ]
+        
+        return {
+            "si_applied": si,
+            "forecast_30d": forecast_curve[29] if len(forecast_curve) >= 30 else base_price,
+            "forecast_60d": forecast_curve[-1],
+            "curve": forecast_curve
+        }
+    except Exception:
+        return {"si_applied": 0.0, "forecast_30d": base_price, "forecast_60d": base_price, "curve": []}
