@@ -1,81 +1,110 @@
-{
-  "status": "synced",
-  "sync_timestamp": "2026-10-05T17:57:01.161380",
-  "freight_telemetry": {
-    "ocean_freight_usd_feu": 3880.0,
-    "air_freight_usd_kg": 2.48,
-    "active_vessels_count": 3,
-    "vessel_telemetry": [],
-    "noaa_severity_level": "Level 4 High Risk",
-    "noaa_alert_summary": "High Risk: 33 Maritime | 1 Airport Alerts",
-    "daily_news_snippet": "[Sat, 25 Jul 2026] Air cargo delays hit South China as Typhoon Noul nears coast - STAT Times",
-    "telemetry_status": "YFINANCE_INDEXED | TAC_SIMULATED | NOAA_LIVE"
+[
+  {
+    "commodity": "LME Copper Cathode",
+    "si_composite": -0.2,
+    "sentiment_label": "Bearish Pressure",
+    "demand_surge_flag": false,
+    "supply_disruption_flag": true,
+    "headline_summary": "Copper extended losses for a third session toward $6.50/lb as hot US inflation fueled Fed rate-hike expectations, but strikes at Escondida and Centinela plus weather disruption at Codelco's El Teniente capped declines; data-center and grid demand remains supportive.",
+    "top_source_url": "https://tradingeconomics.com/commodity/copper"
   },
-  "newsletters": [
-    {
-      "source": "LinkedIn Newsletters",
-      "status": "GMAIL_APP_PASS is missing in secrets or environment.",
-      "is_live": false,
-      "sentiment_score": -0.1
-    }
-  ],
-  "linkedin_score": -0.1,
-  "global_telemetry": {
-    "ny_fed_gscpi": "+0.97 \u03c3 (Live Synthesized)",
-    "gscpi_value": 0.97,
-    "us_fred": "103.1 pts",
-    "world_bank": "151.8 Index",
-    "china_pmi": "50.4 (Expansion)",
-    "eurozone_ecb": "2.65% (ECB Refi)"
+  {
+    "commodity": "Brent Crude Oil",
+    "si_composite": 0.35,
+    "sentiment_label": "Bullish Tilt",
+    "demand_surge_flag": false,
+    "supply_disruption_flag": true,
+    "headline_summary": "Brent held near $105.92/bbl after a tanker was sunk in the Strait of Hormuz and the US drew up strike plans on Iran; an 8mn bbl EIA crude draw supported prices while potential shadow-fleet sanctions easing and IEA emergency releases capped gains.",
+    "top_source_url": "https://www.cnbc.com/2026/10/15/oil-prices-today-brent-wti.html"
   },
-  "gep_index": {
-    "source": "GEP Global Supply Chain Volatility Index",
-    "index_value": -0.83,
-    "status": "High Risk: 33 Maritime | 1 Airport Alerts",
-    "volatility_score": -0.83,
-    "leadtime_delay_days": 5.0,
-    "demand_surge_units": 86400,
-    "summary": "GEP Volatility linked to Section 4: Weather severity tier 'Level 4 High Risk' @ $3,880/FEU."
+  {
+    "commodity": "WTI Crude Oil",
+    "si_composite": 0.4,
+    "sentiment_label": "Bullish Tilt",
+    "demand_surge_flag": false,
+    "supply_disruption_flag": true,
+    "headline_summary": "WTI jumped about 3% to $97.97/bbl, its highest in three weeks, as traders priced renewed Hormuz shipping attacks and a larger-than-expected 8mn barrel US crude inventory draw.",
+    "top_source_url": "https://www.cnbc.com/2026/10/15/oil-prices-today-brent-wti.html"
   },
-  "baltic_indices": {
-    "baltic_dry_bdi": {
-      "value": 1910,
-      "unit": "pts",
-      "change": "+3.2%"
-    },
-    "freightos_fbx_ocean": {
-      "value": 3880.0,
-      "unit": "USD/FEU",
-      "status": "YFINANCE_INDEXED | TAC_SIMULATED | NOAA_LIVE"
-    },
-    "baltic_air_tac": {
-      "value": 2.48,
-      "unit": "USD/kg",
-      "status": "YFINANCE_INDEXED | TAC_SIMULATED | NOAA_LIVE"
-    },
-    "status": "Bound to Section 4 Telemetry"
+  {
+    "commodity": "Henry Hub Natural Gas",
+    "si_composite": 0.25,
+    "sentiment_label": "Moderately Bullish",
+    "demand_surge_flag": false,
+    "supply_disruption_flag": true,
+    "headline_summary": "Henry Hub held near $3.21/MMBtu after a smaller-than-expected 67 Bcf storage injection, with Lower 48 output down to 110.8 Bcfd on hurricane-related shutdowns and pipeline disruptions; milder weather and softer LNG feedgas flows restrained the bullish case.",
+    "top_source_url": "https://tradingeconomics.com/commodity/natural-gas"
   },
-  "kospi_apac": {
-    "kospi_index": "2,618 pts",
-    "semiconductor_export_trend": "+12.4% YoY",
-    "leadtime_status": "Normal Lead Times"
+  {
+    "commodity": "TTF Natural Gas (Europe Benchmark)",
+    "si_composite": 0.4,
+    "sentiment_label": "Bullish Tilt",
+    "demand_surge_flag": false,
+    "supply_disruption_flag": true,
+    "headline_summary": "TTF paused near EUR 85.19/MWh after a rally to multi-year highs as Hormuz disruptions choke Middle East LNG (about 20% of global exports); EU storage at 74%, below seasonal norms, with a cold snap forecast for northeastern Europe next week.",
+    "top_source_url": "https://tradingeconomics.com/commodity/eu-natural-gas"
   },
-  "noaa_environmental": {
-    "weather_alert": "High Risk: 33 Maritime | 1 Airport Alerts",
-    "severity_level": "Level 4 High Risk",
-    "port_delay_risk": "+6 to 9 Days Transit Buffer",
-    "noaa_score": -0.75
+  {
+    "commodity": "Primary Aluminum Ingot",
+    "si_composite": -0.45,
+    "sentiment_label": "Bearish Pressure",
+    "demand_surge_flag": false,
+    "supply_disruption_flag": false,
+    "headline_summary": "Aluminum slid to $2,985/t, a YTD low erasing the war rally, as the dollar firmed, EGA restarted a quarter of Al Taweelah smelter and Chinese alloy exports doubled y/y; LME stocks at a century low still signal off-screen physical tightness.",
+    "top_source_url": "https://tradingeconomics.com/commodity/aluminum"
   },
-  "hard_macro": {
-    "gscpi_raw": 0.97,
-    "gscpi_sentiment": -0.32,
-    "world_bank": {
-      "value": 151.8,
-      "display": "151.8 Index"
-    },
-    "fred": {
-      "value": 103.1,
-      "display": "103.1 pts"
-    }
+  {
+    "commodity": "Special High Grade Zinc",
+    "si_composite": 0.4,
+    "sentiment_label": "Bullish Tilt",
+    "demand_surge_flag": false,
+    "supply_disruption_flag": true,
+    "headline_summary": "Zinc SHG Rotterdam premium surged to $330/t (from $217.50/t in March) with spot concentrate TCs at a record-low -$115 to -$150/t in China, as war-hit supply chains and record-low TCs dominate pre-LME Week positioning.",
+    "top_source_url": "https://www.fastmarkets.com/insights/base-metals-head-to-lme-week-2026-with-record-low-tcs-war-hit-supply-chains/"
+  },
+  {
+    "commodity": "Battery-Grade Lithium Carbonate",
+    "si_composite": -0.65,
+    "sentiment_label": "Strongly Bearish",
+    "demand_surge_flag": false,
+    "supply_disruption_flag": false,
+    "headline_summary": "Chinese lithium carbonate slumped 3.56% to CNY 104,400/t, a near 10-month low, after an SMM methodology change revealed Chinese stockpiles double prior estimates, Australian restarts (Bald Hill, Finniss) added supply, and the EU moved to cap Chinese hybrid EV imports.",
+    "top_source_url": "https://tradingeconomics.com/commodity/lithium"
+  },
+  {
+    "commodity": "Crude Palm Oil (FCPO)",
+    "si_composite": -0.35,
+    "sentiment_label": "Bearish Pressure",
+    "demand_surge_flag": false,
+    "supply_disruption_flag": false,
+    "headline_summary": "FCPO fell 2.21% to MYR 4,596/t as record MPOB inventories of 3.51mn tonnes and weaker Dalian edible oils weighed, though 33-37% higher Oct 1-10 exports and Indian festive buying provided a floor.",
+    "top_source_url": "https://tradingeconomics.com/commodity/palm-oil"
+  },
+  {
+    "commodity": "CBOT Soybeans",
+    "si_composite": -0.35,
+    "sentiment_label": "Bearish Pressure",
+    "demand_surge_flag": false,
+    "supply_disruption_flag": false,
+    "headline_summary": "November soybeans broke key support at $12.69 3/4 and the 50-day MA, closing at $12.63 after a 13-month-low NOPA crush of 196.3mn bu; continued Chinese buying (800,000t in two days) only partially offset harvest pressure.",
+    "top_source_url": "https://www.agriculture.com/grains-are-mixed-after-another-soybean-sale-to-china-or-thursday-oct-15-2026-12175069"
+  },
+  {
+    "commodity": "EUA Carbon Allowances (ETS)",
+    "si_composite": -0.25,
+    "sentiment_label": "Bearish Pressure",
+    "demand_surge_flag": false,
+    "supply_disruption_flag": false,
+    "headline_summary": "EU carbon permits slipped 1.49% to EUR 85.84 in lacklustre trade as gloomy eurozone industrial production data, weaker gas prices and milder forecast weather curbed compliance buying.",
+    "top_source_url": "https://tradingeconomics.com/commodity/carbon"
+  },
+  {
+    "commodity": "Baltic Dry Index (BDI)",
+    "si_composite": -0.45,
+    "sentiment_label": "Bearish Pressure",
+    "demand_surge_flag": false,
+    "supply_disruption_flag": false,
+    "headline_summary": "BDI slumped 4.57% to 2,545, its lowest since June 30 and ninth straight session of declines, as capesize rates plunged 8.5% to a six-month low and panamax fell 2.2% on weak iron ore and coal cargo demand.",
+    "top_source_url": "https://tradingeconomics.com/commodity/baltic"
   }
-}
+]
