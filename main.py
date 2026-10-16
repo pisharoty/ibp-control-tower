@@ -3623,32 +3623,28 @@ def get_persona_config(persona_name: str) -> dict:
         "modules": [
             "Executive S&OP Control Tower",
             "NLP Commercial Sensing & Field Intelligence",
+            # --- GENSPARK TACTICAL OVERLAY BANNER ---
+            try:
+                from robot_feeds import get_merged_market_signals
+                merged_signals = get_merged_market_signals()
+                active_genspark = [v for v in merged_signals.values() if v.get('source') == '📡 Genspark Agent']
+                st.markdown('### 📡 Live Genspark Tactical Market Signals')
+                if active_genspark:
+                    st.caption(f'Showing **{len(active_genspark)}** active disruption items parsed from global news & social feeds.')
+                    cols = st.columns(min(len(active_genspark), 4))
+                    for idx_g, signal in enumerate(active_genspark):
+                        with cols[idx_g % 4]:
+                            si = signal['si_composite']
+                            st.metric(label=signal['commodity'], value=f'SI: {si:+.2f}', delta=signal['sentiment_label'])
+                            if signal.get('supply_disruption_flag'): st.warning('⚠️ SUPPLY DISRUPTION')
+                            if signal.get('demand_surge_flag'): st.error('🔥 DEMAND SURGE')
+                            st.caption(signal['headline_summary'][:120] + '...')
+                    st.markdown('---')
+                else:
+                    st.info('No active Genspark market shocks detected. All 50 registry commodities on Baseline Engine (SI: 0.00).')
+            except Exception as _e:
+                st.warning(f'Genspark overlay notice: {_e}')
 
-        # --- GENSPARK TACTICAL OVERLAY BANNER ---
-        st.markdown("### 📡 Live Genspark Tactical Market Signals")
-        merged_signals = get_merged_market_signals()
-        active_genspark = [v for v in merged_signals.values() if v.get("source") == "📡 Genspark Agent"]
-        
-        if active_genspark:
-            st.caption(f"Showing **{len(active_genspark)}** active disruption items parsed from global news & social feeds.")
-            cols = st.columns(min(len(active_genspark), 4))
-            for idx, signal in enumerate(active_genspark):
-                with cols[idx % 4]:
-                    si = signal["si_composite"]
-                    st.metric(
-                        label=signal["commodity"],
-                        value=f"SI: {si:+.2f}",
-                        delta=signal["sentiment_label"],
-                        delta_color="inverse" if si < 0 else "normal"
-                    )
-                    if signal.get("supply_disruption_flag"):
-                        st.warning("⚠️ SUPPLY DISRUPTION")
-                    if signal.get("demand_surge_flag"):
-                        st.error("🔥 DEMAND SURGE")
-                    st.caption(signal["headline_summary"][:120] + "...")
-            st.markdown("---")
-        else:
-            st.info("No active Genspark market shocks detected. All 50 registry commodities on Baseline Engine (SI: 0.00).")
 
             "Demand/Supply Match & Plant Load Balancer",
             "Physical Procurement & Master Contract Desk",
