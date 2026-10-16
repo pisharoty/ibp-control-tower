@@ -6,13 +6,7 @@ from inventory_manager import TOP_50_COMMODITIES_REGISTRY
 ROBOT_SIGNALS_FILE = "robot_signals.json"
 
 def get_merged_market_signals():
-    """Option B Hybrid Pipeline:
-    - Maintains full coverage for all 50 registry commodities.
-    - Superimposes active Genspark tactical news signals when present.
-    """
     merged_signals = {}
-
-    # Step 1: Default all 50 commodities to neutral baseline
     for commodity_name, details in TOP_50_COMMODITIES_REGISTRY.items():
         merged_signals[commodity_name] = {
             "commodity": commodity_name,
@@ -26,7 +20,6 @@ def get_merged_market_signals():
             "source": "Baseline Engine"
         }
 
-    # Step 2: Superimpose active Genspark tactical signals
     if os.path.exists(ROBOT_SIGNALS_FILE):
         try:
             with open(ROBOT_SIGNALS_FILE, "r") as f:
@@ -50,3 +43,29 @@ def get_merged_market_signals():
             st.warning(f"Could not parse Genspark signals overlay: {e}")
 
     return merged_signals
+
+def render_genspark_overlay():
+    try:
+        merged_signals = get_merged_market_signals()
+        active_genspark = [v for v in merged_signals.values() if v.get("source") == "📡 Genspark Agent"]
+        if active_genspark:
+            st.markdown("### 📡 Live Genspark Tactical Market Signals")
+            st.caption(f"Showing **{len(active_genspark)}** active disruption items parsed from global news & social feeds.")
+            cols = st.columns(min(len(active_genspark), 4))
+            for idx, signal in enumerate(active_genspark):
+                with cols[idx % 4]:
+                    si = signal["si_composite"]
+                    st.metric(
+                        label=signal["commodity"],
+                        value=f"SI: {si:+.2f}",
+                        delta=signal["sentiment_label"],
+                        delta_color="inverse" if si < 0 else "normal"
+                    )
+                    if signal.get("supply_disruption_flag"):
+                        st.warning("⚠️ SUPPLY DISRUPTION")
+                    if signal.get("demand_surge_flag"):
+                        st.error("🔥 DEMAND SURGE")
+                    st.caption(signal["headline_summary"][:120] + "...")
+            st.markdown("---")
+    except Exception as e:
+        st.warning(f"Genspark UI Overlay notice: {e}")
