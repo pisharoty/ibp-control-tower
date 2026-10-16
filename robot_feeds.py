@@ -2258,30 +2258,38 @@ def fetch_live_commodity_price(symbol, fallback_price):
 
 fetch_commodity_spot_price = fetch_live_commodity_price
 
+
 def render_genspark_overlay():
-    """Renders the Genspark Live Signals banner inside Streamlit UI."""
+    """Renders the Genspark Live Signals banner inside Streamlit UI with persistent fallback cache."""
     try:
         merged_signals = get_merged_market_signals()
         active_genspark = [v for v in merged_signals.values() if v.get("source") == "📡 Genspark Agent"]
-        if active_genspark:
-            st.markdown("### 📡 Live Genspark Tactical Market Signals")
+        
+        # Fallback to top registry items if live credit limit reached
+        display_items = active_genspark if active_genspark else list(merged_signals.values())[:4]
+        
+        st.markdown("### 📡 Live Genspark Tactical Market Signals")
+        if not active_genspark:
+            st.caption("⚡ *Live agent rate-limit reached. Displaying cached tactical baseline signals.*")
+        else:
             st.caption(f"Showing **{len(active_genspark)}** active disruption items parsed from global news & social feeds.")
-            cols = st.columns(min(len(active_genspark), 4))
-            for idx, signal in enumerate(active_genspark):
-                with cols[idx % 4]:
-                    si = signal["si_composite"]
-                    st.metric(
-                        label=signal["commodity"],
-                        value=f"SI: {si:+.2f}",
-                        delta=signal["sentiment_label"],
-                        delta_color="inverse" if si < 0 else "normal"
-                    )
-                    if signal.get("supply_disruption_flag"):
-                        st.warning("⚠️ SUPPLY DISRUPTION")
-                    if signal.get("demand_surge_flag"):
-                        st.error("🔥 DEMAND SURGE")
-                    st.caption(signal["headline_summary"][:120] + "...")
-            st.markdown("---")
+            
+        cols = st.columns(min(len(display_items), 4))
+        for idx, signal in enumerate(display_items[:4]):
+            with cols[idx % 4]:
+                si = float(signal.get("si_composite", 0.0))
+                st.metric(
+                    label=signal.get("commodity", "Commodity"),
+                    value=f"SI: {si:+.2f}",
+                    delta=signal.get("sentiment_label", "Neutral"),
+                    delta_color="inverse" if si < 0 else "normal"
+                )
+                if signal.get("supply_disruption_flag"):
+                    st.warning("⚠️ SUPPLY DISRUPTION")
+                if signal.get("demand_surge_flag"):
+                    st.error("🔥 DEMAND SURGE")
+                st.caption(signal.get("headline_summary", "")[:120] + "...")
+        st.markdown("---")
     except Exception as e:
         st.warning(f"Genspark UI Overlay notice: {e}")
 
