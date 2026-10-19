@@ -226,3 +226,26 @@ def render_genspark_overlay():
         st.markdown("---")
     except Exception as e:
         st.warning(f"Genspark UI Overlay notice: {e}")
+
+
+
+def calculate_composite_sentiment(*args, **kwargs):
+    """Calculates composite market sentiment SI from triangulated macro signals."""
+    try:
+        gscpi = float(args[0]) if len(args) > 0 else float(kwargs.get("gscpi", -0.15))
+        noaa = float(args[1]) if len(args) > 1 else float(kwargs.get("noaa", -0.40))
+        freight = float(args[2]) if len(args) > 2 else float(kwargs.get("freight", -0.43))
+        gep = float(args[3]) if len(args) > 3 else float(kwargs.get("gep", -0.32))
+    except Exception:
+        gscpi, noaa, freight, gep = -0.15, -0.40, -0.43, -0.32
+
+    si = round(0.35 * gscpi + 0.25 * noaa + 0.25 * freight + 0.15 * gep, 3)
+    return {
+        "si_composite": si,
+        "gscpi": gscpi,
+        "noaa": noaa,
+        "freight": freight,
+        "gep": gep,
+        "label": "Moderate Drag" if si < 0 else "Bullish Tilt",
+        "ctrm_status": "HEDGE REQUIRED" if si < -0.20 else "STABLE"
+    }
