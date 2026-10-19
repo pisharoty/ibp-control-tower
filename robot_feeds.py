@@ -10,8 +10,8 @@ SEED_SIGNALS_DATA = [
     "commodity": "Special High Grade Zinc",
     "si_composite": 0.4,
     "sentiment_label": "Bullish Tilt",
-    "demand_surge_flag": false,
-    "supply_disruption_flag": true,
+    "demand_surge_flag": False,
+    "supply_disruption_flag": True,
     "headline_summary": "Zinc SHG Rotterdam premium surged to $330/t with spot concentrate TCs at record-low -$115/t in latest market scan.",
     "top_source_url": "https://www.reuters.com",
     "source": "\ud83d\udce1 Genspark Agent"
@@ -20,8 +20,8 @@ SEED_SIGNALS_DATA = [
     "commodity": "LME Copper Cathode",
     "si_composite": -0.2,
     "sentiment_label": "Bearish Pressure",
-    "demand_surge_flag": false,
-    "supply_disruption_flag": true,
+    "demand_surge_flag": False,
+    "supply_disruption_flag": True,
     "headline_summary": "Copper extended losses toward $6.50/lb as US inflation policy fueled rate expectations & smelter bottlenecks.",
     "top_source_url": "https://www.ft.com",
     "source": "\ud83d\udce1 Genspark Agent"
@@ -30,8 +30,8 @@ SEED_SIGNALS_DATA = [
     "commodity": "Primary Aluminum Ingot",
     "si_composite": -0.45,
     "sentiment_label": "Bearish Pressure",
-    "demand_surge_flag": false,
-    "supply_disruption_flag": false,
+    "demand_surge_flag": False,
+    "supply_disruption_flag": False,
     "headline_summary": "Aluminum slid to $2,985/t as dollar firmed and EGA restarted smelter capacity at Al Taweelah.",
     "top_source_url": "https://www.bloomberg.com",
     "source": "\ud83d\udce1 Genspark Agent"
@@ -40,8 +40,8 @@ SEED_SIGNALS_DATA = [
     "commodity": "Battery-Grade Lithium Carbonate",
     "si_composite": -0.65,
     "sentiment_label": "Strongly Bearish",
-    "demand_surge_flag": false,
-    "supply_disruption_flag": false,
+    "demand_surge_flag": False,
+    "supply_disruption_flag": False,
     "headline_summary": "Chinese lithium carbonate slumped 3.56% to CNY 104,400/t following spot market supply adjustments.",
     "top_source_url": "https://www.mining.com",
     "source": "\ud83d\udce1 Genspark Agent"
