@@ -2295,10 +2295,12 @@ def render_genspark_overlay():
 
 
 def get_merged_market_signals():
-    import os, json
+    import os, json, re
     from inventory_manager import TOP_50_COMMODITIES_REGISTRY
     ROBOT_SIGNALS_FILE = "robot_signals.json"
     merged_signals = {}
+    
+    # 1. Initialize registry commodities with baseline defaults
     for commodity_name, details in TOP_50_COMMODITIES_REGISTRY.items():
         merged_signals[commodity_name] = {
             "commodity": commodity_name,
@@ -2311,26 +2313,55 @@ def get_merged_market_signals():
             "top_source_url": "",
             "source": "Baseline Engine"
         }
+        
+    # 2. Ingest active Genspark signals from JSON with fuzzy key matching
     if os.path.exists(ROBOT_SIGNALS_FILE):
         try:
             with open(ROBOT_SIGNALS_FILE, "r") as f:
                 data = json.load(f)
             signals_list = data if isinstance(data, list) else data.get("signals", [])
+            
+            keywords = ["zinc", "copper", "aluminum", "aluminium", "lithium", "crude", "brent", "gas", "nickel", "cobalt", "iron", "steel"]
+            
             for item in signals_list:
                 if isinstance(item, dict):
-                    name = item.get("commodity")
+                    name = item.get("commodity", "")
+                    if not name:
+                        continue
+                        
+                    target_key = None
                     if name in merged_signals:
-                        merged_signals[name].update({
-                            "si_composite": float(item.get("si_composite", 0.0)),
-                            "sentiment_label": item.get("sentiment_label", "Active Event"),
-                            "demand_surge_flag": bool(item.get("demand_surge_flag", False)),
-                            "supply_disruption_flag": bool(item.get("supply_disruption_flag", False)),
-                            "headline_summary": item.get("headline_summary", ""),
-                            "top_source_url": item.get("top_source_url", ""),
-                            "source": "📡 Genspark Agent"
-                        })
+                        target_key = name
+                    else:
+                        n_lower = name.lower()
+                        for kw in keywords:
+                            if kw in n_lower:
+                                for reg_key in merged_signals.keys():
+                                    if kw in reg_key.lower():
+                                        target_key = reg_key
+                                        break
+                                if target_key:
+                                    break
+                                    
+                    si_val = float(item.get("si_composite", 0.0))
+                    signal_payload = {
+                        "commodity": target_key or name,
+                        "si_composite": si_val,
+                        "sentiment_label": item.get("sentiment_label", "Active Event"),
+                        "demand_surge_flag": bool(item.get("demand_surge_flag", False)),
+                        "supply_disruption_flag": bool(item.get("supply_disruption_flag", False)),
+                        "headline_summary": item.get("headline_summary", ""),
+                        "top_source_url": item.get("top_source_url", ""),
+                        "source": "📡 Genspark Agent" if abs(si_val) > 0 else "Baseline Engine"
+                    }
+                    
+                    if target_key:
+                        merged_signals[target_key].update(signal_payload)
+                    else:
+                        merged_signals[name] = signal_payload
         except Exception:
             pass
+            
     return merged_signals
 
 
