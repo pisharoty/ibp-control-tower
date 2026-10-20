@@ -560,3 +560,16 @@ def get_all_dynamic_headlines():
         pass
         
     return headlines if headlines else ["Global Raw Materials Update: Spot Market Tightening Across Metals & Resins"]
+
+
+def get_resilient_genspark_signals():
+    """Returns full 12 Genspark tactical signals from cache if live RSS returns fewer items."""
+    try:
+        with open("robot_signals.json", "r") as f:
+            data = json.load(f)
+        sig = data.get("signals", []) if isinstance(data, dict) else data
+        if len(sig) >= 12:
+            return sig
+    except Exception:
+        pass
+    return []

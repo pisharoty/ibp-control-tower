@@ -1,3 +1,16 @@
+# Build comprehensive headline list for selectbox options
+_rss_headline_options = []
+try:
+    with open("robot_signals.json", "r") as _sf:
+        _sdata = json.load(_sf)
+    _rss_headline_options += [s.get("summary") for s in _sdata.get("signals", []) if s.get("summary")]
+    _rss_headline_options += [item.get("title") for item in _sdata.get("executive_social_stream", []) if item.get("title")]
+except Exception:
+    pass
+
+if not _rss_headline_options:
+    _rss_headline_options = ["Global Raw Materials Update: Spot Market Tightening Across Metals & Resins"]
+
 from robot_feeds import render_genspark_overlay
 import robot_feeds as rf
 def render_nlp_intelligence(*args, **kwargs):
