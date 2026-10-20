@@ -269,7 +269,15 @@ def run_end_to_end_sop_cascade(*args, **kwargs):
     return {"status": "Cascade completed successfully", "surge_netted": 102968}
 
 def sync_robot_feeds(*args, **kwargs):
-    return True
+    """Returns aggregated telemetry dictionary containing global_telemetry, freight, and signals."""
+    return {
+        "global_telemetry": fetch_global_macro_telemetry(),
+        "baltic_indices": fetch_baltic_indices(),
+        "freight_telemetry": get_freight_telemetry_sync(),
+        "signals": get_merged_market_signals(),
+        "status": "LIVE_SYNCED"
+    }
+
 
 def render_si_subfactor_breakdown(gscpi=-0.15, noaa=-0.40, freight=-0.43, gep=-0.32):
     st.markdown("##### 📐 Component Sub-Factor Weighting & Volatility Drivers")
