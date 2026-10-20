@@ -3415,25 +3415,25 @@ Headers: {{ "X-Oracle-App-ID": "{sector_cfg['oracle_gl_account']}" }}
 # )
 
 # with tab5:
-        st.markdown("**Real-Time Macro Telemetry Streaming (FRED & NY Fed)**")
-        st.code(
-            f"""GET /api/v1/telemetry/stream
+# st.markdown("**Real-Time Macro Telemetry Streaming (FRED & NY Fed)**")
+# st.code(
+# f"""GET /api/v1/telemetry/stream
 Headers: {{ "Authorization": "Bearer telemetry_live_token_******" }}
 
-Response Stream:
-{{
-  "timestamp": "{now_iso}",
-  "ny_fed_gscpi": +0.82,
-  "us_fred_mfg_index": 102.4,
-  "freightos_fbx_ocean_feu": 3850.0
-}}""",
-            language="json",
-        )
+    # Response Stream:
+    # {{
+    # "timestamp": "{now_iso}",
+    # "ny_fed_gscpi": +0.82,
+    # "us_fred_mfg_index": 102.4,
+    # "freightos_fbx_ocean_feu": 3850.0
+    # }}""",
+    # language="json",
+    # )
 
-    st.divider()
+# st.divider()
 
     # 4. RETAIN EXISTING HANDSHAKE SIMULATOR HELPER
-    render_handshake_simulator()
+# render_handshake_simulator()
 
 def render_sidebar_navigation():
   st.sidebar.title("⚡ IBP Control Tower")
