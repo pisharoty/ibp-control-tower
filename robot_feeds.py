@@ -357,6 +357,7 @@ def render_freight_weather_blackswan_tab(*args, **kwargs):
         st.error("🔥 **Panama Canal Lock Restrictions**: Daily vessel transit slots capped at 24. Average draft limit reduced to 44ft due to Gatun Lake freshwater deficit.")
 
 def render_predictive_commodity_engine(*args, **kwargs):
+    elasticity = 0.05  # Default fallback elasticity
     from inventory_manager import TOP_50_COMMODITIES_REGISTRY
 
     st.markdown("---")
@@ -527,3 +528,30 @@ def render_genspark_overlay():
         st.markdown("---")
     except Exception as e:
         st.warning(f"Genspark UI Overlay notice: {e}")
+
+
+def get_all_dynamic_headlines():
+    """Aggregates headlines across all Genspark signals and Social items."""
+    import json
+    headlines = []
+    try:
+        with open("robot_signals.json", "r") as f:
+            data = json.load(f)
+        
+        signals = data.get("signals", []) if isinstance(data, dict) else data
+        for s in signals:
+            c_name = s.get("commodity", "")
+            summary = s.get("summary", "")
+            if summary:
+                headlines.append(f"{c_name}: {summary}")
+                
+        social = data.get("executive_social_stream", []) if isinstance(data, dict) else []
+        for item in social:
+            title = item.get("title", "")
+            source = item.get("source", "")
+            if title:
+                headlines.append(f"{title} [{source}]")
+    except Exception:
+        pass
+        
+    return headlines if headlines else ["Global Raw Materials Update: Spot Market Tightening Across Metals & Resins"]
