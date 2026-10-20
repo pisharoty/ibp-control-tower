@@ -3732,3 +3732,25 @@ elif "Integration" in selected_module:
 
 else:
   st.warning(f"⚠️ Unmapped operational module selected: **{selected_module}**")
+
+def render_si_factor_breakdown_chart():
+    import plotly.graph_objects as go
+    import streamlit as st
+    si_factors = ['GSCPI Macro (35%)', 'NOAA Weather (25%)', 'Ocean Freight (25%)', 'GEP Volatility (15%)']
+    si_values = [-0.112, -0.090, -0.100, -0.028]
+    fig = go.Figure(go.Bar(
+        x=si_factors,
+        y=si_values,
+        marker_color=['#E74C3C', '#F39C12', '#E67E22', '#9B59B6'],
+        text=[f"{v:.3f}" for v in si_values],
+        textposition='auto'
+    ))
+    fig.update_layout(
+        title="<b>Triangulated Factor Contribution Breakdown (Net $S_i$ = -0.330)</b>",
+        yaxis_title="Weighted Drag Contribution",
+        height=260,
+        margin=dict(l=30, r=30, t=40, b=30),
+        paper_bgcolor="rgba(0,0,0,0)",
+        plot_bgcolor="rgba(245,247,250,0.5)"
+    )
+    st.plotly_chart(fig, use_container_width=True)

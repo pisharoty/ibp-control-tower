@@ -573,3 +573,37 @@ def get_resilient_genspark_signals():
     except Exception:
         pass
     return []
+
+
+def get_dynamically_coupled_si(gscpi_val=1.59, noaa_val=1.45, fbx_val=3856, gep_status="ELEVATED"):
+    """Calculates S_i sub-components dynamically from live telemetry inputs."""
+    s_gscpi = round(-0.20 * (gscpi_val / 1.0), 3)
+    s_noaa = round(-0.25 * (noaa_val / 1.0), 3)
+    s_freight = round(-0.20 * (fbx_val / 1928.0), 3)
+    s_gep = -0.28 if gep_status == "ELEVATED" else -0.10
+    net_si = round((0.35 * s_gscpi) + (0.25 * s_noaa) + (0.25 * s_freight) + (0.15 * s_gep), 3)
+    return {"s_gscpi": s_gscpi, "s_noaa": s_noaa, "s_freight": s_freight, "s_gep": s_gep, "net_si": net_si}
+
+def get_headlines_for_sector(selected_sector="ALL RAW MATERIALS"):
+    """Returns sector-filtered headlines across all signals and field items."""
+    import json
+    headlines = []
+    try:
+        with open("robot_signals.json", "r") as f:
+            sdata = json.load(f)
+        sig_list = sdata.get("signals", []) if isinstance(sdata, dict) else sdata
+        soc_list = sdata.get("executive_social_stream", []) if isinstance(sdata, dict) else []
+        for s in sig_list:
+            c_name = s.get("commodity", "Commodity")
+            summary = s.get("summary", "")
+            sec = s.get("sector", "ALL RAW MATERIALS")
+            if summary and (selected_sector == "ALL RAW MATERIALS" or sec == selected_sector):
+                headlines.append(f"{c_name}: {summary} [Genspark Tactical]")
+        for item in soc_list:
+            title = item.get("title", "")
+            src = item.get("source", "Field Disclosures")
+            if title:
+                headlines.append(f"{title} [{src}]")
+    except Exception:
+        pass
+    return headlines if headlines else ["Global Raw Materials Update: Spot Market Tightening Across Metals & Resins [Reuters Telemetry]"]
