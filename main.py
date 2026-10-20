@@ -1489,7 +1489,7 @@ def render_nlp_commercial_sensing(*args, **kwargs):
                 })
 
         # Hard limit strictly to Top 5 Pertinent Disclosures
-        top_5_social_items = valid_social_items[:5]
+        top_5_social_items = valid_social_items
 
         # Render Top 5 Stream Cards
         if not top_5_social_items:

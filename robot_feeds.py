@@ -357,6 +357,8 @@ def render_freight_weather_blackswan_tab(*args, **kwargs):
         st.error("🔥 **Panama Canal Lock Restrictions**: Daily vessel transit slots capped at 24. Average draft limit reduced to 44ft due to Gatun Lake freshwater deficit.")
 
 def render_predictive_commodity_engine(*args, **kwargs):
+    elasticity = 0.05
+    r2 = 0.82  # Default fallback R-squared
     elasticity = 0.05  # Default fallback elasticity
     elasticity = 0.05  # Default fallback elasticity
     from inventory_manager import TOP_50_COMMODITIES_REGISTRY
