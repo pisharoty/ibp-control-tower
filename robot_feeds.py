@@ -375,14 +375,32 @@ def render_predictive_commodity_engine(*args, **kwargs):
 
     comm_meta = TOP_50_COMMODITIES_REGISTRY.get(target_comm, {})
 
-    c_lower = target_comm.lower()
-    default_spot = 6.25 if "wheat" in c_lower or "corn" in c_lower else (3.16 if "gas" in c_lower else (78.50 if "crude" in c_lower or "brent" in c_lower else (2850.0 if "zinc" in c_lower else 3943.50)))
-    default_unit = "Bu" if "wheat" in c_lower or "corn" in c_lower else ("MMBtu" if "gas" in c_lower else ("Bbl" if "crude" in c_lower or "brent" in c_lower else "MT"))
+    # Comprehensive per-commodity spot baselines
+    spot_map = {
+        "nickel": (16500.00, "MT"),
+        "copper": (9820.00, "MT"),
+        "zinc": (2850.00, "MT"),
+        "aluminum": (2450.00, "MT"),
+        "lithium": (14200.00, "MT"),
+        "cobalt": (28500.00, "MT"),
+        "iron": (108.50, "MT"),
+        "wheat": (6.25, "Bu"),
+        "corn": (4.45, "Bu"),
+        "soybean": (11.80, "Bu"),
+        "gas": (3.16, "MMBtu"),
+        "crude": (78.50, "Bbl"),
+        "brent": (82.10, "Bbl")
+    }
 
-    spot_price = float(comm_meta.get("spot", default_spot))
-    elasticity = float(comm_meta.get("elasticity", 0.071))
-    r2 = float(comm_meta.get("r2", 0.835))
-    unit = comm_meta.get("unit", default_unit)
+    c_lower = target_comm.lower()
+    matched_spot, matched_unit = (3943.50, "MT")
+    for kw, (s_val, u_val) in spot_map.items():
+        if kw in c_lower:
+            matched_spot, matched_unit = s_val, u_val
+            break
+
+    spot_price = float(comm_meta.get("spot", matched_spot))
+    unit = comm_meta.get("unit", matched_unit)
 
     precedence_events = {
         "zinc": ("2021 European Smelter Capacity Curtailments & Energy Crisis", "94.2%"),

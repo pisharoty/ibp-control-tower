@@ -1719,40 +1719,7 @@ def render_nlp_commercial_sensing(*args, **kwargs):
             },),
         )
         with tab3:
-            st.subheader("⚓ Freight, NOAA Weather & Black Swan Feeds")
-
-            bdi_val, bdi_change, sync_status = fetch_live_freight_metrics()
-            noaa_alerts = fetch_live_noaa_marine_alerts()
-
-            current_time_str = datetime.utcnow().strftime("%H:%M:%S UTC")
-            st.caption(
-                f"Status: **{sync_status}** | Last Live Telemetry Sync: `{current_time_str}`"
-            )
-
-            # Dynamic freight & weather impact scaling based on active alerts
-            alert_count = len(noaa_alerts)
-            dynamic_surge_units = 100000 + (alert_count * 25000)
-            dynamic_lt_delay_days = round(5.0 + (alert_count * 2.5), 1)
-
-            # Safe NaN & Type Validation
-            has_bdi = bdi_val is not None and pd.notna(bdi_val)
-            has_bdi_change = bdi_change is not None and pd.notna(bdi_change)
-
-            try:
-                fbx_spot_rate = int(3380 * (float(bdi_val) / 1850.0)) if has_bdi else 3380
-            except (ValueError, TypeError):
-                fbx_spot_rate = 3380
-
-            w_col1, w_col2, w_col3, w_col4 = st.columns(4)
-
-            with w_col1:
-                st.metric(
-                    "Baltic Dry Freight Index",
-                    f"{float(bdi_val):,.0f} pts" if has_bdi else "1,850 pts",
-                    f"{float(bdi_change):+.1f}% WoW" if has_bdi_change else "+0.0% WoW",
-                )
-                st.caption(f"Status: `{sync_status}`")
-
+            render_freight_weather_blackswan_tab()
 # Maintain alias to protect all navigation router calls
 def render_nlp_intelligence(*args, **kwargs):
     fn = globals().get("render_nlp_commercial_sensing")
@@ -3427,29 +3394,27 @@ Payload:
         )
 
     with tab3:
-        st.markdown("**Real-Time Journal Entry Sync to Oracle Financials Cloud**")
-        st.code(
-            f"""POST /api/v1/integrations/oracle-financials/gl-journals
+        render_freight_weather_blackswan_tab()
 Headers: {{ "X-Oracle-App-ID": "{sector_cfg['oracle_gl_account']}" }}
 
-Payload Mapping:
-  - Benchmark Index Trigger : {sector_cfg['primary_index']}
-  - Net Physical Deficit    : {net_units:,} {term_unit}
-  - Financial Gain Realized : Credit {sector_cfg['oracle_gl_account']} (${hedge_gain:,.2f})
-  - Treasury Cash Outlay    : Debit Treasury Operations Balance""",
-            language="json",
-        )
+    # Payload Mapping:
+# - Benchmark Index Trigger : {sector_cfg['primary_index']}
+# - Net Physical Deficit    : {net_units:,} {term_unit}
+# - Financial Gain Realized : Credit {sector_cfg['oracle_gl_account']} (${hedge_gain:,.2f})
+# - Treasury Cash Outlay    : Debit Treasury Operations Balance""",
+# language="json",
+# )
 
-    with tab4:
-        st.markdown("**Automated Hedge Execution via FIX 4.4 Protocol**")
-        st.code(
-            f"""8=FIX.4.4|9=245|35=D|49=PLATFORM_DESK|56=CME_LME_GATEWAY|34=1082|52={now_iso}|
-11=ORDER_HEDGE_{now_iso[:10]}|55={sector_cfg['ticker_symbol']}|54=1|38={net_units}|
-40=2|44=MARKET_BENCHMARK|59=0|47=A|21=1|10=182|""",
-            language="text",
-        )
+# with tab4:
+# st.markdown("**Automated Hedge Execution via FIX 4.4 Protocol**")
+# st.code(
+# f"""8=FIX.4.4|9=245|35=D|49=PLATFORM_DESK|56=CME_LME_GATEWAY|34=1082|52={now_iso}|
+# 11=ORDER_HEDGE_{now_iso[:10]}|55={sector_cfg['ticker_symbol']}|54=1|38={net_units}|
+# 40=2|44=MARKET_BENCHMARK|59=0|47=A|21=1|10=182|""",
+# language="text",
+# )
 
-    with tab5:
+# with tab5:
         st.markdown("**Real-Time Macro Telemetry Streaming (FRED & NY Fed)**")
         st.code(
             f"""GET /api/v1/telemetry/stream
