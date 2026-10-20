@@ -359,6 +359,8 @@ def render_freight_weather_blackswan_tab(*args, **kwargs):
 def render_predictive_commodity_engine(*args, **kwargs):
     elasticity = 0.05
     r2 = 0.82  # Default fallback R-squared
+    elasticity = 0.05
+    r2 = 0.82  # Default fallback R-squared
     elasticity = 0.05  # Default fallback elasticity
     elasticity = 0.05  # Default fallback elasticity
     from inventory_manager import TOP_50_COMMODITIES_REGISTRY
