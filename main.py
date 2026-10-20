@@ -26,6 +26,8 @@ from gru_attention_engine import run_gru_inference
 import urllib.request
 import xml.etree.ElementTree as ET
 from robot_feeds import (
+    render_freight_weather_blackswan_tab,
+    render_si_subfactor_breakdown,
     refresh_genspark_signals_safe,
     get_genspark_signal_for_commodity,
     calculate_composite_sentiment,
