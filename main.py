@@ -1202,6 +1202,10 @@ def render_nlp_commercial_sensing(*args, **kwargs):
     import json
     callback_fn = None
     display_unit = "Units"
+    import os
+    import json
+    callback_fn = None
+    display_unit = "Units"
     callback_fn = None
     display_unit = "Units"
     display_unit = "Units"
