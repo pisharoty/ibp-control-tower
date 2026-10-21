@@ -1445,6 +1445,20 @@ def render_nlp_commercial_sensing(*args, **kwargs):
                 sdata = json.load(f)
             raw_social = sdata.get("executive_social_stream", []) if isinstance(sdata, dict) else []
             for item in raw_social:
+                raw_d = item.get("impact_demand", item.get("estimated_impact", 10000))
+                if isinstance(raw_d, str):
+                    clean_d = "".join(c for c in raw_d if c.isdigit() or c == ".")
+                    demand_val = int(float(clean_d)) if clean_d else 10000
+                else:
+                    demand_val = int(raw_d) if raw_d else 10000
+
+                raw_lt = item.get("impact_leadtime", item.get("lead_time_impact", 2.0))
+                if isinstance(raw_lt, str):
+                    clean_lt = "".join(c for c in raw_lt if c.isdigit() or c == ".")
+                    leadtime_val = float(clean_lt) if clean_lt else 2.0
+                else:
+                    leadtime_val = float(raw_lt) if raw_lt else 2.0
+
                 valid_social_items.append({
                     "type": item.get("type", "Executive Disclosure"),
                     "source": item.get("source", "Executive Field Intelligence"),
@@ -1452,12 +1466,15 @@ def render_nlp_commercial_sensing(*args, **kwargs):
                     "timestamp": item.get("timestamp", "Live Telemetry"),
                     "title": item.get("title", "Corporate Results Disclosure"),
                     "snippet": item.get("snippet") or item.get("summary", "Executive disclosure parsed from field intelligence."),
-                    "sentiment": item.get("sentiment_score", -0.35),
-                    "impact_units": item.get("impact_units", "+10,000 Units"),
-                    "lead_time": item.get("lead_time_impact", "+2.0 Days")
+                    "sentiment": item.get("sentiment_score", item.get("sentiment", -0.35)),
+                    "impact_demand": demand_val,
+                    "impact_leadtime": leadtime_val,
+                    "impact_units": f"+{demand_val:,} Units",
+                    "lead_time": f"+{leadtime_val} Days"
                 })
         except Exception as e:
             print("Error loading social items:", e)
+        top_5_social_items = valid_social_items
         top_5_social_items = valid_social_items
         top_5_social_items = valid_social_items
         for idx, item in enumerate(top_5_social_items):
@@ -1474,7 +1491,7 @@ def render_nlp_commercial_sensing(*args, **kwargs):
                         color = "🔴" if score < -0.3 else ("🟢" if score > 0.3 else "🟡")
                         st.metric("Sentiment Polarity", f"{color} {score:+.2f}")
                         st.caption(
-                            f"Demand: `+{item['impact_demand']:,} {display_unit}` | Lead Time: `+{item['impact_leadtime']} Days`"
+                            f"Demand: `+{item.get('impact_demand', 10000):,} {display_unit}` | Lead Time: `+{item.get('impact_leadtime', 2.0)} Days`"
                         )
 
                     st.button(
