@@ -1579,7 +1579,7 @@ def render_nlp_commercial_sensing(*args, **kwargs):
                 "Select Live RSS / Scraped Headline Signal:",
                 options=rss_options,
                 index=0,
-                key="dynamic_rss_signal_selector"
+                key=f"dynamic_rss_signal_selector_{id(rss_options)}"
             )
         
         selected_data = rss_registry.get(selected_rss, {
@@ -1596,7 +1596,7 @@ def render_nlp_commercial_sensing(*args, **kwargs):
             
         st.info(f"💡 **Active Intelligence Summary**: {selected_data['summary']} *(Source: {selected_data['source']})*")
         
-        if st.button("📥 Ingest Scraped News Signal into S&OP Engine", key="btn_ingest_rss_news_signal", use_container_width=True):
+        if st.button("📥 Ingest Scraped News Signal into S&OP Engine", key=f"btn_ingest_rss_news_signal_{id(rss_options)}", use_container_width=True):
             st.session_state["platform_si_override"] = selected_data["sentiment"]
             st.session_state["platform_active_signal"] = selected_rss
             st.toast(f"✅ Ingested RSS News Signal (SI={selected_data['sentiment']:+.2f}) across S&OP Platform!")
@@ -1658,7 +1658,7 @@ def render_nlp_commercial_sensing(*args, **kwargs):
                 "Select Live RSS / Scraped Headline Signal:",
                 options=rss_options,
                 index=0,
-                key="dynamic_rss_signal_selector"
+                key=f"dynamic_rss_signal_selector_{id(rss_options)}"
             )
         
         selected_data = rss_registry.get(selected_rss, {
