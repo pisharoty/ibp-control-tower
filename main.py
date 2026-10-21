@@ -1210,6 +1210,10 @@ def render_nlp_commercial_sensing(*args, **kwargs):
     import json
     callback_fn = None
     display_unit = "Units"
+    import os
+    import json
+    callback_fn = None
+    display_unit = "Units"
     callback_fn = None
     display_unit = "Units"
     display_unit = "Units"
@@ -1534,6 +1538,7 @@ def render_nlp_commercial_sensing(*args, **kwargs):
         # --- 5. REAL-TIME DYNAMIC WEB & COMMODITY RSS NEWS STREAM ---
         # --- 5. REAL-TIME DYNAMIC WEB & COMMODITY RSS NEWS STREAM ---
         # --- 5. REAL-TIME DYNAMIC WEB & COMMODITY RSS NEWS STREAM ---
+        # --- 5. REAL-TIME DYNAMIC WEB & COMMODITY RSS NEWS STREAM ---
         st.subheader("📡 Real-Time Dynamic Web & Commodity RSS News Stream")
         
         rss_registry = {}
@@ -1624,6 +1629,8 @@ def render_nlp_commercial_sensing(*args, **kwargs):
             st.session_state["ctrm_active_hedge_description"] = f"Speculative Zero-Cost Collar Hedge on {selected_rss[:50]}..."
             st.toast(f"⚡ SPECULATIVE HEDGE EXECUTED: Ingested {selected_rss[:40]}... across CTRM Desk & Executive S&OP!")
             st.rerun()
+
+
 
 
         
