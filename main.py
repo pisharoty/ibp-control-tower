@@ -1206,6 +1206,10 @@ def render_nlp_commercial_sensing(*args, **kwargs):
     import json
     callback_fn = None
     display_unit = "Units"
+    import os
+    import json
+    callback_fn = None
+    display_unit = "Units"
     callback_fn = None
     display_unit = "Units"
     display_unit = "Units"
@@ -1529,6 +1533,7 @@ def render_nlp_commercial_sensing(*args, **kwargs):
         # -------------------------------------------------------------------------
         # --- 5. REAL-TIME DYNAMIC WEB & COMMODITY RSS NEWS STREAM ---
         # --- 5. REAL-TIME DYNAMIC WEB & COMMODITY RSS NEWS STREAM ---
+        # --- 5. REAL-TIME DYNAMIC WEB & COMMODITY RSS NEWS STREAM ---
         st.subheader("📡 Real-Time Dynamic Web & Commodity RSS News Stream")
         
         rss_registry = {}
@@ -1546,6 +1551,8 @@ def render_nlp_commercial_sensing(*args, **kwargs):
                     rss_registry[label] = {
                         "sentiment": si,
                         "impact_units": f"+{int(abs(si)*25000):,} Units",
+                        "demand_val": int(abs(si)*25000),
+                        "leadtime_val": round(abs(si)*5.0, 1),
                         "summary": summary or f"Live tactical market signal for {comm}.",
                         "source": "Genspark Market Telemetry"
                     }
@@ -1558,9 +1565,13 @@ def render_nlp_commercial_sensing(*args, **kwargs):
                     si = float(soc.get("sentiment_score", soc.get("sentiment", -0.35)))
                     raw_d = soc.get("impact_demand", soc.get("estimated_impact", 10000))
                     d_val = int("".join(c for c in str(raw_d) if c.isdigit())) if any(c.isdigit() for c in str(raw_d)) else 10000
+                    raw_lt = soc.get("impact_leadtime", 2.0)
+                    lt_val = float("".join(c for c in str(raw_lt) if c.isdigit() or c == ".")) if any(c.isdigit() for c in str(raw_lt)) else 2.0
                     rss_registry[label] = {
                         "sentiment": si,
                         "impact_units": f"+{d_val:,} Units",
+                        "demand_val": d_val,
+                        "leadtime_val": lt_val,
                         "summary": soc.get("snippet") or soc.get("summary", title),
                         "source": src
                     }
@@ -1571,6 +1582,8 @@ def render_nlp_commercial_sensing(*args, **kwargs):
             rss_registry["Global Raw Materials Update: Spot Market Tightening Across Metals & Resins [Reuters Telemetry]"] = {
                 "sentiment": -0.35,
                 "impact_units": "+110,000 Units",
+                "demand_val": 110000,
+                "leadtime_val": 2.5,
                 "summary": "Baseline commodity market signal active.",
                 "source": "Reuters Telemetry"
             }
@@ -1583,28 +1596,36 @@ def render_nlp_commercial_sensing(*args, **kwargs):
                 "Select Live RSS / Scraped Headline Signal:",
                 options=rss_options,
                 index=0,
-                key=f"dynamic_rss_signal_selector_{id(rss_options)}"
+                key="primary_rss_signal_selector"
             )
         
         selected_data = rss_registry.get(selected_rss, {
             "sentiment": -0.35,
             "impact_units": "+10,000 Units",
+            "demand_val": 10000,
+            "leadtime_val": 2.0,
             "summary": "Active headline intelligence feed.",
             "source": "Live Feed"
         })
         
         with col_impact:
-            st.text_input("Extracted Signal Impact (Units)", value=selected_data["impact_units"], disabled=True, key=f"rss_impact_units_{id(rss_options)}")
+            st.text_input("Extracted Signal Impact (Units)", value=selected_data["impact_units"], disabled=True, key="rss_impact_units_primary")
         with col_sent:
-            st.text_input("Detected Sentiment ($S_i$)", value=f"{selected_data['sentiment']:+.2f}", disabled=True, key=f"rss_detected_sentiment_{id(rss_options)}")
+            st.text_input("Detected Sentiment ($S_i$)", value=f"{selected_data['sentiment']:+.2f}", disabled=True, key="rss_detected_sentiment_primary")
             
         st.info(f"💡 **Active Intelligence Summary**: {selected_data['summary']} *(Source: {selected_data['source']})*")
         
-        if st.button("📥 Ingest Scraped News Signal into S&OP Engine", key=f"btn_ingest_rss_news_signal_{id(rss_options)}", use_container_width=True):
+        if st.button("⚡ Execute Speculative Hedge & Ingest into S&OP Platform", key="btn_execute_rss_speculative_hedge", use_container_width=True):
             st.session_state["platform_si_override"] = selected_data["sentiment"]
             st.session_state["platform_active_signal"] = selected_rss
-            st.toast(f"✅ Ingested RSS News Signal (SI={selected_data['sentiment']:+.2f}) across S&OP Platform!")
-            st.success(f"⚡ Signal Ingested: **{selected_rss[:80]}...** propagated across inventory and S&OP modules.")
+            st.session_state["platform_demand_impact"] = selected_data["demand_val"]
+            st.session_state["platform_leadtime_impact"] = selected_data["leadtime_val"]
+            st.session_state["ctrm_speculative_hedge_executed"] = True
+            st.session_state["ctrm_active_hedge_description"] = f"Speculative Zero-Cost Collar Hedge on {selected_rss[:50]}..."
+            st.toast(f"⚡ SPECULATIVE HEDGE EXECUTED: Ingested {selected_rss[:40]}... across CTRM Desk & Executive S&OP!")
+            st.rerun()
+
+
         
         # Build unified dynamic RSS intelligence registry from Genspark + Social feeds
         rss_registry = {}
