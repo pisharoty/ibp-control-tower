@@ -1193,453 +1193,80 @@ from robot_feeds import render_predictive_commodity_engine
 
 # render_predictive_commodity_engine() moved to dedicated tab
 
-def render_nlp_commercial_sensing(*args, **kwargs):
-    import os
-    import json
-    callback_fn = None
-    display_unit = "Units"
-    import os
-    import json
-    callback_fn = None
-    display_unit = "Units"
-    import os
-    import json
-    callback_fn = None
-    display_unit = "Units"
-    import os
-    import json
-    callback_fn = None
-    display_unit = "Units"
-    import os
-    import json
-    callback_fn = None
-    display_unit = "Units"
-    import os
-    import json
-    callback_fn = None
-    display_unit = "Units"
-    import os
-    import json
-    callback_fn = None
-    display_unit = "Units"
-    callback_fn = None
-    display_unit = "Units"
-    display_unit = "Units"
-    """Complete NLP Commercial Sensing & Intelligence Module."""
-    # Scope-level initialization for sentiment metrics
-    comp_res = rf.compute_composite_sentiment() if hasattr(rf, "compute_composite_sentiment") else {"si_score": -0.330}
-    si_score = comp_res.get("si_score", -0.330) if isinstance(comp_res, dict) else -0.330
-    composite_si = st.session_state.get("si_composite", si_score)
-    ctrm_hedge = composite_si < -0.15
-    rec_text = "Lock 60-Day Forward Exposure" if ctrm_hedge else "Maintain Spot Purchasing"
-    scores = comp_res.get("individual_scores", {}) if isinstance(comp_res, dict) else {}
-    weights = comp_res.get("weights", {}) if isinstance(comp_res, dict) else {}
-    surge_units = int(abs(composite_si) * 32373)
-    lt_days = round(abs(composite_si) * 7.5, 1)
-    if hasattr(rf, "get_live_rss_feeds"):
-        live_rss = rf.get_live_rss_feeds()
-        if live_rss:
-            st.session_state["live_rss_signals"] = live_rss
+def render_nlp_commercial_sensing():
     st.title("🧠 NLP Commercial Sensing & Intelligence")
-    st.caption(
-        f"Active Persona View: **{persona or 'Discrete & Heavy Industrial Enterprise'}** | "
-        "Ingest unstructured signals from live RSS feeds, executive LinkedIn disclosures, "
-        "email debriefs, hard macro indicators (NY Fed, FRED, World Bank, ECB, PBOC, KOSPI), "
-        "and ocean/air freight telemetry."
-    )
-
-    # =========================================================================
-    # 🟢 SURGICAL EDIT 1: DYNAMIC STATE READS (INSERT RIGHT HERE)
-    # =========================================================================
-    cascade = st.session_state.get("active_sop_cascade", {})
-    demand_data = cascade.get("demand", {})
-    prop_data = st.session_state.get("propagated_commodity_data", {})
-
-    # Read SI & Surge dynamically from session_state instead of static hardcoded values
-    si_score = st.session_state.get("si_composite", -0.28)
-    demand_surge_units = demand_data.get(
-        "total_surge_units",
-        st.session_state.get("extracted_demand_surge", 15400)
-    )
-
-    # Commodity spot dynamically bound
-    spot_price = prop_data.get(
-        "spot_price", 
-        9820.0 if "Heavy" in str(persona) else 3200.0
-    )
-
-    # Freight & Risk derived dynamically from SI
-    lead_time_days = round(4.0 + (abs(si_score) * 3.5), 1)
-    baltic_index = int(2800 + (abs(si_score) * 600))
-    fbx_rate = round(2900.0 + (abs(si_score) * 800.0), 2)
-    risk_status = "HEDGE REQUIRED" if si_score < -0.4 else "MONITORING"
-    # =========================================================================
-
+    st.caption("Active Persona View: Discrete & Heavy Industrial Enterprise | Ingest unstructured signals from live RSS feeds, executive LinkedIn disclosures, email debriefs, hard macro indicators (NY Fed, FRED, World Bank, ECB, PBOC, KOSPI), and ocean/air freight telemetry.")
+    
     tab1, tab2, tab3 = st.tabs([
-        "📡 Live Web, Macro & Social Signals",
-        "📧 Email & Event Debrief Parser",
-        "⚓ Freight, Weather & Black Swan Feeds",
+        "📡 Live Web, Macro & Social Signals", 
+        "📧 Email & Event Debrief Parser", 
+        "⚓ Freight, Weather & Black Swan Feeds"
     ])
-
-    # =========================================================================
-    # TAB 1: LIVE WEB, MACRO & SOCIAL SIGNALS
-    # =========================================================================
+    
     with tab1:
-        render_genspark_overlay()
-        r_head1, r_head2 = st.columns([3, 1])
-        with r_head1:
-            st.caption(
-                "🤖 **Triangulated Intelligence Engine**: Hard Macro (NY Fed / FRED / ECB / PBOC / KOSPI) "
-                "+ Ocean/Air Freight Telemetry + Executive Social Stream"
-            )
-        with r_head2:
-            if st.button("🔄 Refresh Live Feeds & APIs", key="btn_refresh_robot_feeds"):
-                try:
-                    feed_data = sync_robot_feeds() if "sync_robot_feeds" in globals() else {}
-                    st.session_state["latest_robot_signals"] = feed_data
-                    newsletters = feed_data.get("newsletters", [])
+        st.subheader("📡 Live Genspark Tactical Market Signals")
+        try:
+            render_genspark_overlay()
+        except Exception as e:
+            st.error(f"Error rendering Genspark Overlay: {e}")
 
-                    if newsletters and newsletters[0].get("is_live"):
-                        st.session_state["live_newsletters"] = newsletters
-                        st.session_state["s_social_val"] = feed_data.get("linkedin_score", -0.70)
-                        st.toast(
-                            f"Synced live signal: {newsletters[0].get('title', 'LinkedIn Feed')}",
-                            icon="✅",
-                        )
-                    else:
-                        st.toast("Refreshed feeds from Gmail IMAP & Global Macro APIs!", icon="🔄")
-                    st.rerun()
-                except Exception as e:
-                    st.error(f"Sync error: {e}")
-
-        # Load live telemetry from session state or disk backup
-        latest_signals = st.session_state.get("latest_robot_signals", {})
-        if not latest_signals and os.path.exists("robot_signals.json"):
-            try:
-                with open("robot_signals.json", "r") as f:
-                    latest_signals = json.load(f)
-            except Exception:
-                latest_signals = {}
-
-        # -------------------------------------------------------------------------
-        # 1. HARD MACROECONOMIC TELEMETRY DASHBOARD
-        # -------------------------------------------------------------------------
-        if isinstance(latest_signals, list):
-            latest_signals = {"signals": latest_signals}
-        macro = latest_signals.get("global_telemetry") or (
-            fetch_global_macro_telemetry() if "fetch_global_macro_telemetry" in globals() else {}
-        )
-
-        with st.expander("🏛️ Hard Macroeconomic Telemetry (NY Fed GSCPI, World Bank, FRED, ECB, PBOC, BOJ, KOSPI)", expanded=True):
-            m1, m2, m3, m4, m5 = st.columns(5)
-            with m1:
-                vix_val = rf.fetch_live_telemetry_with_fallback("^VIX", 18.5) if hasattr(rf, "fetch_live_telemetry_with_fallback") else 18.5
-                gscpi_val = +0.85 + (vix_val / 25.0)
-                st.metric("NY Fed GSCPI", f"{gscpi_val:+.2f} σ (Live Synthesized)", "Supply Pressure")
-                st.caption("Global Supply Chain Pressure")
-            with m2:
-                sp_val = rf.fetch_live_telemetry_with_fallback("^GSPC", 5700) if hasattr(rf, "fetch_live_telemetry_with_fallback") else 5700
-                fred_val = 100.0 + (sp_val / 1500.0)
-                st.metric("US FRED Mfg Index", f"{fred_val:.1f} pts", "St. Louis Fed")
-                st.caption("US Industrial Output")
-            with m3:
-                cl_val = rf.fetch_live_telemetry_with_fallback("CL=F", 72.5) if hasattr(rf, "fetch_live_telemetry_with_fallback") else 72.5
-                wb_val = cl_val * 2.1
-                st.metric("World Bank Commodity", f"{wb_val:.1f} Index", "50.4 (Expansion)")
-                st.caption("Global Benchmark / PBOC")
-            with m4:
-                eur_val = rf.fetch_live_telemetry_with_fallback("EURUSD=X", 1.08) if hasattr(rf, "fetch_live_telemetry_with_fallback") else 1.08
-                ecb_val = eur_val * 2.45
-                st.metric("Eurozone (ECB)", f"{ecb_val:.2f}% (ECB Refi)", "Industrial Trend")
-                st.caption("ECB Telemetry")
-            with m5:
-                kospi_val = int(rf.fetch_live_telemetry_with_fallback("^KS11", 2618)) if hasattr(rf, "fetch_live_telemetry_with_fallback") else 2618
-                st.metric("Korea KOSPI / Japan", f"{kospi_val:,} pts", "Asian Export Benchmark")
-                st.caption("Asian Export Benchmark")
-            st.markdown("### 🎯 Triangulated Composite Market Sentiment Index ($SI$)")
-            
-            c_col1, c_col2, c_col3, c_col4 = st.columns([1.2, 1, 1, 1])
-            with c_col1:
-                st.metric(
-                    "Net Composite ($SI$)",
-                    # Ensure composite_si and comp_res are defined prior to UI rendering
-                    f"{composite_si:+.3f}",
-                    delta="Severe Downside Risk" if composite_si < -0.50 else ("Moderate Drag" if composite_si < 0 else "Bullish Expansion"),
-                    delta_color="inverse" if composite_si < 0 else "normal",
-                )
-            with c_col2:
-                # Resolve operational impact metrics before UI metric rendering
-                if "surge_units" not in locals():
-                    base_dem = st.session_state.get("base_demand", 129500)
-                    comp_si = locals().get("composite_si", -0.330)
-                    if "compute_quantified_operational_impact" in globals():
-                        impact_res = compute_quantified_operational_impact(comp_si, base_dem)
-                        surge_units = impact_res.get("delta_demand_units", int(abs(comp_si) * 32373))
-                        lt_days = impact_res.get("lead_time_buffer_days", round(abs(comp_si) * 7.5, 1))
-                        rec_text = impact_res.get("recommended_action", "Lock 60-Day Forward Exposure")
-                        ctrm_hedge = impact_res.get("target_hedge_pct", 60.0) >= 60.0
-                    else:
-                        surge_units = int(abs(comp_si) * 32373)
-                        lt_days = round(abs(comp_si) * 7.5, 1)
-                        rec_text = "Lock 60-Day Forward Exposure"
-                        ctrm_hedge = True
-                st.metric("Quantified Demand Surge", f"+{surge_units:,} {term_unit}")
-            with c_col3:
-                st.metric("Lead Time Expansion", f"+{lt_days} Days")
-            with c_col4:
-                st.metric("CTRM Risk Status", "🔴 HEDGE REQUIRED" if ctrm_hedge else "🟢 STABLE")
-
-            st.markdown(
-                r"**Formula Weighting:** $S_t = (0.35 \times S_{\text{GSCPI}}) + (0.25 \times S_{\text{NOAA}}) + (0.25 \times S_{\text{Freight}}) + (0.15 \times S_{\text{GEP}})$"
-            )
-            
-            sc1, sc2, sc3, sc4 = st.columns(4)
-            # Ensure comp_res, scores, and weights are initialized
-            if "comp_res" not in locals():
-                comp_res = rf.compute_composite_sentiment() if hasattr(rf, "compute_composite_sentiment") else {}
-            scores = comp_res.get("individual_scores", {}) if isinstance(comp_res, dict) else {}
-            weights = comp_res.get("weights", {}) if isinstance(comp_res, dict) else {}
-            sc1.caption(f"**GSCPI Macro**: `{scores.get('gscpi_index', -0.15):+.2f}` (35%)")
-            sc2.caption(f"**NOAA Weather**: `{scores.get('noaa_environmental', -0.40):+.2f}` (25%)")
-            sc3.caption(f"**Freight Rates**: `{scores.get('freight_spot_rates', -0.43):+.2f}` (25%)")
-            sc4.caption(f"**GEP Volatility**: `{scores.get('gep_volatility', -0.32):+.2f}` (15%)")
-
-            st.info(f"**Quantified Action Plan**: {rec_text}")
-
-            if st.button(
-                "⚡ Propagate Triangulated Composite Index across Platform",
-                key="btn_propagate_composite",
-                type="primary",
-                use_container_width=True,
-            ):
-                st.session_state["si_composite"] = composite_si
-                st.session_state["extracted_demand_surge"] = surge_units
-                st.session_state["propagated_commodity_data"] = {
-                    "commodity_name": "Copper (LME Grade A)",
-                    "ticker": "LME_CU",
-                    "spot_price": spot_price,
-                    "forecast_30d": spot_price * 1.053,
-                    "forecast_60d": spot_price * 1.076,
-                    "price_delta_pct": (spot_price - 9250.0) / 9250.0,
-                }
-                if "_propagate_signal_to_sop_cascade" in globals():
-                    _propagate_signal_to_sop_cascade({
-                        "source_type": "Macro & Social Triangulation Engine",
-                        "title": f"Triangulated Composite Index ({composite_si:+.3f})",
-                        "demand_surge_units": surge_units,
-                        "leadtime_delay_days": lt_days,
-                        "sentiment_index": composite_si,
-                    })
-                st.toast("✅ Composite Index & Surge Propagated Across Platform!", icon="🚀")
-                st.rerun()
-
-        st.divider()
-
-        # -------------------------------------------------------------------------
-        # 3. SOTA PREDICTIVE COMMODITY PRICE ENGINE (OPTION B INTEGRATION)
-        # -------------------------------------------------------------------------
-        if "render_predictive_commodity_engine" in globals():
-# render_predictive_commodity_engine() moved to dedicated tab
-
-            pass
-        st.divider()
-
-# -------------------------------------------------------------------------
-        
-        # --- Plotly Triangulated Composite Factor Contribution Breakdown ---
-        import plotly.graph_objects as go
-        fig_si_factor = go.Figure(go.Bar(
-            x=['GSCPI Macro (35%)', 'NOAA Weather (25%)', 'Ocean Freight (25%)', 'GEP Volatility (15%)'],
-            y=[-0.112, -0.090, -0.100, -0.028],
-            marker_color=['#E74C3C', '#F39C12', '#E67E22', '#9B59B6'],
-            text=['-0.112', '-0.090', '-0.100', '-0.028'],
-            textposition='auto'
-        ))
-        fig_si_factor.update_layout(
-            title="<b>Triangulated Factor Contribution Breakdown (Net $S_i$ = -0.330)</b>",
-            yaxis_title="Weighted Drag Contribution",
-            height=260,
-            margin=dict(l=30, r=30, t=40, b=30),
-            paper_bgcolor="rgba(0,0,0,0)",
-            plot_bgcolor="rgba(245,247,250,0.5)"
-        )
-        st.plotly_chart(fig_si_factor, use_container_width=True)
-
-
-        # --- 4. UNIFIED SOCIAL MEDIA & EXECUTIVE FIELD INTELLIGENCE STREAM ---
-        st.subheader("📱 Unified Social Media & Executive Field Intelligence Stream")
-        
-        # Load all 10 items directly from robot_signals.json baseline cache
-        valid_social_items = []
+    with tab2:
+        st.subheader("📧 Email & Executive Event Debrief Stream")
         try:
             with open("robot_signals.json", "r") as f:
-                sdata = json.load(f)
-            raw_social = sdata.get("executive_social_stream", []) if isinstance(sdata, dict) else []
-            for item in raw_social:
-                raw_d = item.get("impact_demand", item.get("estimated_impact", 10000))
-                if isinstance(raw_d, str):
-                    clean_d = "".join(c for c in raw_d if c.isdigit() or c == ".")
-                    demand_val = int(float(clean_d)) if clean_d else 10000
-                else:
-                    demand_val = int(raw_d) if raw_d else 10000
-
-                raw_lt = item.get("impact_leadtime", item.get("lead_time_impact", 2.0))
-                if isinstance(raw_lt, str):
-                    clean_lt = "".join(c for c in raw_lt if c.isdigit() or c == ".")
-                    leadtime_val = float(clean_lt) if clean_lt else 2.0
-                else:
-                    leadtime_val = float(raw_lt) if raw_lt else 2.0
-
-                valid_social_items.append({
-                    "type": item.get("type", "Executive Disclosure"),
-                    "source": item.get("source", "Executive Field Intelligence"),
-                    "author": item.get("author", "C-Suite Executive"),
-                    "timestamp": item.get("timestamp", "Live Telemetry"),
-                    "title": item.get("title", "Corporate Results Disclosure"),
-                    "snippet": item.get("snippet") or item.get("summary", "Executive disclosure parsed from field intelligence."),
-                    "sentiment": item.get("sentiment_score", item.get("sentiment", -0.35)),
-                    "impact_demand": demand_val,
-                    "impact_leadtime": leadtime_val,
-                    "impact_units": f"+{demand_val:,} Units",
-                    "lead_time": f"+{leadtime_val} Days"
-                })
-        except Exception as e:
-            print("Error loading social items:", e)
-        top_5_social_items = valid_social_items
-        top_5_social_items = valid_social_items
-        top_5_social_items = valid_social_items
-        for idx, item in enumerate(top_5_social_items):
-                with st.container(border=True):
-                    s_col1, s_col2 = st.columns([2.8, 1.2])
-                    with s_col1:
-                        st.markdown(f"**{item.get('title', 'Corporate Statement')}**")
-                        st.caption(
-                            f"📌 **{item.get('type', 'Executive Disclosure')}** | Source: *{item.get('source', 'Field Wire')}* ({item.get('author', 'Executive')}) — `{item.get('timestamp', 'Live')}`"
-                        )
-                        st.write(f"_{item.get('snippet', '')}_")
-                    with s_col2:
-                        score = item["sentiment"]
-                        color = "🔴" if score < -0.3 else ("🟢" if score > 0.3 else "🟡")
-                        st.metric("Sentiment Polarity", f"{color} {score:+.2f}")
-                        st.caption(
-                            f"Demand: `+{item.get('impact_demand', 10000):,} {display_unit if ('display_unit' in locals() and display_unit) else 'Units'}` | Lead Time: `+{item.get('impact_leadtime', 2.0)} Days`"
-                        )
-
-                    st.button(
-                        "⚡ Ingest Social Signal into S&OP Engine",
-                        key=f"btn_ingest_soc_filtered_{idx}",
-                        on_click=(callback_fn if "callback_fn" in locals() else None),
-                        args=({
-                            "source_type": item["source"],
-                            "title": item["title"],
-                            "demand_surge_units": item["impact_demand"],
-                            "leadtime_delay_days": item["impact_leadtime"],
-                            "sentiment_index": item["sentiment"],
-                        },),
-                    )
-
-        st.divider()
-
-        # -------------------------------------------------------------------------
-        # 5. REAL-TIME DYNAMIC WEB & EXPANDED COMMODITY RSS STREAM
-        # -------------------------------------------------------------------------
-        # --- 5. REAL-TIME DYNAMIC WEB & COMMODITY RSS NEWS STREAM ---
-        # --- 5. REAL-TIME DYNAMIC WEB & COMMODITY RSS NEWS STREAM ---
-        # --- 5. REAL-TIME DYNAMIC WEB & COMMODITY RSS NEWS STREAM ---
-        # --- 5. REAL-TIME DYNAMIC WEB & COMMODITY RSS NEWS STREAM ---
-        # --- 5. REAL-TIME DYNAMIC WEB & COMMODITY RSS NEWS STREAM ---
-        # --- 5. REAL-TIME DYNAMIC WEB & COMMODITY RSS NEWS STREAM ---
-        st.subheader("📡 Real-Time Dynamic Web & Commodity RSS News Stream")
+                sig_data = json.load(f)
+            debrief_list = sig_data.get("executive_social_stream", sig_data.get("email_debriefs", []))
+        except Exception:
+            debrief_list = []
         
-        rss_registry = {}
+        if not debrief_list:
+            st.info("No active executive event debriefs available.")
+        else:
+            cols_t2 = st.columns(2)
+            for idx, item in enumerate(debrief_list):
+                with cols_t2[idx % 2]:
+                    with st.container(border=True):
+                        st.caption(f"**{item.get('source', 'Executive Briefing')}** | {item.get('commodity', 'General')}")
+                        st.markdown(f"#### {item.get('headline', item.get('title', 'Debrief'))}")
+                        st.write(item.get('content', 'Executive field intelligence update.'))
+                        si = float(item.get('sentiment_score', -0.33))
+                        st.metric("Sentiment Impact ($S_i$)", f"{si:+.2f}")
+                        if st.button(f"⚡ Ingest Debrief #{idx+1}", key=f"btn_tab2_ingest_{idx}", use_container_width=True):
+                            st.session_state["platform_si_override"] = si
+                            st.session_state["platform_demand_impact"] = item.get("impact_demand", 15400)
+                            st.session_state["platform_leadtime_impact"] = item.get("impact_leadtime", 4.2)
+                            st.session_state["platform_active_signal"] = item.get("headline", "")
+                            st.toast(f"⚡ Executive Debrief #{idx+1} Ingested into S&OP Platform!")
+                            st.rerun()
+
+    with tab3:
+        st.subheader("⚓ Freight, Weather & Black Swan Feeds")
         try:
-            if os.path.exists("robot_signals.json"):
-                with open("robot_signals.json", "r") as f:
-                    sdata = json.load(f)
-                
-                genspark_sigs = sdata.get("signals", []) if isinstance(sdata, dict) else []
-                for s in genspark_sigs:
-                    comm = s.get("commodity", "Commodity Input")
-                    summary = s.get("summary") or s.get("headline_summary", "")
-                    label = f"⚡ [Genspark Tactical] {comm}: {summary}" if summary else f"⚡ [Genspark Tactical] {comm} Market Signal"
-                    si = float(s.get("si_composite", s.get("si", -0.20)))
-                    rss_registry[label] = {
-                        "sentiment": si,
-                        "impact_units": f"+{int(abs(si)*25000):,} Units",
-                        "demand_val": int(abs(si)*25000),
-                        "leadtime_val": round(abs(si)*5.0, 1),
-                        "summary": summary or f"Live tactical market signal for {comm}.",
-                        "source": "Genspark Market Telemetry"
-                    }
-                
-                social_items = sdata.get("executive_social_stream", []) if isinstance(sdata, dict) else []
-                for soc in social_items:
-                    title = soc.get("title", "Corporate Disclosure")
-                    src = soc.get("source", "Executive Intelligence")
-                    label = f"📱 [{src}] {title}"
-                    si = float(soc.get("sentiment_score", soc.get("sentiment", -0.35)))
-                    raw_d = soc.get("impact_demand", soc.get("estimated_impact", 10000))
-                    d_val = int("".join(c for c in str(raw_d) if c.isdigit())) if any(c.isdigit() for c in str(raw_d)) else 10000
-                    raw_lt = soc.get("impact_leadtime", 2.0)
-                    lt_val = float("".join(c for c in str(raw_lt) if c.isdigit() or c == ".")) if any(c.isdigit() for c in str(raw_lt)) else 2.0
-                    rss_registry[label] = {
-                        "sentiment": si,
-                        "impact_units": f"+{d_val:,} Units",
-                        "demand_val": d_val,
-                        "leadtime_val": lt_val,
-                        "summary": soc.get("snippet") or soc.get("summary", title),
-                        "source": src
-                    }
-        except Exception as e:
-            print("Error building RSS registry:", e)
-            
-        if not rss_registry:
-            rss_registry["Global Raw Materials Update: Spot Market Tightening Across Metals & Resins [Reuters Telemetry]"] = {
-                "sentiment": -0.35,
-                "impact_units": "+110,000 Units",
-                "demand_val": 110000,
-                "leadtime_val": 2.5,
-                "summary": "Baseline commodity market signal active.",
-                "source": "Reuters Telemetry"
-            }
-
-        rss_options = list(rss_registry.keys())
+            with open("robot_signals.json", "r") as f:
+                sig_data = json.load(f)
+            freight_list = sig_data.get("freight_weather_feeds", sig_data.get("freight_telemetry_feeds", []))
+        except Exception:
+            freight_list = []
         
-        col_select, col_impact, col_sent = st.columns([3, 1, 1])
-        with col_select:
-            selected_rss = st.selectbox(
-                "Select Live RSS / Scraped Headline Signal:",
-                options=rss_options,
-                index=0,
-                key="rss_headline_selector_main"
-            )
-        
-        selected_data = rss_registry.get(selected_rss, {
-            "sentiment": -0.35,
-            "impact_units": "+10,000 Units",
-            "demand_val": 10000,
-            "leadtime_val": 2.0,
-            "summary": "Active headline intelligence feed.",
-            "source": "Live Feed"
-        })
-        
-        with col_impact:
-            st.text_input("Extracted Signal Impact (Units)", value=selected_data["impact_units"], disabled=True, key="rss_extracted_impact_display")
-        with col_sent:
-            st.text_input("Detected Sentiment ($S_i$)", value=f"{selected_data['sentiment']:+.2f}", disabled=True, key="rss_detected_sentiment_display")
-            
-        st.info(f"💡 **Active Intelligence Summary**: {selected_data['summary']} *(Source: {selected_data['source']})*")
-        
-        if st.button("⚡ Execute Speculative Hedge & Ingest into S&OP Platform", key="btn_rss_speculative_hedge_execute", use_container_width=True):
-            st.session_state["platform_si_override"] = selected_data["sentiment"]
-            st.session_state["platform_active_signal"] = selected_rss
-            st.session_state["platform_demand_impact"] = selected_data["demand_val"]
-            st.session_state["platform_leadtime_impact"] = selected_data["leadtime_val"]
-            st.session_state["ctrm_speculative_hedge_executed"] = True
-            st.session_state["ctrm_active_hedge_description"] = f"Speculative Hedge: {selected_rss[:60]}"
-            st.toast(f"⚡ SPECULATIVE HEDGE EXECUTED: Ingested SI={selected_data['sentiment']:+.2f} into CTRM Desk & Executive S&OP!")
-            st.rerun()
-
+        if not freight_list:
+            st.info("No active freight or weather feeds available.")
+        else:
+            cols_t3 = st.columns(2)
+            for idx, item in enumerate(freight_list):
+                with cols_t3[idx % 2]:
+                    with st.container(border=True):
+                        st.caption(f"**{item.get('source', 'Telemetry Feed')}** | {item.get('commodity', 'Logistics')}")
+                        st.markdown(f"#### {item.get('headline', item.get('title', 'Freight Disruption'))}")
+                        si = float(item.get('sentiment_score', -0.42))
+                        lt = float(item.get('impact_leadtime', 4.5))
+                        st.metric("Lead Time Drag", f"+{lt:.1f} Days", delta=f"SI: {si:+.2f}")
+                        if st.button(f"⚡ Ingest Freight Signal #{idx+1}", key=f"btn_tab3_ingest_{idx}", use_container_width=True):
+                            st.session_state["platform_si_override"] = si
+                            st.session_state["platform_leadtime_impact"] = lt
+                            st.session_state["platform_demand_impact"] = item.get("impact_demand", 16500)
+                            st.session_state["platform_active_signal"] = item.get("headline", "")
+                            st.toast(f"⚡ Freight Signal #{idx+1} Ingested into S&OP Platform!")
+                            st.rerun()
 
 
 
