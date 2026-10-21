@@ -1446,9 +1446,12 @@ def render_nlp_commercial_sensing(*args, **kwargs):
             raw_social = sdata.get("executive_social_stream", []) if isinstance(sdata, dict) else []
             for item in raw_social:
                 valid_social_items.append({
+                    "type": item.get("type", "Executive Disclosure"),
                     "source": item.get("source", "Executive Field Intelligence"),
-                    "title": item.get("title", "Corporate Disclosure"),
-                    "snippet": item.get("snippet") or item.get("summary", ""),
+                    "author": item.get("author", "C-Suite Executive"),
+                    "timestamp": item.get("timestamp", "Live Telemetry"),
+                    "title": item.get("title", "Corporate Results Disclosure"),
+                    "snippet": item.get("snippet") or item.get("summary", "Executive disclosure parsed from field intelligence."),
                     "sentiment": item.get("sentiment_score", -0.35),
                     "impact_units": item.get("impact_units", "+10,000 Units"),
                     "lead_time": item.get("lead_time_impact", "+2.0 Days")
@@ -1456,15 +1459,16 @@ def render_nlp_commercial_sensing(*args, **kwargs):
         except Exception as e:
             print("Error loading social items:", e)
         top_5_social_items = valid_social_items
+        top_5_social_items = valid_social_items
         for idx, item in enumerate(top_5_social_items):
                 with st.container(border=True):
                     s_col1, s_col2 = st.columns([2.8, 1.2])
                     with s_col1:
-                        st.markdown(f"**{item['title']}**")
+                        st.markdown(f"**{item.get('title', 'Corporate Statement')}**")
                         st.caption(
-                            f"📌 **{item['type']}** | Source: *{item['source']}* ({item['author']}) — `{item['timestamp']}`"
+                            f"📌 **{item.get('type', 'Executive Disclosure')}** | Source: *{item.get('source', 'Field Wire')}* ({item.get('author', 'Executive')}) — `{item.get('timestamp', 'Live')}`"
                         )
-                        st.write(f"_{item['snippet']}_")
+                        st.write(f"_{item.get('snippet', '')}_")
                     with s_col2:
                         score = item["sentiment"]
                         color = "🔴" if score < -0.3 else ("🟢" if score > 0.3 else "🟡")
@@ -1567,7 +1571,7 @@ def render_nlp_commercial_sensing(*args, **kwargs):
             ]
 
             headline_map = {
-                f"{item['title']} [{item.get('source', 'Web')}]": item
+                f"{item.get('title', 'Corporate Statement')} [{item.get('source', 'Web')}]": item
                 for item in live_rss_items
             }
 
