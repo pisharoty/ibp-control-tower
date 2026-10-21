@@ -1214,6 +1214,10 @@ def render_nlp_commercial_sensing(*args, **kwargs):
     import json
     callback_fn = None
     display_unit = "Units"
+    import os
+    import json
+    callback_fn = None
+    display_unit = "Units"
     callback_fn = None
     display_unit = "Units"
     display_unit = "Units"
@@ -1539,6 +1543,7 @@ def render_nlp_commercial_sensing(*args, **kwargs):
         # --- 5. REAL-TIME DYNAMIC WEB & COMMODITY RSS NEWS STREAM ---
         # --- 5. REAL-TIME DYNAMIC WEB & COMMODITY RSS NEWS STREAM ---
         # --- 5. REAL-TIME DYNAMIC WEB & COMMODITY RSS NEWS STREAM ---
+        # --- 5. REAL-TIME DYNAMIC WEB & COMMODITY RSS NEWS STREAM ---
         st.subheader("📡 Real-Time Dynamic Web & Commodity RSS News Stream")
         
         rss_registry = {}
@@ -1601,7 +1606,7 @@ def render_nlp_commercial_sensing(*args, **kwargs):
                 "Select Live RSS / Scraped Headline Signal:",
                 options=rss_options,
                 index=0,
-                key="primary_rss_signal_selector"
+                key="rss_headline_selector_main"
             )
         
         selected_data = rss_registry.get(selected_rss, {
@@ -1614,305 +1619,23 @@ def render_nlp_commercial_sensing(*args, **kwargs):
         })
         
         with col_impact:
-            st.text_input("Extracted Signal Impact (Units)", value=selected_data["impact_units"], disabled=True, key="rss_impact_units_primary")
+            st.text_input("Extracted Signal Impact (Units)", value=selected_data["impact_units"], disabled=True, key="rss_extracted_impact_display")
         with col_sent:
-            st.text_input("Detected Sentiment ($S_i$)", value=f"{selected_data['sentiment']:+.2f}", disabled=True, key="rss_detected_sentiment_primary")
+            st.text_input("Detected Sentiment ($S_i$)", value=f"{selected_data['sentiment']:+.2f}", disabled=True, key="rss_detected_sentiment_display")
             
         st.info(f"💡 **Active Intelligence Summary**: {selected_data['summary']} *(Source: {selected_data['source']})*")
         
-        if st.button("⚡ Execute Speculative Hedge & Ingest into S&OP Platform", key="btn_execute_rss_speculative_hedge", use_container_width=True):
+        if st.button("⚡ Execute Speculative Hedge & Ingest into S&OP Platform", key="btn_rss_speculative_hedge_execute", use_container_width=True):
             st.session_state["platform_si_override"] = selected_data["sentiment"]
             st.session_state["platform_active_signal"] = selected_rss
             st.session_state["platform_demand_impact"] = selected_data["demand_val"]
             st.session_state["platform_leadtime_impact"] = selected_data["leadtime_val"]
             st.session_state["ctrm_speculative_hedge_executed"] = True
-            st.session_state["ctrm_active_hedge_description"] = f"Speculative Zero-Cost Collar Hedge on {selected_rss[:50]}..."
-            st.toast(f"⚡ SPECULATIVE HEDGE EXECUTED: Ingested {selected_rss[:40]}... across CTRM Desk & Executive S&OP!")
+            st.session_state["ctrm_active_hedge_description"] = f"Speculative Hedge: {selected_rss[:60]}"
+            st.toast(f"⚡ SPECULATIVE HEDGE EXECUTED: Ingested SI={selected_data['sentiment']:+.2f} into CTRM Desk & Executive S&OP!")
             st.rerun()
 
 
-
-
-        
-        # Build unified dynamic RSS intelligence registry from Genspark + Social feeds
-        rss_registry = {}
-        try:
-            # imports hoisted
-            if os.path.exists("robot_signals.json"):
-                with open("robot_signals.json", "r") as f:
-                    sdata = json.load(f)
-                
-                # Ingest Genspark Tactical Signals
-                genspark_sigs = sdata.get("signals", []) if isinstance(sdata, dict) else []
-                for s in genspark_sigs:
-                    comm = s.get("commodity", "Commodity Input")
-                    summary = s.get("summary") or s.get("headline_summary", "")
-                    label = f"⚡ [Genspark Tactical] {comm}: {summary}" if summary else f"⚡ [Genspark Tactical] {comm} Market Signal"
-                    si = float(s.get("si_composite", s.get("si", -0.20)))
-                    rss_registry[label] = {
-                        "sentiment": si,
-                        "impact_units": f"+{int(abs(si)*25000):,} Units",
-                        "summary": summary or f"Live tactical market signal for {comm}.",
-                        "source": "Genspark Market Telemetry"
-                    }
-                
-                # Ingest Executive Social Field Intelligence
-                social_items = sdata.get("executive_social_stream", []) if isinstance(sdata, dict) else []
-                for soc in social_items:
-                    title = soc.get("title", "Corporate Disclosure")
-                    src = soc.get("source", "Executive Intelligence")
-                    label = f"📱 [{src}] {title}"
-                    si = float(soc.get("sentiment_score", soc.get("sentiment", -0.35)))
-                    raw_d = soc.get("impact_demand", soc.get("estimated_impact", 10000))
-                    d_val = int("".join(c for c in str(raw_d) if c.isdigit())) if any(c.isdigit() for c in str(raw_d)) else 10000
-                    rss_registry[label] = {
-                        "sentiment": si,
-                        "impact_units": f"+{d_val:,} Units",
-                        "summary": soc.get("snippet") or soc.get("summary", title),
-                        "source": src
-                    }
-        except Exception as e:
-            print("Error building RSS registry:", e)
-            
-        if not rss_registry:
-            rss_registry["Global Raw Materials Update: Spot Market Tightening Across Metals & Resins [Reuters Telemetry]"] = {
-                "sentiment": -0.35,
-                "impact_units": "+110,000 Units",
-                "summary": "Baseline commodity market signal active.",
-                "source": "Reuters Telemetry"
-            }
-
-        rss_options = list(rss_registry.keys())
-        
-        col_select, col_impact, col_sent = st.columns([3, 1, 1])
-        with col_select:
-            selected_rss = st.selectbox(
-                "Select Live RSS / Scraped Headline Signal:",
-                options=rss_options,
-                index=0,
-                key=f"dynamic_rss_signal_selector_{id(rss_options)}"
-            )
-        
-        selected_data = rss_registry.get(selected_rss, {
-            "sentiment": -0.35,
-            "impact_units": "+10,000 Units",
-            "summary": "Active headline intelligence feed.",
-            "source": "Live Feed"
-        })
-        
-        with col_impact:
-            st.text_input("Extracted Signal Impact (Units)", value=selected_data["impact_units"], disabled=True, key=f"rss_impact_units_{id(rss_options)}")
-        with col_sent:
-            st.text_input("Detected Sentiment ($S_i$)", value=f"{selected_data['sentiment']:+.2f}", disabled=True, key=f"rss_detected_sentiment_{id(rss_options)}")
-            
-        st.info(f"💡 **Active Intelligence Summary**: {selected_data['summary']} *(Source: {selected_data['source']})*")
-
-        # Populate all 22 dynamic RSS headline options from signals & social stream
-        _all_rss_options = []
-        try:
-            with open("robot_signals.json", "r") as f:
-                sdata = json.load(f)
-            sigs = sdata.get("signals", []) if isinstance(sdata, dict) else []
-            socs = sdata.get("executive_social_stream", []) if isinstance(sdata, dict) else []
-            for s in sigs:
-                c = s.get("commodity", "Commodity")
-                sum_txt = s.get("summary") or s.get("headline_summary", "")
-                if sum_txt:
-                    _all_rss_options.append(f"{c}: {sum_txt} [Genspark Tactical]")
-            for item in socs:
-                t = item.get("title", "")
-                src = item.get("source", "Field Intelligence")
-                if t:
-                    _all_rss_options.append(f"{t} [{src}]")
-        except Exception:
-            pass
-        
-        if not _all_rss_options:
-            _all_rss_options = ["Global Raw Materials Update: Spot Market Tightening Across Metals & Resins [Reuters Telemetry]"]
-
-
-        # Resolve unit fallback cleanly
-        display_unit = term_unit if "term_unit" in locals() or "term_unit" in globals() else "Units"
-
-        NEWS_DOMAINS = {
-            "🌐 ALL RAW MATERIALS (Global Multi-Commodity Disruption Scan)": (
-                "(copper OR tin OR polymers OR petrochemicals OR resins OR lithium OR oil) AND (disruption OR outage OR force majeure OR shortage)"
-            ),
-            "🧱 Non-Ferrous & Industrial Metals (Copper, Tin, Zinc, Aluminum, Nickel)": (
-                "(copper OR tin OR zinc OR aluminum OR nickel) AND (supply chain OR smelter outage OR force majeure)"
-            ),
-            "🧪 Petrochemicals, Resins, Polymers & Base Chemicals": (
-                "(petrochemicals OR polymers OR ethylene OR resin OR polypropylene) AND (force majeure OR plant outage OR shortage)"
-            ),
-            "🛢️ Energy, Crude Oil, Natural Gas & Refined Inputs": (
-                "(crude oil OR diesel OR natural gas OR power curtailment) AND (refinery outage OR supply disruption)"
-            ),
-            "💎 Critical Minerals, Lithium, Neodymium & Rare Earths": (
-                "(lithium OR neodymium OR rare earths OR cobalt) AND (export restriction OR supply bottleneck)"
-            ),
-            "⚡ High-Tech Electronics, Semiconductors & Wafers": (
-                "(semiconductor OR chip wafer OR neon gas OR substrate) AND (shortage OR fab disruption OR lead time)"
-            ),
-            "🚢 Maritime Container Freight, Ocean Ports & Corridors": (
-                "(container freight OR port congestion OR vessel rerouting OR Suez OR Panama) AND (delay OR surcharge)"
-            ),
-        }
-
-        col_w1, col_w2 = st.columns([2, 1])
-        with col_w1:
-            selected_domain = st.selectbox(
-                "Select Commodity / Industry Sector Focus:",
-                list(NEWS_DOMAINS.keys()),
-                key="nlp_sector_focus",
-            )
-
-            topic_query = NEWS_DOMAINS[selected_domain]
-            if hasattr(rf, "fetch_live_sector_rss"):
-                fetched_items = rf.fetch_live_sector_rss(topic_query)
-            elif "fetch_live_sector_rss" in globals():
-                fetched_items = fetch_live_sector_rss(topic_query)
-            else:
-                fetched_items = []
-            
-            # Fall back to mock list if live fetch is empty or unavailable
-            live_rss_items = fetched_items if fetched_items else [
-                {"title": "Panama Canal Transit Slots Auctioned at Record High Premiums", "source": "Reuters Commodities", "estimated_impact": 110000, "sentiment": -0.72, "link": "#"},
-                {"title": "Asian Electronics Component Lead Times Stabilize Margin", "source": "S&P Global Platts", "estimated_impact": 45000, "sentiment": 0.25, "link": "#"},
-            ]
-
-            headline_map = {
-                f"{item.get('title', 'Corporate Statement')} [{item.get('source', 'Web')}]": item
-                for item in live_rss_items
-            }
-
-            selected_headline = st.selectbox(
-                "Select Live RSS / Scraped Headline Signal:",
-                list(headline_map.keys()),
-                key="nlp_web_headline_select",
-            )
-            art_info = headline_map[selected_headline]
-
-            if art_info.get("link") and art_info["link"] != "#":
-                st.markdown(f"[🔗 Open Original Source Article]({art_info['link']})")
-
-        with col_w2:
-            raw_impact = art_info.get("estimated_impact")
-            default_impact = int(raw_impact) if raw_impact is not None else 100000
-
-            web_impact = st.number_input(
-                f"Extracted Signal Impact ({display_unit if ('display_unit' in locals() and display_unit) else 'Units'})",
-                value=default_impact,
-                step=5000,
-                key="web_signal_units",
-            )
-
-            raw_sentiment = art_info.get("sentiment")
-            if raw_sentiment is None or float(raw_sentiment) == 0.0:
-                t_low = art_info.get("title", "").lower()
-                neg_w = ["chaos", "shutdown", "shutdowns", "threaten", "threatens", "majeure", "disrupt", "shortage", "crisis", "halt", "stop", "turmoil", "crunch", "headaches", "closure", "closures", "headache", "intensify", "delay", "war", "strike", "cut", "drop", "fire", "risk", "conflict", "dip", "strain"]
-                pos_w = ["boost", "boosts", "growth", "surge", "surges", "recovery", "expansion", "profit", "gain", "rally", "record", "jump", "stabilize"]
-                nc = sum(1 for w in neg_w if w in t_low)
-                pc = sum(1 for w in pos_w if w in t_low)
-                sentiment_val = max(-0.85, round(-0.25 * nc, 2)) if nc > 0 else (min(0.75, round(0.20 * pc, 2)) if pc > 0 else -0.15)
-            else:
-                sentiment_val = float(raw_sentiment)
-            st.metric("Detected Sentiment (SI)", f"{sentiment_val:+.2f}")
-
-        headline_clean = art_info["title"][:50] + "..."
-        domain_label = selected_domain.split(" ")[1] if len(selected_domain.split(" ")) > 1 else "Macro"
-
-        # Safe handler resolution for button callback
-        callback_fn = None
-        if "_propagate_signal_to_sop_cascade" in globals():
-            callback_fn = _propagate_signal_to_sop_cascade
-        elif "robot_feeds" in globals() and hasattr(robot_feeds, "_propagate_signal_to_sop_cascade"):
-            callback_fn = robot_feeds._propagate_signal_to_sop_cascade
-
-        st.button(
-            "📡 Ingest Scraped Domain News Signal",
-            key="btn_ingest_web",
-            on_click=(callback_fn if "callback_fn" in locals() else None),
-            args=({
-                "source_type": "Live Web Intelligence",
-                "title": f"[{domain_label}] {headline_clean}",
-                "demand_surge_units": web_impact,
-                "leadtime_delay_days": 4.0,
-                "sentiment_index": sentiment_val,
-            },),
-        )
-
-        st.divider()
-
-    # =========================================================================
-    # TAB 2: EMAIL & EVENT DEBRIEF PARSER
-    # =========================================================================
-    with tab2:
-        st.subheader("📧 Email & Event Debrief Parser")
-        st.caption(
-            "Extract unstructured supplier updates, trip reports, and meeting debriefs."
-        )
-
-        default_email = (
-            "SUBJECT: URGENT - Production Bottleneck & Force Majeure Warning\nFROM:"
-            " vendor-rep@global-smelting.com\n\nHi Team,\nDue to unexpected"
-            " energy curtailments and furnace maintenance at our main smelting"
-            " facility, cathode deliveries for Q4 will be delayed by"
-            " approximately 12 to 15 days. We strongly recommend increasing"
-            " your safety buffers by at least 45,000 units to avoid operational"
-            " shutdown."
-        )
-
-        raw_text = st.text_area(
-            "Paste Raw Supplier Email or Meeting Debrief Text:",
-            value=default_email,
-            height=150,
-            key="nlp_email_raw_input",
-        )
-
-        if (
-            st.button("🔍 Parse Email & Extract Entities", key="btn_parse_email")
-            or "parsed_email_data" not in st.session_state
-        ):
-            if "parse_unstructured_email" in globals():
-                st.session_state["parsed_email_data"] = parse_unstructured_email(raw_text)
-            else:
-                st.session_state["parsed_email_data"] = {
-                    "vendor": "Global Smelting Corp",
-                    "event": "Smelter Outage & Energy Curtailment",
-                    "delay_val": 13.5,
-                    "units_val": 45000,
-                }
-
-        parsed = st.session_state["parsed_email_data"]
-
-        st.markdown("#### 📊 Extracted Entity Analysis")
-        e_col1, e_col2, e_col3, e_col4 = st.columns(4)
-        with e_col1:
-            st.metric("Detected Vendor", parsed["vendor"])
-        with e_col2:
-            st.metric("Identified Risk Event", parsed["event"])
-        with e_col3:
-            st.metric("Est. Lead Time Delay", f"+{parsed['delay_val']:.1f} Days")
-        with e_col4:
-            st.metric("Recommended Safety Buffer", f"+{parsed['units_val']:,} {term_unit}")
-
-        st.caption("**NLP Confidence Score**: `94.2%` | **Sentiment Score**: `-0.68`")
-
-        st.button(
-            "⚡ Ingest Parsed Email Intelligence into Live S&OP Engine",
-            key="btn_ingest_email_parser",
-            on_click=_propagate_signal_to_sop_cascade if "_propagate_signal_to_sop_cascade" in globals() else None,
-            args=({
-                "source_type": "Supplier Email",
-                "title": f"[{parsed['vendor']}] {parsed['event']}",
-                "demand_surge_units": parsed["units_val"],
-                "leadtime_delay_days": parsed["delay_val"],
-                "sentiment_index": -0.68,
-            },),
-        )
-        with tab3:
-            render_freight_weather_blackswan_tab()
-# Maintain alias to protect all navigation router calls
 def render_nlp_intelligence(*args, **kwargs):
     fn = globals().get("render_nlp_commercial_sensing")
     if not fn:
