@@ -1194,6 +1194,7 @@ from robot_feeds import render_predictive_commodity_engine
 # render_predictive_commodity_engine() moved to dedicated tab
 
 def render_nlp_commercial_sensing(*args, **kwargs):
+    display_unit = "Units"
     """Complete NLP Commercial Sensing & Intelligence Module."""
     # Scope-level initialization for sentiment metrics
     comp_res = rf.compute_composite_sentiment() if hasattr(rf, "compute_composite_sentiment") else {"si_score": -0.330}
@@ -1491,7 +1492,7 @@ def render_nlp_commercial_sensing(*args, **kwargs):
                         color = "🔴" if score < -0.3 else ("🟢" if score > 0.3 else "🟡")
                         st.metric("Sentiment Polarity", f"{color} {score:+.2f}")
                         st.caption(
-                            f"Demand: `+{item.get('impact_demand', 10000):,} {display_unit}` | Lead Time: `+{item.get('impact_leadtime', 2.0)} Days`"
+                            f"Demand: `+{item.get('impact_demand', 10000):,} {display_unit if ('display_unit' in locals() and display_unit) else 'Units'}` | Lead Time: `+{item.get('impact_leadtime', 2.0)} Days`"
                         )
 
                     st.button(
@@ -1607,7 +1608,7 @@ def render_nlp_commercial_sensing(*args, **kwargs):
             default_impact = int(raw_impact) if raw_impact is not None else 100000
 
             web_impact = st.number_input(
-                f"Extracted Signal Impact ({display_unit})",
+                f"Extracted Signal Impact ({display_unit if ('display_unit' in locals() and display_unit) else 'Units'})",
                 value=default_impact,
                 step=5000,
                 key="web_signal_units",
