@@ -1194,6 +1194,8 @@ from robot_feeds import render_predictive_commodity_engine
 # render_predictive_commodity_engine() moved to dedicated tab
 
 def render_nlp_commercial_sensing(*args, **kwargs):
+    callback_fn = None
+    display_unit = "Units"
     display_unit = "Units"
     """Complete NLP Commercial Sensing & Intelligence Module."""
     # Scope-level initialization for sentiment metrics
@@ -1498,7 +1500,7 @@ def render_nlp_commercial_sensing(*args, **kwargs):
                     st.button(
                         "⚡ Ingest Social Signal into S&OP Engine",
                         key=f"btn_ingest_soc_filtered_{idx}",
-                        on_click=callback_fn,
+                        on_click=(callback_fn if "callback_fn" in locals() else None),
                         args=({
                             "source_type": item["source"],
                             "title": item["title"],
@@ -1639,7 +1641,7 @@ def render_nlp_commercial_sensing(*args, **kwargs):
         st.button(
             "📡 Ingest Scraped Domain News Signal",
             key="btn_ingest_web",
-            on_click=callback_fn,
+            on_click=(callback_fn if "callback_fn" in locals() else None),
             args=({
                 "source_type": "Live Web Intelligence",
                 "title": f"[{domain_label}] {headline_clean}",
