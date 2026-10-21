@@ -1435,112 +1435,28 @@ def render_nlp_commercial_sensing(*args, **kwargs):
         st.plotly_chart(fig_si_factor, use_container_width=True)
 
 
-        # 4. UNIFIED SOCIAL MEDIA & EXECUTIVE FIELD INTELLIGENCE STREAM
-        # -------------------------------------------------------------------------
-            # SOTA Predictive Commodity Engine positioned between SI Index & Social Stream
-        try:
-            render_predictive_commodity_engine()
-        except Exception as e:
-            st.error(f"Error rendering Predictive Commodity Engine: {e}")
-
-        st.divider()
-
+        # --- 4. UNIFIED SOCIAL MEDIA & EXECUTIVE FIELD INTELLIGENCE STREAM ---
         st.subheader("📱 Unified Social Media & Executive Field Intelligence Stream")
-        st.caption(
-            "High-impact C-suite disclosures, Fortune 500 results announcements, "
-            "and commercial earnings guidance scanned for quantified supply chain impact."
-        )
-
-        # Resolve unit fallback cleanly
-        display_unit = term_unit if "term_unit" in locals() or "term_unit" in globals() else "Units"
-
-        # Targeted Fortune 500 Enterprise Query Filter
-        FORTUNE_500_EXEC_QUERY = (
-            '("quarterly results" OR "earnings release" OR "financial guidance" OR "force majeure" OR '
-            '"capacity adjustment" OR "production cut" OR "supply chain forecast") AND '
-            '(Codelco OR "Rio Tinto" OR BHP OR Maersk OR BASF OR Dow OR Caterpillar OR TSMC OR Apple)'
-        )
-
-        # Ingest Gmail / Newsletter Feeds (if available)
-        live_newsletters = latest_signals.get("newsletters") or (
-            fetch_gmail_newsletters(max_emails=10) if "fetch_gmail_newsletters" in globals() else []
-        )
-
-        EXCLUDE_KEYWORDS = ["welcome", "officially connected", "subscription confirmed", "verify your email", "privacy policy"]
-        QUANTIFIABLE_KEYWORDS = ["revenue", "ebitda", "guidance", "capacity", "volume", "outage", "lead time", "delay", "force majeure", "shipments", "margin"]
-
+        
+        # Load all 10 items directly from robot_signals.json baseline cache
         valid_social_items = []
-
-        # 1. Filter Ingested Newsletters for High-Pertinence Quantifiable Terms
-        for news in live_newsletters:
-            title = news.get("title", "")
-            summary = news.get("summary", "")
-            combined_text = f"{title} {summary}".lower()
-
-            # Skip administrative noise
-            if any(ex in combined_text for ex in EXCLUDE_KEYWORDS):
-                continue
-            
-            # Enforce presence of quantifiable metrics
-            if any(kw in combined_text for kw in QUANTIFIABLE_KEYWORDS):
-                raw_sentiment = news.get("sentiment_score")
-                sentiment = raw_sentiment if raw_sentiment is not None else -0.45
-
+        try:
+            with open("robot_signals.json", "r") as f:
+                sdata = json.load(f)
+            raw_social = sdata.get("executive_social_stream", []) if isinstance(sdata, dict) else []
+            for item in raw_social:
                 valid_social_items.append({
-                    "source": news.get("source", "Executive Briefing"),
-                    "author": news.get("author", "Fortune 500 Field Intelligence"),
-                    "timestamp": news.get("published", "Live Ingested"),
-                    "title": title,
-                    "snippet": summary,
-                    "sentiment": sentiment,
-                    "impact_demand": int(abs(sentiment) * 175000),
-                    "impact_leadtime": round(abs(sentiment) * 12, 1),
-                    "type": "C-Suite / Earnings Disclosure",
+                    "source": item.get("source", "Executive Field Intelligence"),
+                    "title": item.get("title", "Corporate Disclosure"),
+                    "snippet": item.get("snippet") or item.get("summary", ""),
+                    "sentiment": item.get("sentiment_score", -0.35),
+                    "impact_units": item.get("impact_units", "+10,000 Units"),
+                    "lead_time": item.get("lead_time_impact", "+2.0 Days")
                 })
-
-        # 2. Top 5 Fortune 500 Executive Live RSS Fetcher
-        if len(valid_social_items) < 5 and "fetch_live_sector_rss" in globals():
-            exec_rss_feed = fetch_live_sector_rss(FORTUNE_500_EXEC_QUERY)
-            if hasattr(rf, "fetch_executive_field_intelligence_stream"):
-                exec_stream = rf.fetch_executive_field_intelligence_stream()
-                exec_rss_feed = exec_stream + [item for item in exec_rss_feed if item not in exec_stream]
-            for rss_item in exec_rss_feed:
-                if len(valid_social_items) >= 5:
-                    break
-
-                raw_sentiment = rss_item.get("sentiment")
-                sentiment = raw_sentiment if raw_sentiment is not None else -0.55
-
-                raw_est = rss_item.get("impact_units") or rss_item.get("estimated_impact")
-                impact_demand = int(raw_est) if raw_est is not None else int(abs(sentiment) * 160000)
-
-                valid_social_items.append({
-                    "source": f"Fortune 500 Wire | {rss_item.get('source', 'Financial Disclosures')}",
-                    "author": "Corporate Results & Guidance Engine",
-                    "timestamp": "Live Wire",
-                    "title": rss_item.get("title", "Enterprise Results Disclosure"),
-                    "snippet": f"Quantified C-Suite results/guidance disclosure: {(rss_item.get('title') or rss_item.get('headline') or rss_item.get('text') or 'Executive Disclosure')}",
-                    "sentiment": sentiment,
-                    "impact_demand": impact_demand,
-                    "impact_leadtime": round(abs(sentiment) * 9.5, 1),
-                    "type": "Fortune 500 Executive Signal",
-                })
-
-        # Hard limit strictly to Top 5 Pertinent Disclosures
+        except Exception as e:
+            print("Error loading social items:", e)
         top_5_social_items = valid_social_items
-
-        # Render Top 5 Stream Cards
-        if not top_5_social_items:
-            st.info("No major Fortune 500 earnings or guidance disclosures detected in the current window.")
-        else:
-            # Safe handler resolution for button callback
-            callback_fn = None
-            if "_propagate_signal_to_sop_cascade" in globals():
-                callback_fn = _propagate_signal_to_sop_cascade
-            elif "robot_feeds" in globals() and hasattr(robot_feeds, "_propagate_signal_to_sop_cascade"):
-                callback_fn = robot_feeds._propagate_signal_to_sop_cascade
-
-            for idx, item in enumerate(top_5_social_items):
+        for idx, item in enumerate(top_5_social_items):
                 with st.container(border=True):
                     s_col1, s_col2 = st.columns([2.8, 1.2])
                     with s_col1:
@@ -1576,6 +1492,30 @@ def render_nlp_commercial_sensing(*args, **kwargs):
         # 5. REAL-TIME DYNAMIC WEB & EXPANDED COMMODITY RSS STREAM
         # -------------------------------------------------------------------------
         st.subheader("📡 Real-Time Dynamic Web & Commodity RSS News Stream")
+
+        # Populate all 22 dynamic RSS headline options from signals & social stream
+        _all_rss_options = []
+        try:
+            with open("robot_signals.json", "r") as f:
+                sdata = json.load(f)
+            sigs = sdata.get("signals", []) if isinstance(sdata, dict) else []
+            socs = sdata.get("executive_social_stream", []) if isinstance(sdata, dict) else []
+            for s in sigs:
+                c = s.get("commodity", "Commodity")
+                sum_txt = s.get("summary") or s.get("headline_summary", "")
+                if sum_txt:
+                    _all_rss_options.append(f"{c}: {sum_txt} [Genspark Tactical]")
+            for item in socs:
+                t = item.get("title", "")
+                src = item.get("source", "Field Intelligence")
+                if t:
+                    _all_rss_options.append(f"{t} [{src}]")
+        except Exception:
+            pass
+        
+        if not _all_rss_options:
+            _all_rss_options = ["Global Raw Materials Update: Spot Market Tightening Across Metals & Resins [Reuters Telemetry]"]
+
 
         # Resolve unit fallback cleanly
         display_unit = term_unit if "term_unit" in locals() or "term_unit" in globals() else "Units"
