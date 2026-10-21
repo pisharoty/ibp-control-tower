@@ -126,13 +126,10 @@
       "id": "deb_01",
       "source": "LinkedIn Executive Stream",
       "author": "VP Global Procurement @ Glencore",
-      "title": "Glencore Commercial Lead: Force Majeure Risk Elevated on African Copper/Cobalt Transit Routes",
       "headline": "Glencore Commercial Lead: Force Majeure Risk Elevated on African Copper/Cobalt Transit Routes",
       "content": "Border congestion at Kasumbalesa backed up over 1,200 trucks carrying copper cathode and cobalt hydroxide.",
       "sentiment_score": -0.52,
-      "sentiment": -0.52,
       "commodity": "Copper",
-      "metal": "Copper (LME Grade A)",
       "impact_demand": 15400,
       "impact_leadtime": 4.2
     },
@@ -140,13 +137,10 @@
       "id": "deb_02",
       "source": "CFO Email Intelligence Briefing",
       "author": "Chief Economist @ Rio Tinto",
-      "title": "Rio Tinto Operations: Pilbara Iron Ore Shipments Delayed by Unseasonal Tropical Cyclone Activity",
       "headline": "Rio Tinto Operations: Pilbara Iron Ore Shipments Delayed by Unseasonal Tropical Cyclone Activity",
       "content": "Port Hedland operations suspended for 48 hours; vessel queuing expected to stretch into late Q4.",
       "sentiment_score": -0.38,
-      "sentiment": -0.38,
       "commodity": "Iron Ore",
-      "metal": "Iron Ore Fines 62% Fe",
       "impact_demand": 19800,
       "impact_leadtime": 3.1
     },
@@ -154,13 +148,10 @@
       "id": "deb_03",
       "source": "Field Procurement Debrief",
       "author": "Director of Sourcing @ Alcoa Europe",
-      "title": "Alcoa Smelter Outage: European Primary Aluminum Premium Rises to $310/MT Over LME Cash",
       "headline": "Alcoa Smelter Outage: European Primary Aluminum Premium Rises to $310/MT Over LME Cash",
       "content": "Power curtailments in Western Europe are forcing spot metal buyers into prompt warehouse bidding wars.",
       "sentiment_score": -0.48,
-      "sentiment": -0.48,
       "commodity": "Aluminum",
-      "metal": "Primary Aluminum Ingot",
       "impact_demand": 18200,
       "impact_leadtime": 3.5
     },
@@ -168,13 +159,10 @@
       "id": "deb_04",
       "source": "Battery Supply Chain Wire",
       "author": "Head of Commercial Sensing @ CATL",
-      "title": "CATL Battery Supply Chain: Lithium Hydroxide Spot Inquiries Surge 18% in East Asia",
       "headline": "CATL Battery Supply Chain: Lithium Hydroxide Spot Inquiries Surge 18% in East Asia",
       "content": "Cathode producers restocking inventories ahead of Q1 EV production ramping.",
       "sentiment_score": 0.35,
-      "sentiment": 0.35,
       "commodity": "Lithium",
-      "metal": "Lithium Carbonate 99.5%",
       "impact_demand": 9200,
       "impact_leadtime": 2.0
     }
@@ -186,13 +174,10 @@
       "id": "deb_01",
       "source": "LinkedIn Executive Stream",
       "author": "VP Global Procurement @ Glencore",
-      "title": "Glencore Commercial Lead: Force Majeure Risk Elevated on African Copper/Cobalt Transit Routes",
       "headline": "Glencore Commercial Lead: Force Majeure Risk Elevated on African Copper/Cobalt Transit Routes",
       "content": "Border congestion at Kasumbalesa backed up over 1,200 trucks carrying copper cathode and cobalt hydroxide.",
       "sentiment_score": -0.52,
-      "sentiment": -0.52,
       "commodity": "Copper",
-      "metal": "Copper (LME Grade A)",
       "impact_demand": 15400,
       "impact_leadtime": 4.2
     },
@@ -200,13 +185,10 @@
       "id": "deb_02",
       "source": "CFO Email Intelligence Briefing",
       "author": "Chief Economist @ Rio Tinto",
-      "title": "Rio Tinto Operations: Pilbara Iron Ore Shipments Delayed by Unseasonal Tropical Cyclone Activity",
       "headline": "Rio Tinto Operations: Pilbara Iron Ore Shipments Delayed by Unseasonal Tropical Cyclone Activity",
       "content": "Port Hedland operations suspended for 48 hours; vessel queuing expected to stretch into late Q4.",
       "sentiment_score": -0.38,
-      "sentiment": -0.38,
       "commodity": "Iron Ore",
-      "metal": "Iron Ore Fines 62% Fe",
       "impact_demand": 19800,
       "impact_leadtime": 3.1
     },
@@ -214,13 +196,10 @@
       "id": "deb_03",
       "source": "Field Procurement Debrief",
       "author": "Director of Sourcing @ Alcoa Europe",
-      "title": "Alcoa Smelter Outage: European Primary Aluminum Premium Rises to $310/MT Over LME Cash",
       "headline": "Alcoa Smelter Outage: European Primary Aluminum Premium Rises to $310/MT Over LME Cash",
       "content": "Power curtailments in Western Europe are forcing spot metal buyers into prompt warehouse bidding wars.",
       "sentiment_score": -0.48,
-      "sentiment": -0.48,
       "commodity": "Aluminum",
-      "metal": "Primary Aluminum Ingot",
       "impact_demand": 18200,
       "impact_leadtime": 3.5
     },
@@ -228,13 +207,10 @@
       "id": "deb_04",
       "source": "Battery Supply Chain Wire",
       "author": "Head of Commercial Sensing @ CATL",
-      "title": "CATL Battery Supply Chain: Lithium Hydroxide Spot Inquiries Surge 18% in East Asia",
       "headline": "CATL Battery Supply Chain: Lithium Hydroxide Spot Inquiries Surge 18% in East Asia",
       "content": "Cathode producers restocking inventories ahead of Q1 EV production ramping.",
       "sentiment_score": 0.35,
-      "sentiment": 0.35,
       "commodity": "Lithium",
-      "metal": "Lithium Carbonate 99.5%",
       "impact_demand": 9200,
       "impact_leadtime": 2.0
     }
@@ -244,13 +220,10 @@
       "id": "deb_01",
       "source": "LinkedIn Executive Stream",
       "author": "VP Global Procurement @ Glencore",
-      "title": "Glencore Commercial Lead: Force Majeure Risk Elevated on African Copper/Cobalt Transit Routes",
       "headline": "Glencore Commercial Lead: Force Majeure Risk Elevated on African Copper/Cobalt Transit Routes",
       "content": "Border congestion at Kasumbalesa backed up over 1,200 trucks carrying copper cathode and cobalt hydroxide.",
       "sentiment_score": -0.52,
-      "sentiment": -0.52,
       "commodity": "Copper",
-      "metal": "Copper (LME Grade A)",
       "impact_demand": 15400,
       "impact_leadtime": 4.2
     },
@@ -258,13 +231,10 @@
       "id": "deb_02",
       "source": "CFO Email Intelligence Briefing",
       "author": "Chief Economist @ Rio Tinto",
-      "title": "Rio Tinto Operations: Pilbara Iron Ore Shipments Delayed by Unseasonal Tropical Cyclone Activity",
       "headline": "Rio Tinto Operations: Pilbara Iron Ore Shipments Delayed by Unseasonal Tropical Cyclone Activity",
       "content": "Port Hedland operations suspended for 48 hours; vessel queuing expected to stretch into late Q4.",
       "sentiment_score": -0.38,
-      "sentiment": -0.38,
       "commodity": "Iron Ore",
-      "metal": "Iron Ore Fines 62% Fe",
       "impact_demand": 19800,
       "impact_leadtime": 3.1
     },
@@ -272,13 +242,10 @@
       "id": "deb_03",
       "source": "Field Procurement Debrief",
       "author": "Director of Sourcing @ Alcoa Europe",
-      "title": "Alcoa Smelter Outage: European Primary Aluminum Premium Rises to $310/MT Over LME Cash",
       "headline": "Alcoa Smelter Outage: European Primary Aluminum Premium Rises to $310/MT Over LME Cash",
       "content": "Power curtailments in Western Europe are forcing spot metal buyers into prompt warehouse bidding wars.",
       "sentiment_score": -0.48,
-      "sentiment": -0.48,
       "commodity": "Aluminum",
-      "metal": "Primary Aluminum Ingot",
       "impact_demand": 18200,
       "impact_leadtime": 3.5
     },
@@ -286,13 +253,10 @@
       "id": "deb_04",
       "source": "Battery Supply Chain Wire",
       "author": "Head of Commercial Sensing @ CATL",
-      "title": "CATL Battery Supply Chain: Lithium Hydroxide Spot Inquiries Surge 18% in East Asia",
       "headline": "CATL Battery Supply Chain: Lithium Hydroxide Spot Inquiries Surge 18% in East Asia",
       "content": "Cathode producers restocking inventories ahead of Q1 EV production ramping.",
       "sentiment_score": 0.35,
-      "sentiment": 0.35,
       "commodity": "Lithium",
-      "metal": "Lithium Carbonate 99.5%",
       "impact_demand": 9200,
       "impact_leadtime": 2.0
     }
@@ -475,10 +439,8 @@
     {
       "id": "fw_01",
       "source": "NOAA Climate Telemetry",
-      "title": "Panama Canal Transit Restrictions: Draft Limits Force Container Ships to Cut Load Capacities by 20%",
       "headline": "Panama Canal Transit Restrictions: Draft Limits Force Container Ships to Cut Load Capacities by 20%",
       "sentiment_score": -0.62,
-      "sentiment": -0.62,
       "impact_leadtime": 5.5,
       "impact_demand": 16500,
       "commodity": "Logistics Sea"
@@ -486,10 +448,8 @@
     {
       "id": "fw_02",
       "source": "Copernicus Hydrological Service",
-      "title": "Rhine Water Levels Fall Below 120cm at Kaub: Shallow Water Bunkering Surcharges Applied",
       "headline": "Rhine Water Levels Fall Below 120cm at Kaub: Shallow Water Bunkering Surcharges Applied",
       "sentiment_score": -0.55,
-      "sentiment": -0.55,
       "impact_leadtime": 4.2,
       "impact_demand": 14000,
       "commodity": "Logistics Rhine"
@@ -497,10 +457,8 @@
     {
       "id": "fw_03",
       "source": "TAC Air Freight Index",
-      "title": "Transpacific Air Cargo Yields Rise 8.4% as Electronics Shippers Divert Out of Ocean Routes",
       "headline": "Transpacific Air Cargo Yields Rise 8.4% as Electronics Shippers Divert Out of Ocean Routes",
       "sentiment_score": -0.4,
-      "sentiment": -0.4,
       "impact_leadtime": 1.5,
       "impact_demand": 11200,
       "commodity": "Logistics Air"
@@ -508,10 +466,8 @@
     {
       "id": "fw_04",
       "source": "FBX Ocean Index",
-      "title": "Shanghai to Rotterdam Container Spot Rates Stabilize at $3,850/FEU Following Port Clearance Increases",
       "headline": "Shanghai to Rotterdam Container Spot Rates Stabilize at $3,850/FEU Following Port Clearance Increases",
       "sentiment_score": -0.25,
-      "sentiment": -0.25,
       "impact_leadtime": 2.8,
       "impact_demand": 12800,
       "commodity": "Logistics Ocean"
@@ -521,10 +477,8 @@
     {
       "id": "fw_01",
       "source": "NOAA Climate Telemetry",
-      "title": "Panama Canal Transit Restrictions: Draft Limits Force Container Ships to Cut Load Capacities by 20%",
       "headline": "Panama Canal Transit Restrictions: Draft Limits Force Container Ships to Cut Load Capacities by 20%",
       "sentiment_score": -0.62,
-      "sentiment": -0.62,
       "impact_leadtime": 5.5,
       "impact_demand": 16500,
       "commodity": "Logistics Sea"
@@ -532,10 +486,8 @@
     {
       "id": "fw_02",
       "source": "Copernicus Hydrological Service",
-      "title": "Rhine Water Levels Fall Below 120cm at Kaub: Shallow Water Bunkering Surcharges Applied",
       "headline": "Rhine Water Levels Fall Below 120cm at Kaub: Shallow Water Bunkering Surcharges Applied",
       "sentiment_score": -0.55,
-      "sentiment": -0.55,
       "impact_leadtime": 4.2,
       "impact_demand": 14000,
       "commodity": "Logistics Rhine"
@@ -543,10 +495,8 @@
     {
       "id": "fw_03",
       "source": "TAC Air Freight Index",
-      "title": "Transpacific Air Cargo Yields Rise 8.4% as Electronics Shippers Divert Out of Ocean Routes",
       "headline": "Transpacific Air Cargo Yields Rise 8.4% as Electronics Shippers Divert Out of Ocean Routes",
       "sentiment_score": -0.4,
-      "sentiment": -0.4,
       "impact_leadtime": 1.5,
       "impact_demand": 11200,
       "commodity": "Logistics Air"
@@ -554,10 +504,8 @@
     {
       "id": "fw_04",
       "source": "FBX Ocean Index",
-      "title": "Shanghai to Rotterdam Container Spot Rates Stabilize at $3,850/FEU Following Port Clearance Increases",
       "headline": "Shanghai to Rotterdam Container Spot Rates Stabilize at $3,850/FEU Following Port Clearance Increases",
       "sentiment_score": -0.25,
-      "sentiment": -0.25,
       "impact_leadtime": 2.8,
       "impact_demand": 12800,
       "commodity": "Logistics Ocean"
