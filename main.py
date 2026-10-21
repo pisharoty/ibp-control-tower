@@ -1590,9 +1590,9 @@ def render_nlp_commercial_sensing(*args, **kwargs):
         })
         
         with col_impact:
-            st.text_input("Extracted Signal Impact (Units)", value=selected_data["impact_units"], disabled=True)
+            st.text_input("Extracted Signal Impact (Units)", value=selected_data["impact_units"], disabled=True, key=f"rss_impact_units_{id(rss_options)}")
         with col_sent:
-            st.text_input("Detected Sentiment ($S_i$)", value=f"{selected_data['sentiment']:+.2f}", disabled=True)
+            st.text_input("Detected Sentiment ($S_i$)", value=f"{selected_data['sentiment']:+.2f}", disabled=True, key=f"rss_detected_sentiment_{id(rss_options)}")
             
         st.info(f"💡 **Active Intelligence Summary**: {selected_data['summary']} *(Source: {selected_data['source']})*")
         
@@ -1669,9 +1669,9 @@ def render_nlp_commercial_sensing(*args, **kwargs):
         })
         
         with col_impact:
-            st.text_input("Extracted Signal Impact (Units)", value=selected_data["impact_units"], disabled=True)
+            st.text_input("Extracted Signal Impact (Units)", value=selected_data["impact_units"], disabled=True, key=f"rss_impact_units_{id(rss_options)}")
         with col_sent:
-            st.text_input("Detected Sentiment ($S_i$)", value=f"{selected_data['sentiment']:+.2f}", disabled=True)
+            st.text_input("Detected Sentiment ($S_i$)", value=f"{selected_data['sentiment']:+.2f}", disabled=True, key=f"rss_detected_sentiment_{id(rss_options)}")
             
         st.info(f"💡 **Active Intelligence Summary**: {selected_data['summary']} *(Source: {selected_data['source']})*")
 
