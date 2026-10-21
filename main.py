@@ -1194,6 +1194,10 @@ from robot_feeds import render_predictive_commodity_engine
 # render_predictive_commodity_engine() moved to dedicated tab
 
 def render_nlp_commercial_sensing(*args, **kwargs):
+    import os
+    import json
+    callback_fn = None
+    display_unit = "Units"
     callback_fn = None
     display_unit = "Units"
     display_unit = "Units"
@@ -1521,7 +1525,7 @@ def render_nlp_commercial_sensing(*args, **kwargs):
         # Build unified dynamic RSS intelligence registry from Genspark + Social feeds
         rss_registry = {}
         try:
-            import json, os
+            # imports hoisted
             if os.path.exists("robot_signals.json"):
                 with open("robot_signals.json", "r") as f:
                     sdata = json.load(f)
