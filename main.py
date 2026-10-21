@@ -1241,7 +1241,6 @@ def render_nlp_commercial_sensing(*args, **kwargs):
         if live_rss:
             st.session_state["live_rss_signals"] = live_rss
     st.title("🧠 NLP Commercial Sensing & Intelligence")
-    render_genspark_overlay()
     st.caption(
         f"Active Persona View: **{persona or 'Discrete & Heavy Industrial Enterprise'}** | "
         "Ingest unstructured signals from live RSS feeds, executive LinkedIn disclosures, "
@@ -1286,6 +1285,7 @@ def render_nlp_commercial_sensing(*args, **kwargs):
     # TAB 1: LIVE WEB, MACRO & SOCIAL SIGNALS
     # =========================================================================
     with tab1:
+        render_genspark_overlay()
         r_head1, r_head2 = st.columns([3, 1])
         with r_head1:
             st.caption(
