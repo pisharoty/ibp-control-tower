@@ -1,3 +1,16 @@
+
+def get_live_signals():
+    import json
+    import os
+    if os.path.exists("robot_signals.json"):
+        try:
+            with open("robot_signals.json", "r") as f:
+                return json.load(f)
+        except Exception:
+            pass
+    return {}
+
+
 import streamlit as st
 import json
 import os
