@@ -1,124 +1,136 @@
 {
   "signals": [
     {
+      "commodity": "Special High Grade Zinc",
+      "metal": "Special High Grade Zinc",
+      "si_composite": 0.4,
+      "sentiment_score": 0.4,
+      "sentiment_label": "Bullish Tilt",
+      "headline_summary": "Zinc SHG Rotterdam premium surged to $330/t with spot concentrate TCs at record-low -$115/t in latest market scan.",
+      "title": "Zinc SHG Rotterdam premium surged to $330/t with spot concentrate TCs at record-low -$115/t in latest market scan.",
+      "impact_demand": 14200,
+      "impact_leadtime": 1.8
+    },
+    {
       "commodity": "LME Copper Cathode",
-      "symbol": "HG=F",
-      "si": -0.2,
-      "status": "Bearish Pressure",
-      "flag": "SUPPLY DISRUPTION",
-      "summary": "Copper extended losses toward $4.20/lb as US inflation policy fueled rate expectations & smelter bottlenecks in South America.",
-      "impact_guidance": "High probability of spread compression on cathode physical premiums.",
-      "sector": "Industrial Metals & Mining"
+      "metal": "LME Copper Cathode",
+      "si_composite": -0.2,
+      "sentiment_score": -0.2,
+      "sentiment_label": "Bearish Pressure",
+      "headline_summary": "Copper extended losses toward $4.20/lb as US inflation policy fueled rate expectations & smelter bottlenecks.",
+      "title": "Copper extended losses toward $4.20/lb as US inflation policy fueled rate expectations & smelter bottlenecks.",
+      "impact_demand": 10683,
+      "impact_leadtime": 2.5
     },
     {
       "commodity": "Primary Aluminum Ingot",
-      "symbol": "ALI=F",
-      "si": -0.45,
-      "status": "Bearish Pressure",
-      "flag": "CAPACITY CURTAILMENT",
-      "summary": "Aluminum slid to $2,450/t as dollar firmed and EGA restarted smelter capacity at Al Taweelah while European demand softened.",
-      "impact_guidance": "Slight inventory buildup across European warehouses; hedging recommended for Q4 exposure.",
-      "sector": "Industrial Metals & Mining"
-    },
-    {
-      "commodity": "Special High Grade Zinc",
-      "symbol": "ZNC=F",
-      "si": 0.4,
-      "status": "Bullish Tilt",
-      "flag": "SUPPLY DISRUPTION",
-      "summary": "Zinc SHG Rotterdam premium surged to $330/t with spot concentrate TC at record low -$115/t in latest market scan.",
-      "impact_guidance": "Smelter margin compression forcing production cuts across European refineries.",
-      "sector": "Industrial Metals & Mining"
+      "metal": "Primary Aluminum Ingot",
+      "si_composite": -0.45,
+      "sentiment_score": -0.45,
+      "sentiment_label": "Bearish Pressure",
+      "headline_summary": "Aluminum slid to $2,450/t as dollar firmed and EGA restarted smelter capacity at Al Taweelah.",
+      "title": "Aluminum slid to $2,450/t as dollar firmed and EGA restarted smelter capacity at Al Taweelah.",
+      "impact_demand": 18400,
+      "impact_leadtime": 3.8
     },
     {
       "commodity": "Battery-Grade Lithium Carbonate",
-      "symbol": "LITH=F",
-      "si": -0.65,
-      "status": "Strongly Bearish",
-      "flag": "DEMAND SURGE",
-      "summary": "Chinese lithium carbonate slumped 3.5% to CNY 104,400/t following spot market supply adjustments and EV battery destocking.",
-      "impact_guidance": "Cathode producers deferring long-term contract pricing negotiations to Q1.",
-      "sector": "Battery Materials & Rare Earths"
+      "metal": "Battery-Grade Lithium Carbonate",
+      "si_composite": -0.65,
+      "sentiment_score": -0.65,
+      "sentiment_label": "Strongly Bearish",
+      "headline_summary": "Chinese lithium carbonate slumped 3.56% to CNY 104,400/t following spot market supply adjustments.",
+      "title": "Chinese lithium carbonate slumped 3.56% to CNY 104,400/t following spot market supply adjustments.",
+      "impact_demand": 8100,
+      "impact_leadtime": 4.5
     },
     {
       "commodity": "LME Nickel Cathode",
-      "symbol": "NI=F",
-      "si": -0.3,
-      "status": "Moderate Bearish",
-      "flag": "INVENTORY BUILD",
-      "summary": "Indonesian NPI output expands as LME class 1 stocks rise to 18-month highs; stainless steel scrap discounts widening.",
-      "impact_guidance": "Physical premiums in Asian hubs holding flat at $150/MT.",
-      "sector": "ALL RAW MATERIALS"
+      "metal": "LME Nickel Cathode",
+      "si_composite": -0.3,
+      "sentiment_score": -0.3,
+      "sentiment_label": "Bearish Drag",
+      "headline_summary": "Indonesian NPI output expands as LME class 1 stocks rise to 18-month highs; stainless steel scrap discounts widening.",
+      "title": "Indonesian NPI output expands as LME class 1 stocks rise to 18-month highs; stainless steel scrap discounts widening.",
+      "impact_demand": 12000,
+      "impact_leadtime": 2.2
     },
     {
       "commodity": "Refined Cobalt Metal",
-      "symbol": "COB=F",
-      "si": 0.25,
-      "status": "Mild Bullish",
-      "flag": "LOGISTICS BOTTLENECK",
-      "summary": "DRC export quota discussions and Durban port congestion lead to prompt delivery tightness in European warehouse stocks.",
-      "impact_guidance": "Aerospace alloy demand remains resilient despite battery sector shift.",
-      "sector": "ALL RAW MATERIALS"
+      "metal": "Refined Cobalt Metal",
+      "si_composite": 0.25,
+      "sentiment_score": 0.25,
+      "sentiment_label": "Bullish Surge",
+      "headline_summary": "DRC export quota discussions and Durban port congestion lead to prompt delivery tightness in European warehouse stocks.",
+      "title": "DRC export quota discussions and Durban port congestion lead to prompt delivery tightness in European warehouse stocks.",
+      "impact_demand": 6500,
+      "impact_leadtime": 5.0
     },
     {
       "commodity": "Iron Ore Fines 62% Fe",
-      "symbol": "TIO=F",
-      "si": -0.15,
-      "status": "Neutral/Bearish",
-      "flag": "STEEL CURTAILMENT",
-      "summary": "Qingdao port inventories tick higher to 142M MT as Chinese steel mills cap crude steel production ahead of winter emission controls.",
-      "impact_guidance": "Freight rates on West Australia to Qingdao route holding at $9.20/MT.",
-      "sector": "ALL RAW MATERIALS"
+      "metal": "Iron Ore Fines 62% Fe",
+      "si_composite": -0.15,
+      "sentiment_score": -0.15,
+      "sentiment_label": "Neutral Drag",
+      "headline_summary": "Qingdao port inventories tick higher to 142M MT as Chinese steel mills cap crude steel production ahead of winter emission controls.",
+      "title": "Qingdao port inventories tick higher to 142M MT as Chinese steel mills cap crude steel production ahead of winter emission controls.",
+      "impact_demand": 22000,
+      "impact_leadtime": 1.5
     },
     {
       "commodity": "CBOT Milling Wheat",
-      "symbol": "ZW=F",
-      "si": 0.55,
-      "status": "Bullish Shift",
-      "flag": "WEATHER ANOMALY",
-      "summary": "Dryness in Southern Plains and Black Sea export corridor tensions send milling wheat futures up +4.2% on Chicago board.",
-      "impact_guidance": "Millers extending coverage ratios from 45 days to 90 days.",
-      "sector": "Agriculture & Soft Commodities"
+      "metal": "CBOT Milling Wheat",
+      "si_composite": 0.55,
+      "sentiment_score": 0.55,
+      "sentiment_label": "Bullish Surge",
+      "headline_summary": "Dryness in Southern Plains and Black Sea export corridor tensions send milling wheat futures up +4.2% on Chicago board.",
+      "title": "Dryness in Southern Plains and Black Sea export corridor tensions send milling wheat futures up +4.2% on Chicago board.",
+      "impact_demand": 31000,
+      "impact_leadtime": 3.0
     },
     {
       "commodity": "CBOT Yellow Corn",
-      "symbol": "ZC=F",
-      "si": 0.1,
-      "status": "Neutral/Positive",
-      "flag": "HARVEST PROGRESS",
-      "summary": "US Midwest harvest progress reaches 68% complete; yield reports slightly above early August USDA estimates.",
-      "impact_guidance": "River barge freight rates along Mississippi stabilizing post-dredging.",
-      "sector": "Agriculture & Soft Commodities"
+      "metal": "CBOT Yellow Corn",
+      "si_composite": 0.1,
+      "sentiment_score": 0.1,
+      "sentiment_label": "Neutral / Stable",
+      "headline_summary": "US Midwest harvest progress reaches 68% complete; yield reports slightly above early August USDA estimates.",
+      "title": "US Midwest harvest progress reaches 68% complete; yield reports slightly above early August USDA estimates.",
+      "impact_demand": 38000,
+      "impact_leadtime": 1.2
     },
     {
       "commodity": "Henry Hub Natural Gas",
-      "symbol": "NG=F",
-      "si": 0.6,
-      "status": "Strong Bullish",
-      "flag": "WEATHER & LNG DEMAND",
-      "summary": "Early winter heating demand forecasts and Gulf Coast LNG export facility feedgas demand rising toward 14.5 Bcf/d.",
-      "impact_guidance": "Storage injection rates slowing; storage surplus narrowing vs 5-year average.",
-      "sector": "Energy, Oil & Natural Gas"
+      "metal": "Henry Hub Natural Gas",
+      "si_composite": 0.6,
+      "sentiment_score": 0.6,
+      "sentiment_label": "Bullish Surge",
+      "headline_summary": "Early winter heating demand forecasts and Gulf Coast LNG export facility feedgas demand rising toward 14.5 Bcf/d.",
+      "title": "Early winter heating demand forecasts and Gulf Coast LNG export facility feedgas demand rising toward 14.5 Bcf/d.",
+      "impact_demand": 62000,
+      "impact_leadtime": 2.0
     },
     {
       "commodity": "WTI Crude Oil",
-      "symbol": "CL=F",
-      "si": -0.1,
-      "status": "Slight Softening",
-      "flag": "OPEC+ POLICY",
-      "summary": "Crude trades near $78.50/bbl as non-OPEC supply growth balances voluntary OPEC+ supply cuts through end of year.",
-      "impact_guidance": "Refinery utilization rates at 91.2% in US Gulf Coast.",
-      "sector": "Energy, Oil & Natural Gas"
+      "metal": "WTI Crude Oil",
+      "si_composite": -0.1,
+      "sentiment_score": -0.1,
+      "sentiment_label": "Neutral Drag",
+      "headline_summary": "Crude trades near $78.50/bbl as non-OPEC supply growth balances voluntary OPEC+ supply cuts through end of year.",
+      "title": "Crude trades near $78.50/bbl as non-OPEC supply growth balances voluntary OPEC+ supply cuts through end of year.",
+      "impact_demand": 45000,
+      "impact_leadtime": 1.0
     },
     {
       "commodity": "Ethylene Monomer",
-      "symbol": "ETH=F",
-      "si": -0.35,
-      "status": "Bearish Tilt",
-      "flag": "CRACKER CAPACITY",
-      "summary": "US Gulf cracker restarts increase monomer availability; European derivative export margins remain squeezed by energy costs.",
-      "impact_guidance": "Polymer converters maintaining lean inventory posture.",
-      "sector": "Petrochemicals, Resins & Polymers"
+      "metal": "Ethylene Monomer",
+      "si_composite": -0.35,
+      "sentiment_score": -0.35,
+      "sentiment_label": "Bearish Drag",
+      "headline_summary": "US Gulf cracker restarts increase monomer availability; European derivative export margins remain squeezed by energy costs.",
+      "title": "US Gulf cracker restarts increase monomer availability; European derivative export margins remain squeezed by energy costs.",
+      "impact_demand": 22000,
+      "impact_leadtime": 2.8
     }
   ],
   "executive_social_stream": [
@@ -509,6 +521,140 @@
       "impact_leadtime": 2.8,
       "impact_demand": 12800,
       "commodity": "Logistics Ocean"
+    }
+  ],
+  "tactical_signals": [
+    {
+      "commodity": "Special High Grade Zinc",
+      "metal": "Special High Grade Zinc",
+      "si_composite": 0.4,
+      "sentiment_score": 0.4,
+      "sentiment_label": "Bullish Tilt",
+      "headline_summary": "Zinc SHG Rotterdam premium surged to $330/t with spot concentrate TCs at record-low -$115/t in latest market scan.",
+      "title": "Zinc SHG Rotterdam premium surged to $330/t with spot concentrate TCs at record-low -$115/t in latest market scan.",
+      "impact_demand": 14200,
+      "impact_leadtime": 1.8
+    },
+    {
+      "commodity": "LME Copper Cathode",
+      "metal": "LME Copper Cathode",
+      "si_composite": -0.2,
+      "sentiment_score": -0.2,
+      "sentiment_label": "Bearish Pressure",
+      "headline_summary": "Copper extended losses toward $4.20/lb as US inflation policy fueled rate expectations & smelter bottlenecks.",
+      "title": "Copper extended losses toward $4.20/lb as US inflation policy fueled rate expectations & smelter bottlenecks.",
+      "impact_demand": 10683,
+      "impact_leadtime": 2.5
+    },
+    {
+      "commodity": "Primary Aluminum Ingot",
+      "metal": "Primary Aluminum Ingot",
+      "si_composite": -0.45,
+      "sentiment_score": -0.45,
+      "sentiment_label": "Bearish Pressure",
+      "headline_summary": "Aluminum slid to $2,450/t as dollar firmed and EGA restarted smelter capacity at Al Taweelah.",
+      "title": "Aluminum slid to $2,450/t as dollar firmed and EGA restarted smelter capacity at Al Taweelah.",
+      "impact_demand": 18400,
+      "impact_leadtime": 3.8
+    },
+    {
+      "commodity": "Battery-Grade Lithium Carbonate",
+      "metal": "Battery-Grade Lithium Carbonate",
+      "si_composite": -0.65,
+      "sentiment_score": -0.65,
+      "sentiment_label": "Strongly Bearish",
+      "headline_summary": "Chinese lithium carbonate slumped 3.56% to CNY 104,400/t following spot market supply adjustments.",
+      "title": "Chinese lithium carbonate slumped 3.56% to CNY 104,400/t following spot market supply adjustments.",
+      "impact_demand": 8100,
+      "impact_leadtime": 4.5
+    },
+    {
+      "commodity": "LME Nickel Cathode",
+      "metal": "LME Nickel Cathode",
+      "si_composite": -0.3,
+      "sentiment_score": -0.3,
+      "sentiment_label": "Bearish Drag",
+      "headline_summary": "Indonesian NPI output expands as LME class 1 stocks rise to 18-month highs; stainless steel scrap discounts widening.",
+      "title": "Indonesian NPI output expands as LME class 1 stocks rise to 18-month highs; stainless steel scrap discounts widening.",
+      "impact_demand": 12000,
+      "impact_leadtime": 2.2
+    },
+    {
+      "commodity": "Refined Cobalt Metal",
+      "metal": "Refined Cobalt Metal",
+      "si_composite": 0.25,
+      "sentiment_score": 0.25,
+      "sentiment_label": "Bullish Surge",
+      "headline_summary": "DRC export quota discussions and Durban port congestion lead to prompt delivery tightness in European warehouse stocks.",
+      "title": "DRC export quota discussions and Durban port congestion lead to prompt delivery tightness in European warehouse stocks.",
+      "impact_demand": 6500,
+      "impact_leadtime": 5.0
+    },
+    {
+      "commodity": "Iron Ore Fines 62% Fe",
+      "metal": "Iron Ore Fines 62% Fe",
+      "si_composite": -0.15,
+      "sentiment_score": -0.15,
+      "sentiment_label": "Neutral Drag",
+      "headline_summary": "Qingdao port inventories tick higher to 142M MT as Chinese steel mills cap crude steel production ahead of winter emission controls.",
+      "title": "Qingdao port inventories tick higher to 142M MT as Chinese steel mills cap crude steel production ahead of winter emission controls.",
+      "impact_demand": 22000,
+      "impact_leadtime": 1.5
+    },
+    {
+      "commodity": "CBOT Milling Wheat",
+      "metal": "CBOT Milling Wheat",
+      "si_composite": 0.55,
+      "sentiment_score": 0.55,
+      "sentiment_label": "Bullish Surge",
+      "headline_summary": "Dryness in Southern Plains and Black Sea export corridor tensions send milling wheat futures up +4.2% on Chicago board.",
+      "title": "Dryness in Southern Plains and Black Sea export corridor tensions send milling wheat futures up +4.2% on Chicago board.",
+      "impact_demand": 31000,
+      "impact_leadtime": 3.0
+    },
+    {
+      "commodity": "CBOT Yellow Corn",
+      "metal": "CBOT Yellow Corn",
+      "si_composite": 0.1,
+      "sentiment_score": 0.1,
+      "sentiment_label": "Neutral / Stable",
+      "headline_summary": "US Midwest harvest progress reaches 68% complete; yield reports slightly above early August USDA estimates.",
+      "title": "US Midwest harvest progress reaches 68% complete; yield reports slightly above early August USDA estimates.",
+      "impact_demand": 38000,
+      "impact_leadtime": 1.2
+    },
+    {
+      "commodity": "Henry Hub Natural Gas",
+      "metal": "Henry Hub Natural Gas",
+      "si_composite": 0.6,
+      "sentiment_score": 0.6,
+      "sentiment_label": "Bullish Surge",
+      "headline_summary": "Early winter heating demand forecasts and Gulf Coast LNG export facility feedgas demand rising toward 14.5 Bcf/d.",
+      "title": "Early winter heating demand forecasts and Gulf Coast LNG export facility feedgas demand rising toward 14.5 Bcf/d.",
+      "impact_demand": 62000,
+      "impact_leadtime": 2.0
+    },
+    {
+      "commodity": "WTI Crude Oil",
+      "metal": "WTI Crude Oil",
+      "si_composite": -0.1,
+      "sentiment_score": -0.1,
+      "sentiment_label": "Neutral Drag",
+      "headline_summary": "Crude trades near $78.50/bbl as non-OPEC supply growth balances voluntary OPEC+ supply cuts through end of year.",
+      "title": "Crude trades near $78.50/bbl as non-OPEC supply growth balances voluntary OPEC+ supply cuts through end of year.",
+      "impact_demand": 45000,
+      "impact_leadtime": 1.0
+    },
+    {
+      "commodity": "Ethylene Monomer",
+      "metal": "Ethylene Monomer",
+      "si_composite": -0.35,
+      "sentiment_score": -0.35,
+      "sentiment_label": "Bearish Drag",
+      "headline_summary": "US Gulf cracker restarts increase monomer availability; European derivative export margins remain squeezed by energy costs.",
+      "title": "US Gulf cracker restarts increase monomer availability; European derivative export margins remain squeezed by energy costs.",
+      "impact_demand": 22000,
+      "impact_leadtime": 2.8
     }
   ]
 }
