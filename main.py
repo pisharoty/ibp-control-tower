@@ -29,21 +29,21 @@ if "executed_hedges" not in st.session_state:
     st.session_state["executed_hedges"] = []
 
 def execute_ctrm_trade(trade_title="CTRM FIX Protocol Hedge", benefit_per_trade=3250000.0):
-    """Global callback to execute a trade, update state, and force instant rerun."""
     trade_count = len(st.session_state["executed_hedges"]) + 1
     new_trade = {
-        "title": f"{trade_title} #{trade_count}",
-        "source_type": "CTRM Desk Trade Execution",
-        "hedge_benefit_usd": benefit_per_trade,
-        "timestamp": datetime.datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S UTC"),
+        "Trade ID": f"TRD-2026-X{trade_count:03d}",
+        "Strategy": trade_title,
+        "Volume": "10,000 Units",
+        "Strikes": "K1: $15,000 / K2: $14,000",
+        "Net Premium": f"${benefit_per_trade*0.05:,.2f}",
+        "Hedge Benefit ($)": benefit_per_trade,
+        "Timestamp": datetime.datetime.utcnow().strftime("%Y-%m-%d %H:%M UTC")
     }
     st.session_state["executed_hedges"].append(new_trade)
     st.toast(f"🔒 Trade #{trade_count} Executed! Locked +${benefit_per_trade:,.2f}", icon="🚀")
     st.rerun()
 
-# =====================================================================
 # SIDEBAR NAVIGATION ROUTER
-# =====================================================================
 st.sidebar.title("⚡ IBP Control Tower")
 
 persona = st.sidebar.selectbox(
@@ -70,9 +70,7 @@ modules = [
 
 selected_module = st.sidebar.radio("Navigation Modules:", modules, key="sidebar_module_radio")
 
-# =====================================================================
 # MODULE 1: EXECUTIVE S&OP CONTROL TOWER
-# =====================================================================
 def render_executive_sop(persona="Discrete & Heavy Industrial Enterprise", term_unit="Units"):
     st.title("📊 Executive S&OP Control Tower")
     st.caption(f"Active Persona View: **{persona}**")
@@ -80,7 +78,7 @@ def render_executive_sop(persona="Discrete & Heavy Industrial Enterprise", term_
     surge = st.session_state.get("platform_demand_impact", st.session_state.get("extracted_demand_surge", 65000))
     si = st.session_state.get("platform_si_override", st.session_state.get("si_composite", -0.33))
     
-    total_hedge_gain = sum(t.get("hedge_benefit_usd", 0.0) for t in st.session_state["executed_hedges"]) or 3250000.0
+    total_hedge_gain = sum(t.get("Hedge Benefit ($)", 3250000.0) for t in st.session_state["executed_hedges"]) or 3250000.0
     
     c1, c2, c3, c4 = st.columns(4)
     c1.metric("Annual Operating Plan (AOP)", "$120.0M", "+4.2% YoY")
@@ -109,9 +107,7 @@ def render_executive_sop(persona="Discrete & Heavy Industrial Enterprise", term_
         st.warning(f"✈️ **Logistics Desk**: Lead time delay drag set at +{st.session_state.get('platform_leadtime_impact', 2.5)} days")
         st.success(f"🟢 **CTRM Risk Desk**: {len(st.session_state['executed_hedges'])} Hedges Executed | Gain: +${total_hedge_gain:,.2f}")
 
-# =====================================================================
 # MODULE 3: NLP COMMERCIAL SENSING
-# =====================================================================
 def render_nlp_commercial_sensing(persona="Discrete & Heavy Industrial Enterprise"):
     st.title("🧠 NLP Commercial Sensing & Field Intelligence")
     st.caption("Active Persona View: Discrete & Heavy Industrial Enterprise | Ingest unstructured signals from live RSS feeds, executive disclosures, email debriefs, hard macro indicators (NY Fed, FRED, World Bank, ECB, PBOC, KOSPI), and ocean/air freight telemetry.")
@@ -201,9 +197,7 @@ def render_nlp_commercial_sensing(persona="Discrete & Heavy Industrial Enterpris
                             st.toast(f"⚡ Freight Disruption Signal #{idx+1} Ingested into S&OP Platform!")
                             st.rerun()
 
-# =====================================================================
-# MODULE 4: DEMAND/SUPPLY MATCH & PLANT LOAD BALANCER (RESTORED)
-# =====================================================================
+# MODULE 4: DEMAND/SUPPLY MATCH
 def render_demand_supply_match(persona="Discrete & Heavy Industrial Enterprise", term_unit="Units"):
     st.title("⚙️ Demand/Supply Match & Plant Load Balancer")
     st.caption("Automated inventory netting, multi-horizon S&OP scheduling, dynamic order offsets, and plant load balancing.")
@@ -285,9 +279,7 @@ def render_demand_supply_match(persona="Discrete & Heavy Industrial Enterprise",
         if st.button("🚀 Rebalance Plant Capacity & Re-route S&OP Load", type="primary"):
             st.toast("✅ Plant Load Rebalanced across Detroit, Munich, and Ohio CMO Nodes!")
 
-# =====================================================================
-# MODULE 5: PHYSICAL PROCUREMENT & MASTER CONTRACT DESK (RESTORED)
-# =====================================================================
+# MODULE 5: PHYSICAL PROCUREMENT
 def render_physical_procurement(persona="Discrete & Heavy Industrial Enterprise", term_unit="Units"):
     st.title("📈 Physical Procurement & Master Contract Desk")
     st.caption("Physical vendor contract execution, direct material sourcing, tier-1 risk scorecards, and price adjustment clauses.")
@@ -328,26 +320,53 @@ def render_physical_procurement(persona="Discrete & Heavy Industrial Enterprise"
         st.toast(f"✅ Signed Physical Contract with {vendor_input} for {vol_input:,} units!", icon="📜")
         st.rerun()
 
-# =====================================================================
-# MODULE 6: CTRM DERIVATIVES & COMMODITY RISK DESK (RESTORED)
-# =====================================================================
+# MODULE 6: CTRM DERIVATIVES & COMMODITY RISK DESK (ENHANCED WITH SYNTHETIC & MULTI-OPTION STRATEGIES)
 def render_ctrm_desk(persona="Discrete & Heavy Industrial Enterprise", term_unit="Units"):
     st.title("🛡️ CTRM Derivatives & Commodity Risk Desk")
-    st.caption("Event-driven financial hedging, Black76 option pricing, FIX 4.4 execution gateway, and derivatives booking register.")
+    st.caption("Event-driven financial hedging, Black76 multi-option pricing, strategy payoff modeling, FIX 4.4 gateway, and derivatives register.")
     
-    st.info(f"📡 **Active Ingested Risk Signal**: {st.session_state.get('platform_active_signal', 'Baseline Target')}")
+    st.info(f"📡 **Active Ingested Risk Signal**: {st.session_state.get('platform_active_signal', 'Baseline Operations Target')}")
     
     surge_vol = st.session_state.get("platform_demand_impact", st.session_state.get("extracted_demand_surge", 65000))
     spot_f = 14669.54
-    strike_k = 14500.00
     
-    call_price, put_price, delta_val, vega_val = rf.pure_black76_call_put(spot_f, strike_k, 60.0/365.0, 0.045, 0.28)
+    st.subheader("⚙️ Multi-Option Derivatives Strategy Builder")
+    col_s1, col_s2 = st.columns(2)
     
-    c1, c2, c3, c4 = st.columns(4)
-    c1.metric("Unhedged Surge Exposure", f"{surge_vol:,} {term_unit}")
-    c2.metric("Black76 Asian Call Option", f"${call_price:,.2f} / MT")
-    c3.metric("Option Delta (Δ)", f"{delta_val:.3f}")
-    c4.metric("Vega Sensitivity (ν)", f"${vega_val:,.2f}")
+    with col_s1:
+        strategy_type = st.selectbox(
+            "Select Hedging Strategy Structure:",
+            [
+                "Asian Call Option Collar (Bought Call / Sold Put)",
+                "Zero-Cost Collar (Net Zero Outlay)",
+                "Synthetic Long Forward / Futures (Bought Call + Sold Put)",
+                "Bear Put Spread (Bought Put $K_1$ / Sold Put $K_2$)",
+                "Delta-Neutral Straddle (Volatility Hedge)",
+                "Synthetic Floating-to-Fixed Commodity Swap"
+            ],
+            key="ctrm_strat_select"
+        )
+        vol_input = st.number_input(f"Hedging Contract Volume ({term_unit}):", value=int(surge_vol), step=1000, key="ctrm_vol_in")
+
+    with col_s2:
+        k1_strike = st.number_input("Primary Strike ($K_1$ Call/Forward USD):", value=15000.0, step=100.0, key="ctrm_k1_in")
+        k2_strike = st.number_input("Secondary Strike ($K_2$ Floor/Put USD):", value=14000.0, step=100.0, key="ctrm_k2_in")
+        expiry_days = st.slider("Time to Expiration (Days):", 15, 180, 60, key="ctrm_expiry_in")
+        implied_vol = st.slider("Implied Volatility (σ %):", 10, 100, 28, key="ctrm_iv_in") / 100.0
+
+    greeks = rf.compute_strategy_greeks(
+        spot_f, k1_strike, k2_strike, expiry_days/365.0, 0.045, implied_vol, strategy_type, volume=vol_input
+    )
+    
+    st.markdown("##### 📊 Strategy Pricing & Black76 Risk Greeks")
+    gcols = st.columns(5)
+    gcols[0].metric("Net Unit Premium", f"${greeks['price_per_unit']:,.2f} / unit")
+    gcols[1].metric("Total Outlay", f"${greeks['total_premium']:,.2f}")
+    gcols[2].metric("Delta (Δ)", f"{greeks['delta']:.3f}")
+    gcols[3].metric("Gamma (Γ)", f"{greeks['gamma']:.5f}")
+    gcols[4].metric("Vega (ν)", f"${greeks['vega']:,.2f}")
+
+    st.plotly_chart(rf.plot_strategy_payoff(spot_f, k1_strike, k2_strike, strategy_type, volume=vol_input), use_container_width=True)
 
     st.divider()
     st.subheader("⚡ FIX 4.4 Financial Hedge Execution Gateway")
@@ -355,74 +374,232 @@ def render_ctrm_desk(persona="Discrete & Heavy Industrial Enterprise", term_unit
     fcol1, fcol2 = st.columns([2, 1])
     with fcol1:
         st.code(f"""
-[FIX 4.4 OUTBOUND ORDER PROPOSAL]
-8=FIX.4.4|9=245|35=D|49=PLATFORM_DESK|56=CME_LME_GATEWAY|34=1082|52=2026-10-22T13:00:00Z|
-11=ORDER_HEDGE_20261022|55=LME_CU_3M|54=1|38={surge_vol}|40=2|44={strike_k:.2f}|59=0|10=182|
+[FIX 4.4 OUTBOUND DERIVATIVE ORDER PROPOSAL]
+8=FIX.4.4|9=288|35=D|49=IBP_DESK|56=CME_LME_GATEWAY|34=1099|52={datetime.datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ")}|
+11=ORDER_HEDGE_{datetime.datetime.utcnow().strftime("%Y%m%d_%H%M")}|55=LME_COMMODITY_HEDGE|54=1|38={vol_input}|
+40=2|44={k1_strike:.2f}|207=CME_LME|1000={strategy_type[:20]}|10=204|
         """, language="text")
     with fcol2:
-        st.markdown("##### Executive Actions")
-        if st.button("⚡ Execute Auto-Hedge FIX 4.4 Order", type="primary", use_container_width=True):
-            execute_ctrm_trade("CME/LME Asian Call Collar", benefit_per_trade=3250000.0)
+        st.markdown("##### Executive Trade Execution")
+        if st.button("⚡ Execute Derivative Order via FIX 4.4", type="primary", use_container_width=True, key="btn_exec_ctrm_fix"):
+            trade_count = len(st.session_state.get("executed_hedges", [])) + 1
+            benefit = abs(greeks['total_premium']) if greeks['total_premium'] != 0 else 3250000.0
+            new_trade = {
+                "Trade ID": f"TRD-2026-X{trade_count:03d}",
+                "Strategy": strategy_type,
+                "Volume": f"{vol_input:,} {term_unit}",
+                "Strikes": f"K1: ${k1_strike:,.2f} / K2: ${k2_strike:,.2f}",
+                "Net Premium": f"${greeks['total_premium']:,.2f}",
+                "Hedge Benefit ($)": benefit,
+                "Status": "🟢 Executed & Matched"
+            }
+            if "executed_hedges" not in st.session_state:
+                st.session_state["executed_hedges"] = []
+            st.session_state["executed_hedges"].append(new_trade)
+            st.toast(f"🔒 Executed FIX 4.4 Order for {strategy_type}! Benefit: +${benefit:,.2f}", icon="🚀")
+            st.rerun()
 
     st.divider()
     st.subheader("📑 CTRM Executed Derivatives Booking Register")
-    
     hedges = st.session_state.get("executed_hedges", [])
     if not hedges:
-        st.info("No derivative trades executed yet. Click 'Execute Auto-Hedge' to lock positions.")
+        st.info("No derivative trades executed yet. Configure parameters above and click 'Execute Derivative Order'.")
     else:
         st.dataframe(pd.DataFrame(hedges), use_container_width=True, hide_index=True)
 
-# =====================================================================
-# MODULE 7: GLOBAL LOGISTICS GIS (FIXED PLOTLY ATTRIBUTE ERROR)
-# =====================================================================
+# MODULE 7: GLOBAL LOGISTICS GIS (EXPANDED WITH RICH MAP & TELEMETRY REGISTERS)
 def render_global_logistics_gis(persona="Discrete & Heavy Industrial Enterprise", term_unit="Units"):
     st.title("🌐 Global Logistics Network & GIS Control Tower")
-    st.caption("Real-time ocean AIS vessel tracking, port congestion, and air freight telemetry.")
+    st.caption("Real-time ocean AIS vessel tracking, port congestion, maritime chokepoints, and freight lane telemetry.")
     
     nodes = pd.DataFrame({
-        "Name": ["Detroit Stamping Plant", "Munich Component Line", "Panama Canal Chokepoint", "Rotterdam Port Hub"],
-        "lat": [42.3314, 48.1351, 9.0800, 51.9244],
-        "lon": [-83.0458, 11.5820, -79.6800, 4.4777],
-        "Category": ["Plant", "Plant", "Chokepoint", "Port"],
-        "Size": [16, 16, 22, 18]
+        "Name": [
+            "Detroit Stamping Plant", "Munich Component Line", "Nagoya Metals Hub", "São Paulo Logistics Node",
+            "Rotterdam Port Hub", "Shanghai Container Port", "Singapore Terminal", "Los Angeles / Long Beach Port",
+            "Panama Canal Chokepoint", "Suez Canal Corridor", "Bab-el-Mandeb Strait", "Strait of Malacca", "Strait of Hormuz"
+        ],
+        "lat": [42.3314, 48.1351, 35.1815, -23.5505, 51.9244, 31.2304, 1.3521, 33.7405, 9.0800, 29.9753, 12.5833, 2.5000, 26.5667],
+        "lon": [-83.0458, 11.5820, 136.9066, -46.6333, 4.4777, 121.4737, 103.8198, -118.2786, -79.6800, 32.5599, 43.3333, 101.5000, 56.2500],
+        "Category": [
+            "Plant Node", "Plant Node", "Plant Node", "Plant Node",
+            "Global Port", "Global Port", "Global Port", "Global Port",
+            "Maritime Chokepoint", "Maritime Chokepoint", "Maritime Chokepoint", "Maritime Chokepoint", "Maritime Chokepoint"
+        ],
+        "Size": [16, 16, 16, 16, 22, 24, 22, 22, 26, 26, 26, 24, 26]
     })
     
-    # Safe Plotly Map renderer
     fig = rf.create_gis_map_figure(nodes)
     st.plotly_chart(fig, use_container_width=True)
 
-# =====================================================================
-# MODULE 8: FLIGHT SIMULATOR
-# =====================================================================
+    st.divider()
+    st.subheader("📡 Global Maritime Shipping Lanes Telemetry Register")
+    
+    lanes_data = [
+        {"Shipping Lane Corridor": "Asia East Coast to US West Coast (Transpacific)", "FBX Rate ($/FEU)": "$4,250", "YoY Change": "+18.5%", "Avg Transit (Days)": "14.2 Days", "Congestion Delay": "+3.5 Days", "Status": "🔴 High Bottleneck"},
+        {"Shipping Lane Corridor": "Asia to North Europe (Suez / Red Sea)", "FBX Rate ($/FEU)": "$5,820", "YoY Change": "+42.0%", "Avg Transit (Days)": "34.0 Days", "Congestion Delay": "+12.5 Days", "Status": "🔴 Cape Rerouting Active"},
+        {"Shipping Lane Corridor": "Transatlantic North Europe to US East Coast", "FBX Rate ($/FEU)": "$2,100", "YoY Change": "-2.1%", "Avg Transit (Days)": "10.5 Days", "Congestion Delay": "+0.5 Days", "Status": "🟢 Smooth Flow"},
+        {"Shipping Lane Corridor": "US Gulf to East Asia (Panama Canal)", "FBX Rate ($/FEU)": "$3,950", "YoY Change": "+12.4%", "Avg Transit (Days)": "22.8 Days", "Congestion Delay": "+6.0 Days", "Status": "🟡 Draft Restrictions"}
+    ]
+    st.dataframe(pd.DataFrame(lanes_data), use_container_width=True, hide_index=True)
+
+# MODULE 8: SANDBOX FLIGHT SIMULATOR (ENHANCED WITH MONTE CARLO & PROPAGATION)
 def render_flight_simulator(persona="Discrete & Heavy Industrial Enterprise", term_unit="Units"):
     st.title("🧪 Sandbox Flight Simulator & Stress Lab")
-    st.caption("Monte Carlo risk simulation and macro stress testing engine.")
+    st.caption("Monte Carlo risk simulation, fat-tailed volatility stress testing, and direct scenario propagation into platform state.")
     
-    scenario = st.selectbox("Select Macro Stress Scenario:", [
-        "Baseline Operations",
-        "Red Sea / Suez Canal Blockade (+12d Delay)",
-        "Black Swan Volatility Spike (+250% IV Shock)"
-    ])
-    if st.button("🚀 Run Monte Carlo Simulation"):
-        st.success(f"✓ Executed 10,000 Monte Carlo Iterations for '{scenario}'! 95% VaR: $1.82M.")
+    st.subheader("⚙️ Macro Stress Scenario & Monte Carlo Parameters")
+    
+    col_sc1, col_sc2 = st.columns(2)
+    with col_sc1:
+        scenario_select = st.selectbox(
+            "Select Macro Stress Scenario:",
+            [
+                "Red Sea / Suez Canal Naval Blockade (+12.5d Delay)",
+                "Strait of Hormuz Oil & Energy Shock (Brent +45%)",
+                "Black Swan Implied Volatility Surge (IV +250%)",
+                "Panama Canal Severe Drought (Draft Limits -30%)",
+                "Global Macro Demand Contraction / Stagflation",
+                "Baseline Operations"
+            ],
+            key="sandbox_scen_select"
+        )
+        sim_iterations = st.slider("Monte Carlo Iterations:", 1000, 50000, 10000, step=1000, key="mc_iter_sld")
 
-# =====================================================================
-# MODULE 9: INTEGRATION ARCHITECTURE
-# =====================================================================
+    with col_sc2:
+        sim_horizon = st.slider("Simulation Horizon (Days):", 30, 180, 60, key="mc_horiz_sld")
+        conf_level = st.selectbox("Value at Risk (VaR) Confidence Level:", [0.90, 0.95, 0.99], index=1, key="mc_conf_sel")
+
+    mc_res = rf.run_monte_carlo_simulation(
+        iterations=sim_iterations,
+        horizon_days=sim_horizon,
+        confidence_level=conf_level,
+        base_value_usd=120000000.0,
+        scenario_type=scenario_select
+    )
+
+    st.markdown("##### 📊 Monte Carlo Risk Metrics & Value at Risk (VaR)")
+    mcol1, mcol2, mcol3, mcol4, mcol5 = st.columns(5)
+    mcol1.metric("Expected Mean P&L", f"${mc_res['mean_pnl']/1e6:+.2f}M")
+    mcol2.metric(f"{conf_level*100:.0f}% VaR Loss", f"-${mc_res['var_usd']/1e6:.2f}M", delta_color="inverse")
+    mcol3.metric("Expected Shortfall (CVaR)", f"-${mc_res['cvar_usd']/1e6:.2f}M", delta_color="inverse")
+    mcol4.metric("Max Drawdown", f"-${mc_res['max_drawdown']/1e6:.2f}M")
+    mcol5.metric("Loss Probability", f"{mc_res['prob_loss']:.1f}%")
+
+    st.plotly_chart(mc_res["fig"], use_container_width=True)
+
+    st.divider()
+    if st.button("⚡ Propagate Monte Carlo Scenario to Exec S&OP & CTRM", type="primary", use_container_width=True, key="btn_propagate_mc_sop"):
+        calc_si = -0.45 if "Blockade" in scenario_select or "Shock" in scenario_select else (-0.65 if "Vol" in scenario_select else -0.15)
+        st.session_state["platform_si_override"] = calc_si
+        st.session_state["platform_demand_impact"] = 100000 + mc_res["add_surge"]
+        st.session_state["platform_leadtime_impact"] = 2.5 + mc_res["add_lt"]
+        st.session_state["platform_active_signal"] = f"Monte Carlo Stress Ingest: {scenario_select} (VaR: -${mc_res['var_usd']/1e6:.2f}M)"
+        st.toast(f"⚡ Propagated Monte Carlo Scenario '{scenario_select}' to S&OP & CTRM! Lead time updated: +{2.5 + mc_res['add_lt']:.1f} days.", icon="🚀")
+        st.rerun()
+
+# MODULE 9: INTEGRATION & ARCHITECTURE ENDPOINTS (EXPANDED CATALOG & ARCHITECTURE BLUEPRINT)
 def render_integration_architecture(persona="Discrete & Heavy Industrial Enterprise", selected_module=""):
     st.title("🔌 Integration & Architecture Endpoints")
-    st.caption("REST API endpoints, SAP S/4HANA & Oracle ERP sync protocols.")
-    st.code("""
-    GET /api/v1/telemetry/stream
-    Host: ibp-control-tower.enterprise.com
-    Status: 200 OK
-    Payload: { "gscpi": +1.59, "fbx_ocean": 3850, "si_composite": -0.33 }
-    """, language="json")
+    st.caption("REST API endpoints, Webhook listeners, FIX 4.4 protocol specifications, and SAP S/4HANA / Oracle ERP connectors.")
+    
+    st.subheader("📑 Enterprise API Catalog & Swagger Specs")
+    
+    ep_tabs = st.tabs([
+        "🌐 Macro & Telemetry API",
+        "📰 RSS & Sentiment Stream API",
+        "🛡️ CTRM FIX 4.4 / REST Order Gateway",
+        "🔄 S&OP Cascade Propagation Webhook",
+        "⚓ GIS Vessel & Port Telemetry API"
+    ])
+    
+    with ep_tabs[0]:
+        st.code("""
+GET /api/v1/telemetry/macro
+Host: ibp-control-tower.enterprise.com
+Authorization: Bearer <JWT_TOKEN>
 
-# =====================================================================
+[RESPONSE 200 OK]
+{
+  "timestamp": "2026-10-22T13:30:00Z",
+  "ny_fed_gscpi": 1.59,
+  "fred_mfg_index": 103.8,
+  "wb_commodity_index": 152.2,
+  "ecb_refi_rate": 2.65,
+  "kospi_index": 2618.0
+}
+        """, language="json")
+
+    with ep_tabs[1]:
+        st.code("""
+GET /api/v1/telemetry/rss?sector=Metals%20%26%20Mining
+Host: ibp-control-tower.enterprise.com
+
+[RESPONSE 200 OK]
+{
+  "total_items": 4,
+  "articles": [
+    {
+      "title": "Global Raw Materials Update: Spot Market Tightening Across Metals",
+      "source": "Reuters Telemetry",
+      "sentiment_score": -0.40,
+      "inferred_demand_surge": 18500
+    }
+  ]
+}
+        """, language="json")
+
+    with ep_tabs[2]:
+        st.code("""
+POST /api/v1/ctrm/orders/submit
+Host: ibp-control-tower.enterprise.com
+Content-Type: application/json
+
+{
+  "fix_msg_type": "D",
+  "symbol": "LME_CU_3M",
+  "strategy": "Asian Call Option Collar",
+  "volume_units": 65000,
+  "strike_k1": 15000.00,
+  "strike_k2": 14000.00,
+  "time_in_force": 0
+}
+        """, language="json")
+
+    with ep_tabs[3]:
+        st.code("""
+POST /api/v1/sop/cascade/propagate
+Host: ibp-control-tower.enterprise.com
+
+{
+  "active_signal": "Red Sea Carrier Surcharges & Cape Route Rerouting",
+  "si_override": -0.450,
+  "demand_impact_units": 102968,
+  "leadtime_impact_days": 4.5
+}
+        """, language="json")
+
+    with ep_tabs[4]:
+        st.code("""
+GET /api/v1/gis/vessel-telemetry?corridor=Transpacific
+Host: ibp-control-tower.enterprise.com
+
+[RESPONSE 200 OK]
+{
+  "corridor": "Transpacific Eastbound",
+  "fbx_spot_rate": 4250.00,
+  "active_ais_vessels": 142,
+  "avg_delay_days": 3.5,
+  "chokepoint_status": "ELEVATED"
+}
+        """, language="json")
+
+    st.divider()
+    st.subheader("🏗️ Enterprise Event Architecture Feed Blueprint")
+    st.info("🔹 **Telemetry Ingestion Engine**: Apache Kafka / Redis PubSub stream ingestion running at 100 Hz.")
+    st.info("🔹 **ERP Master Data Connectors**: Direct SAP S/4HANA IDoc / OData API & Oracle Cloud SCM synchronization.")
+    st.info("🔹 **Risk Execution Gateway**: Low-latency FIX 4.4 binary protocol integration with CME, LME, and ICE brokers.")
+
 # MAIN ROUTER EXECUTION
-# =====================================================================
 if "Executive S&OP" in selected_module:
     render_executive_sop(persona)
 elif "Inventory" in selected_module or "Position Manager" in selected_module:

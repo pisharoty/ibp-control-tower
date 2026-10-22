@@ -46,10 +46,9 @@ def fetch_baltic_indices(*args, **kwargs):
 def get_freight_telemetry_sync(*args, **kwargs):
     return {"fbx_ocean": 3850, "tac_air": 2.48, "noaa_weather_index": 1.42, "transit_delay": 8.5}
 
-def pure_black76_call_put(F, K, T, r, sigma):
-    """Pure Python Black76 Option Pricing Engine with ZERO external library dependencies."""
+def pure_black76_pricing(F, K, T, r, sigma, option_type="call"):
     if T <= 0 or sigma <= 0 or F <= 0 or K <= 0:
-        return 0.0, 0.0, 0.5, 0.0
+        return 0.0, 0.5, 0.0, 0.0, 0.0
     
     d1 = (math.log(F / K) + (sigma**2 / 2.0) * T) / (sigma * math.sqrt(T))
     d2 = d1 - sigma * math.sqrt(T)
@@ -60,12 +59,180 @@ def pure_black76_call_put(F, K, T, r, sigma):
     def norm_pdf(x):
         return (1.0 / math.sqrt(2.0 * math.pi)) * math.exp(-0.5 * x * x)
     
-    call = math.exp(-r * T) * (F * norm_cdf(d1) - K * norm_cdf(d2))
-    put = math.exp(-r * T) * (K * norm_cdf(-d2) - F * norm_cdf(-d1))
-    delta = math.exp(-r * T) * norm_cdf(d1)
-    vega = F * math.exp(-r * T) * norm_pdf(d1) * math.sqrt(T)
+    df = math.exp(-r * T)
     
-    return call, put, delta, vega
+    if option_type.lower() == "call":
+        price = df * (F * norm_cdf(d1) - K * norm_cdf(d2))
+        delta = df * norm_cdf(d1)
+    else:
+        price = df * (K * norm_cdf(-d2) - F * norm_cdf(-d1))
+        delta = -df * norm_cdf(-d1)
+        
+    gamma = df * norm_pdf(d1) / (F * sigma * math.sqrt(T))
+    vega = F * df * norm_pdf(d1) * math.sqrt(T)
+    theta = -(F * df * norm_pdf(d1) * sigma) / (2 * math.sqrt(T)) - r * price
+    
+    return price, delta, gamma, vega, theta
+
+def compute_strategy_greeks(F, K1, K2, T, r, sigma, strategy_type, volume=1000):
+    c1_p, c1_d, c1_g, c1_v, c1_t = pure_black76_pricing(F, K1, T, r, sigma, "call")
+    p1_p, p1_d, p1_g, p1_v, p1_t = pure_black76_pricing(F, K1, T, r, sigma, "put")
+    c2_p, c2_d, c2_g, c2_v, c2_t = pure_black76_pricing(F, K2, T, r, sigma, "call")
+    p2_p, p2_d, p2_g, p2_v, p2_t = pure_black76_pricing(F, K2, T, r, sigma, "put")
+    
+    if "Collar" in strategy_type:
+        price = c1_p - p2_p
+        delta = c1_d - p2_d
+        gamma = c1_g + p2_g
+        vega = c1_v - p2_v
+        theta = c1_t - p2_t
+    elif "Synthetic Long Forward" in strategy_type:
+        price = c1_p - p1_p
+        delta = c1_d - p1_d
+        gamma = c1_g + p1_g
+        vega = c1_v - p1_v
+        theta = c1_t - p1_t
+    elif "Bear Put Spread" in strategy_type:
+        price = p1_p - p2_p
+        delta = p1_d - p2_d
+        gamma = p1_g - p2_g
+        vega = p1_v - p2_v
+        theta = p1_t - p2_t
+    elif "Straddle" in strategy_type:
+        price = c1_p + p1_p
+        delta = c1_d + p1_d
+        gamma = c1_g + p1_g
+        vega = c1_v + p1_v
+        theta = c1_t + p1_t
+    elif "Swap" in strategy_type:
+        price = F - K1
+        delta = 1.0
+        gamma = 0.0
+        vega = 0.0
+        theta = 0.0
+    else:
+        price = c1_p
+        delta = c1_d
+        gamma = c1_g
+        vega = c1_v
+        theta = c1_t
+        
+    return {
+        "price_per_unit": price,
+        "total_premium": price * volume,
+        "delta": delta,
+        "gamma": gamma,
+        "vega": vega,
+        "theta": theta
+    }
+
+def plot_strategy_payoff(F, K1, K2, strategy_type, volume=1000):
+    prices = np.linspace(F * 0.70, F * 1.30, 100)
+    
+    if "Collar" in strategy_type:
+        c1_p, _, _, _, _ = pure_black76_pricing(F, K1, 60/365, 0.045, 0.28, "call")
+        p2_p, _, _, _, _ = pure_black76_pricing(F, K2, 60/365, 0.045, 0.28, "put")
+        net_prem = c1_p - p2_p
+        payoff = np.maximum(prices - K1, 0) - np.maximum(K2 - prices, 0) - net_prem
+    elif "Synthetic Long Forward" in strategy_type:
+        payoff = prices - K1
+    elif "Bear Put Spread" in strategy_type:
+        p1_p, _, _, _, _ = pure_black76_pricing(F, K1, 60/365, 0.045, 0.28, "put")
+        p2_p, _, _, _, _ = pure_black76_pricing(F, K2, 60/365, 0.045, 0.28, "put")
+        net_prem = p1_p - p2_p
+        payoff = np.maximum(K1 - prices, 0) - np.maximum(K2 - prices, 0) - net_prem
+    elif "Straddle" in strategy_type:
+        c1_p, _, _, _, _ = pure_black76_pricing(F, K1, 60/365, 0.045, 0.28, "call")
+        p1_p, _, _, _, _ = pure_black76_pricing(F, K1, 60/365, 0.045, 0.28, "put")
+        net_prem = c1_p + p1_p
+        payoff = np.maximum(prices - K1, 0) + np.maximum(K1 - prices, 0) - net_prem
+    else:
+        c1_p, _, _, _, _ = pure_black76_pricing(F, K1, 60/365, 0.045, 0.28, "call")
+        payoff = np.maximum(prices - K1, 0) - c1_p
+        
+    pnl_total = payoff * volume
+    
+    fig = go.Figure()
+    fig.add_trace(go.Scatter(x=prices, y=pnl_total, mode="lines", name="Net P&L ($)", line=dict(color="#2ECC71", width=3)))
+    fig.add_hline(y=0, line_dash="dash", line_color="gray")
+    fig.add_vline(x=F, line_dash="dot", line_color="#E74C3C", annotation_text=f"Current Spot: ${F:,.2f}")
+    
+    fig.update_layout(
+        title=f"Payoff Diagram at Expiration ({strategy_type})",
+        xaxis_title="Underlying Commodity Price ($ USD / MT)",
+        yaxis_title="Net Position P&L ($ USD)",
+        height=320,
+        margin=dict(l=20, r=20, t=40, b=20),
+        template="plotly_white"
+    )
+    return fig
+
+def run_monte_carlo_simulation(iterations=10000, horizon_days=60, confidence_level=0.95, base_value_usd=120000000.0, scenario_type="Red Sea / Suez Canal Naval Blockade (+12.5d Delay)"):
+    np.random.seed(42)
+    
+    scenario_params = {
+        "Baseline Operations": (0.02, 0.12, 0.0, 0),
+        "Red Sea / Suez Canal Naval Blockade (+12.5d Delay)": (-0.08, 0.28, 12.5, 25400),
+        "Strait of Hormuz Oil & Energy Shock (Brent +45%)": (-0.14, 0.38, 8.0, 31200),
+        "Black Swan Implied Volatility Surge (IV +250%)": (-0.18, 0.55, 6.0, 42000),
+        "Panama Canal Severe Drought (Draft Limits -30%)": (-0.06, 0.22, 14.0, 18900),
+        "Global Macro Demand Contraction / Stagflation": (-0.22, 0.30, 2.0, -15000)
+    }
+    
+    drift, vol, add_lt, add_surge = scenario_params.get(scenario_type, (-0.08, 0.25, 5.0, 20000))
+    dt = horizon_days / 365.0
+    
+    shocks = np.random.standard_t(df=4, size=iterations) / np.sqrt(2.0)
+    p_changes = drift * dt + vol * np.sqrt(dt) * shocks
+    pnl_outcomes = base_value_usd * p_changes
+    
+    mean_pnl = np.mean(pnl_outcomes)
+    std_pnl = np.std(pnl_outcomes)
+    
+    var_percentile = (1.0 - confidence_level) * 100.0
+    var_usd = -np.percentile(pnl_outcomes, var_percentile)
+    cvar_usd = -np.mean(pnl_outcomes[pnl_outcomes <= -var_usd])
+    
+    max_drawdown = -np.min(pnl_outcomes)
+    prob_loss = (np.sum(pnl_outcomes < 0) / iterations) * 100.0
+    
+    fig = go.Figure()
+    fig.add_trace(go.Histogram(
+        x=pnl_outcomes / 1e6,
+        nbinsx=60,
+        marker_color='#3498DB',
+        opacity=0.75,
+        name='Simulated P&L Outcomes ($M)'
+    ))
+    
+    fig.add_vline(x=-var_usd/1e6, line_width=3, line_dash="dash", line_color="#E74C3C",
+                  annotation_text=f"{confidence_level*100:.0f}% VaR: -${var_usd/1e6:.2f}M",
+                  annotation_position="top left")
+    
+    fig.add_vline(x=mean_pnl/1e6, line_width=3, line_dash="dot", line_color="#2ECC71",
+                  annotation_text=f"Expected Mean: ${mean_pnl/1e6:+.2f}M",
+                  annotation_position="top right")
+    
+    fig.update_layout(
+        title=f"Monte Carlo Risk Distribution ({iterations:,} Iterations | {scenario_type})",
+        xaxis_title="Net Operating P&L Impact ($ Millions USD)",
+        yaxis_title="Frequency / Scenario Count",
+        height=360,
+        margin=dict(l=20, r=20, t=40, b=20),
+        template="plotly_white"
+    )
+    
+    return {
+        "mean_pnl": mean_pnl,
+        "std_pnl": std_pnl,
+        "var_usd": var_usd,
+        "cvar_usd": cvar_usd,
+        "max_drawdown": max_drawdown,
+        "prob_loss": prob_loss,
+        "add_lt": add_lt,
+        "add_surge": add_surge,
+        "fig": fig
+    }
 
 def make_mini_sparkline(sentiment_val):
     x = np.arange(15)
@@ -85,6 +252,53 @@ def make_mini_sparkline(sentiment_val):
         paper_bgcolor='rgba(0,0,0,0)',
         plot_bgcolor='rgba(0,0,0,0)'
     )
+    return fig
+
+def create_gis_map_figure(nodes_df):
+    if hasattr(px, "scatter_map"):
+        try:
+            fig = px.scatter_map(
+                nodes_df, lat="lat", lon="lon", hover_name="Name", color="Category", size="Size", zoom=1, height=440
+            )
+            fig.update_layout(margin={"r":0,"t":0,"l":0,"b":0})
+            return fig
+        except Exception:
+            pass
+
+    if hasattr(px, "scatter_mapbox"):
+        try:
+            fig = px.scatter_mapbox(
+                nodes_df, lat="lat", lon="lon", hover_name="Name", color="Category", size="Size", zoom=1, height=440
+            )
+            fig.update_layout(mapbox_style="open-street-map", margin={"r":0,"t":0,"l":0,"b":0})
+            return fig
+        except Exception:
+            pass
+
+    fig = go.Figure()
+    categories = nodes_df["Category"].unique()
+    colors = ["#E74C3C", "#2ECC71", "#F39C12", "#3498DB", "#9B59B6"]
+    
+    for i, cat in enumerate(categories):
+        cdf = nodes_df[nodes_df["Category"] == cat]
+        fig.add_trace(go.Scattergeo(
+            lon=cdf["lon"],
+            lat=cdf["lat"],
+            text=cdf["Name"],
+            mode="markers+text",
+            textposition="top center",
+            marker=dict(size=cdf["Size"], color=colors[i % len(colors)], opacity=0.85, line=dict(width=1, color="white")),
+            name=str(cat)
+        ))
+    
+    fig.update_geos(
+        showcoastlines=True, coastlinecolor="Linen",
+        showland=True, landcolor="LightGray",
+        showocean=True, oceancolor="AliceBlue",
+        showlakes=True, lakecolor="LightBlue",
+        projection_type="equirectangular"
+    )
+    fig.update_layout(height=440, margin=dict(l=0, r=0, t=20, b=0), legend=dict(orientation="h", y=1.02))
     return fig
 
 def render_genspark_overlay():
@@ -158,7 +372,7 @@ def render_predictive_commodity_engine(*args, **kwargs):
         signals = data.get("signals", [])
         comm_names = [s.get("commodity") for s in signals if s.get("commodity")] or ["Special High Grade Zinc", "LME Copper Cathode", "Primary Aluminum Ingot"]
 
-        target_comm = st.selectbox("Select Target Commodity (50 Dynamic Inputs Available):", comm_names, index=0, key="sota_comm_select_v31")
+        target_comm = st.selectbox("Select Target Commodity (50 Dynamic Inputs Available):", comm_names, index=0, key="sota_comm_select_v33")
         
         genspark_sig = get_genspark_signal_for_commodity(target_comm)
         genspark_si = float(genspark_sig.get("si_composite", genspark_sig.get("sentiment_score", 0.0)))
@@ -215,7 +429,6 @@ def render_triangulated_sentiment_section():
         
     st.error(f"🚨 **Triangulated Composite Market Sentiment ($S_i = {curr_si:+.3f}$)** indicates elevated supply chain strain. Automated CTRM hedge allocation recommended.")
 
-    # Interactive Sub-Factor Weight Adjustment Sliders & CTRM Propagate Trigger
     with st.expander("⚙️ Component Sub-Factor Weighting & Volatility Drivers (Interactive Weight Shift)", expanded=True):
         st.markdown("##### Adjust Component Weights & Propagate to CTRM Risk Desk")
         wcol1, wcol2, wcol3, wcol4 = st.columns(4)
@@ -232,7 +445,6 @@ def render_triangulated_sentiment_section():
         total_weight = w_gscpi + w_noaa + w_freight + w_gep
         st.caption(f"Total Weight Allocation: **{total_weight}%**")
 
-        # Color Block Visual Banners
         bcols = st.columns(4)
         with bcols[0]:
             st.markdown(
@@ -261,7 +473,6 @@ def render_triangulated_sentiment_section():
 
         st.markdown("")
         if st.button("⚡ Propagate Sub-Factor Weights & Trigger CTRM Cascade", type="primary", use_container_width=True, key="btn_propagate_weights_ctrm"):
-            # Recalculate weighted Si
             calc_si = -1.0 * ((w_gscpi * 0.32 + w_noaa * 0.36 + w_freight * 0.40 + w_gep * 0.20) / 100.0)
             st.session_state["platform_si_override"] = calc_si
             st.session_state["si_composite"] = calc_si
@@ -345,51 +556,3 @@ def render_freight_weather_blackswan_tab(*args, **kwargs):
             delta_color="inverse"
         )
         st.caption("🛡️ Red Sea, Suez & Bab-el-Mandeb Strait Risk")
-
-def create_gis_map_figure(nodes_df):
-    """Robust Plotly Map creation that handles px.scatter_map, px.scatter_mapbox, or fallback to Scattergeo."""
-    if hasattr(px, "scatter_map"):
-        try:
-            fig = px.scatter_map(
-                nodes_df, lat="lat", lon="lon", hover_name="Name", color="Category", size="Size", zoom=1, height=420
-            )
-            fig.update_layout(margin={"r":0,"t":0,"l":0,"b":0})
-            return fig
-        except Exception:
-            pass
-
-    if hasattr(px, "scatter_mapbox"):
-        try:
-            fig = px.scatter_mapbox(
-                nodes_df, lat="lat", lon="lon", hover_name="Name", color="Category", size="Size", zoom=1, height=420
-            )
-            fig.update_layout(mapbox_style="open-street-map", margin={"r":0,"t":0,"l":0,"b":0})
-            return fig
-        except Exception:
-            pass
-
-    fig = go.Figure()
-    categories = nodes_df["Category"].unique()
-    colors = ["#E74C3C", "#2ECC71", "#F39C12", "#3498DB", "#9B59B6"]
-    
-    for i, cat in enumerate(categories):
-        cdf = nodes_df[nodes_df["Category"] == cat]
-        fig.add_trace(go.Scattergeo(
-            lon=cdf["lon"],
-            lat=cdf["lat"],
-            text=cdf["Name"],
-            mode="markers+text",
-            textposition="top center",
-            marker=dict(size=cdf["Size"], color=colors[i % len(colors)], opacity=0.85, line=dict(width=1, color="white")),
-            name=str(cat)
-        ))
-    
-    fig.update_geos(
-        showcoastlines=True, coastlinecolor="Linen",
-        showland=True, landcolor="LightGray",
-        showocean=True, oceancolor="AliceBlue",
-        showlakes=True, lakecolor="LightBlue",
-        projection_type="equirectangular"
-    )
-    fig.update_layout(height=420, margin=dict(l=0, r=0, t=20, b=0), legend=dict(orientation="h", y=1.02))
-    return fig
