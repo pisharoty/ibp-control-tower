@@ -112,6 +112,13 @@ def render_nlp_commercial_sensing(persona="Discrete & Heavy Industrial Enterpris
         st.markdown("---")
         rf.render_predictive_commodity_engine()
 
+        st.markdown("---")
+        rf.render_macro_telemetry_bar()
+
+        rf.render_triangulated_sentiment_section()
+
+        rf.render_rss_breaking_news_stream()
+
     with tab2:
         st.subheader("📧 Executive Email & Field Intelligence Debrief Stream")
         st.caption("Parsing post-trade show debriefs, executive LinkedIn disclosures, and CFO field updates before ERP entry.")
@@ -178,7 +185,6 @@ def render_nlp_commercial_sensing(persona="Discrete & Heavy Industrial Enterpris
                             st.session_state["platform_active_signal"] = item.get("headline", "")
                             st.toast(f"⚡ Freight Disruption Signal #{idx+1} Ingested into S&OP Platform!")
                             st.rerun()
-
 # =====================================================================
 # MODULE 4: DEMAND/SUPPLY MATCH
 # =====================================================================
