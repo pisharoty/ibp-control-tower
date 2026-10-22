@@ -567,7 +567,7 @@ def is_market_hours():
         return False, "🌙 OFF-HOURS SYNTHESIZED STREAM ACTIVE (NY Fed / FRED / World Bank Cache)"
 
 def generate_sota_forecast_figure(commodity_name, spot_price=2850.0, forecast_60d=2907.0, sentiment_si=0.40):
-    np.random.seed(abs(hash(commodity_name)) % 10000)
+    np.random.seed(int(abs(hash(commodity_name)) % 10000))
     
     hist_days = 90
     dates_hist = [datetime.date.today() - datetime.timedelta(days=i) for i in range(hist_days, 0, -1)]
