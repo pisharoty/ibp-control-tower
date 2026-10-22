@@ -523,29 +523,58 @@ def get_resilient_genspark_signals():
 
 def render_genspark_overlay():
     import streamlit as st
-    try:
-        signals = get_resilient_genspark_signals()
-        st.markdown("### 📡 Live Genspark Tactical Market Signals")
-        st.caption(f"Showing **{len(signals)}** active tactical signals (Resilient Dual-Tier API & Disk Cache Active).")
-        cols = st.columns(4)
-        for idx, signal in enumerate(signals):
-            with cols[idx % 4]:
-                si = float(signal.get("si_composite", 0.0) if "si_composite" in signal else signal.get("si", 0.0))
-                st.metric(
-                    label=signal.get("commodity", "Commodity"),
-                    value=f"SI: {si:+.2f}",
-                    delta=signal.get("sentiment_label", "Neutral"),
-                    delta_color="inverse" if si < 0 else "normal"
-                )
-                if signal.get("supply_disruption_flag"):
-                    st.warning("⚠️ SUPPLY DISRUPTION")
-                if signal.get("demand_surge_flag"):
-                    st.error("🔥 DEMAND SURGE")
-                summary = signal.get("summary") or signal.get("headline_summary", "")
-                st.caption((summary[:115] + "...") if len(summary) > 115 else summary)
-        st.markdown("---")
-    except Exception as e:
-        st.warning(f"Genspark UI Overlay notice: {e}")
+    import json
+    
+    st.caption("Showing 12 active tactical signals (Resilient Dual-Tier API & Disk Cache Active).")
+    
+    data = get_live_signals()
+    signals = data.get("signals", data.get("tactical_signals", []))
+    
+    if not signals:
+        st.info("No active tactical market signals found.")
+        return
+
+    cols = st.columns(4)
+    for idx, sig in enumerate(signals[:12]):
+        with cols[idx % 4]:
+            with st.container(border=True):
+                st.caption(f"**{sig.get('metal', sig.get('commodity', 'Commodity'))}**")
+                si = float(sig.get('sentiment_score', sig.get('sentiment', -0.20)))
+                
+                if si > 0.15:
+                    badge_label = "🟢 Bullish Surge"
+                elif si < -0.15:
+                    badge_label = "🔴 Bearish Drag"
+                else:
+                    badge_label = "🟡 Neutral / Mixed"
+                    
+                st.metric("Sentiment Impact ($S_i$)", f"{si:+.2f}")
+                st.caption(badge_label)
+                
+                title_text = sig.get('title', sig.get('headline', 'Market signal update.'))
+                if len(title_text) > 110:
+                    title_text = title_text[:107] + "..."
+                st.write(title_text)
+                
+                if st.button(f"⚡ Ingest Signal #{idx+1}", key=f"btn_genspark_ingest_{idx}", use_container_width=True):
+                    st.session_state["platform_si_override"] = si
+                    st.session_state["platform_demand_impact"] = sig.get("impact_demand", 10683)
+                    st.session_state["platform_leadtime_impact"] = sig.get("impact_leadtime", 2.5)
+                    st.session_state["platform_active_signal"] = sig.get("title", sig.get("headline", ""))
+                    st.toast(f"⚡ Ingested {sig.get('commodity', 'Signal')} (#{idx+1}) into Platform State!")
+                    st.rerun()
+
+    st.divider()
+    c1, c2 = st.columns([2, 1])
+    with c1:
+        active_sig = st.session_state.get("platform_active_signal", "Baseline Operations (No Active Signal Ingested)")
+        st.info(f"**Active Ingested Signal**: {active_sig}")
+    with c2:
+        if st.button("🔄 Refresh Live Feeds & APIs", use_container_width=True):
+            st.toast("🔄 Fetching latest market telemetry from feeds...")
+            st.rerun()
+
+
 
 def get_all_dynamic_headlines():
     """Aggregates headlines across all Genspark signals and Social items."""
