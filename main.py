@@ -106,18 +106,16 @@ def render_nlp_commercial_sensing(persona="Discrete & Heavy Industrial Enterpris
     ])
     
     with tab1:
-        st.subheader("📡 Live Genspark Tactical Market Signals (50 Commodities Spectrum)")
+        st.subheader("📡 Live Genspark Tactical Market Signals")
         rf.render_genspark_overlay()
 
-        st.markdown("---")
-        rf.render_predictive_commodity_engine()
-
-        st.markdown("---")
         rf.render_macro_telemetry_bar()
 
         rf.render_triangulated_sentiment_section()
 
         rf.render_rss_breaking_news_stream()
+
+        rf.render_predictive_commodity_engine()
 
     with tab2:
         st.subheader("📧 Executive Email & Field Intelligence Debrief Stream")
