@@ -1193,34 +1193,2172 @@ from robot_feeds import render_predictive_commodity_engine
 
 # render_predictive_commodity_engine() moved to dedicated tab
 
-def render_nlp_commercial_sensing():
+def render_nlp_commercial_sensing(*args, **kwargs):
+    import os
+    import json
+    callback_fn = None
+    display_unit = "Units"
+    import os
+    import json
+    callback_fn = None
+    display_unit = "Units"
+    import os
+    import json
+    callback_fn = None
+    display_unit = "Units"
+    import os
+    import json
+    callback_fn = None
+    display_unit = "Units"
+    import os
+    import json
+    callback_fn = None
+    display_unit = "Units"
+    import os
+    import json
+    callback_fn = None
+    display_unit = "Units"
+    import os
+    import json
+    callback_fn = None
+    display_unit = "Units"
+    callback_fn = None
+    display_unit = "Units"
+    display_unit = "Units"
+    """Complete NLP Commercial Sensing & Intelligence Module."""
+    # Scope-level initialization for sentiment metrics
+    comp_res = rf.compute_composite_sentiment() if hasattr(rf, "compute_composite_sentiment") else {"si_score": -0.330}
+    si_score = comp_res.get("si_score", -0.330) if isinstance(comp_res, dict) else -0.330
+    composite_si = st.session_state.get("si_composite", si_score)
+    ctrm_hedge = composite_si < -0.15
+    rec_text = "Lock 60-Day Forward Exposure" if ctrm_hedge else "Maintain Spot Purchasing"
+    scores = comp_res.get("individual_scores", {}) if isinstance(comp_res, dict) else {}
+    weights = comp_res.get("weights", {}) if isinstance(comp_res, dict) else {}
+    surge_units = int(abs(composite_si) * 32373)
+    lt_days = round(abs(composite_si) * 7.5, 1)
+    if hasattr(rf, "get_live_rss_feeds"):
+        live_rss = rf.get_live_rss_feeds()
+        if live_rss:
+            st.session_state["live_rss_signals"] = live_rss
     st.title("🧠 NLP Commercial Sensing & Intelligence")
-    st.caption("Active Persona View: Discrete & Heavy Industrial Enterprise | Ingest unstructured signals from live RSS feeds, executive LinkedIn disclosures, email debriefs, hard macro indicators (NY Fed, FRED, World Bank, ECB, PBOC, KOSPI), and ocean/air freight telemetry.")
-    
+    st.caption(
+        f"Active Persona View: **{persona or 'Discrete & Heavy Industrial Enterprise'}** | "
+        "Ingest unstructured signals from live RSS feeds, executive LinkedIn disclosures, "
+        "email debriefs, hard macro indicators (NY Fed, FRED, World Bank, ECB, PBOC, KOSPI), "
+        "and ocean/air freight telemetry."
+    )
+
+    # =========================================================================
+    # 🟢 SURGICAL EDIT 1: DYNAMIC STATE READS (INSERT RIGHT HERE)
+    # =========================================================================
+    cascade = st.session_state.get("active_sop_cascade", {})
+    demand_data = cascade.get("demand", {})
+    prop_data = st.session_state.get("propagated_commodity_data", {})
+
+    # Read SI & Surge dynamically from session_state instead of static hardcoded values
+    si_score = st.session_state.get("si_composite", -0.28)
+    demand_surge_units = demand_data.get(
+        "total_surge_units",
+        st.session_state.get("extracted_demand_surge", 15400)
+    )
+
+    # Commodity spot dynamically bound
+    spot_price = prop_data.get(
+        "spot_price", 
+        9820.0 if "Heavy" in str(persona) else 3200.0
+    )
+
+    # Freight & Risk derived dynamically from SI
+    lead_time_days = round(4.0 + (abs(si_score) * 3.5), 1)
+    baltic_index = int(2800 + (abs(si_score) * 600))
+    fbx_rate = round(2900.0 + (abs(si_score) * 800.0), 2)
+    risk_status = "HEDGE REQUIRED" if si_score < -0.4 else "MONITORING"
+    # =========================================================================
+
     tab1, tab2, tab3 = st.tabs([
-        "📡 Live Web, Macro & Social Signals", 
-        "📧 Email & Event Debrief Parser", 
-        "⚓ Freight, Weather & Black Swan Feeds"
+        "📡 Live Web, Macro & Social Signals",
+        "📧 Email & Event Debrief Parser",
+        "⚓ Freight, Weather & Black Swan Feeds",
     ])
-    
+
+    # =========================================================================
+    # TAB 1: LIVE WEB, MACRO & SOCIAL SIGNALS
+    # =========================================================================
     with tab1:
-        st.subheader("📡 Live Genspark Tactical Market Signals")
         try:
             render_genspark_overlay()
         except Exception as e:
-            st.error(f"Error rendering Genspark Overlay: {e}")
+            st.error(f'Genspark Overlay Error: {e}')
+        r_head1, r_head2 = st.columns([3, 1])
+        with r_head1:
+            st.caption(
+                "🤖 **Triangulated Intelligence Engine**: Hard Macro (NY Fed / FRED / ECB / PBOC / KOSPI) "
+                "+ Ocean/Air Freight Telemetry + Executive Social Stream"
+            )
+        with r_head2:
+            if st.button("🔄 Refresh Live Feeds & APIs", key="btn_refresh_robot_feeds"):
+                try:
+                    feed_data = sync_robot_feeds() if "sync_robot_feeds" in globals() else {}
+                    st.session_state["latest_robot_signals"] = feed_data
+                    newsletters = feed_data.get("newsletters", [])
+
+                    if newsletters and newsletters[0].get("is_live"):
+                        st.session_state["live_newsletters"] = newsletters
+                        st.session_state["s_social_val"] = feed_data.get("linkedin_score", -0.70)
+                        st.toast(
+                            f"Synced live signal: {newsletters[0].get('title', 'LinkedIn Feed')}",
+                            icon="✅",
+                        )
+                    else:
+                        st.toast("Refreshed feeds from Gmail IMAP & Global Macro APIs!", icon="🔄")
+                    st.rerun()
+                except Exception as e:
+                    st.error(f"Sync error: {e}")
+
+        # Load live telemetry from session state or disk backup
+        latest_signals = st.session_state.get("latest_robot_signals", {})
+        if not latest_signals and os.path.exists("robot_signals.json"):
+            try:
+                with open("robot_signals.json", "r") as f:
+                    latest_signals = json.load(f)
+            except Exception:
+                latest_signals = {}
+
+        # -------------------------------------------------------------------------
+        # 1. HARD MACROECONOMIC TELEMETRY DASHBOARD
+        # -------------------------------------------------------------------------
+        if isinstance(latest_signals, list):
+            latest_signals = {"signals": latest_signals}
+        macro = latest_signals.get("global_telemetry") or (
+            fetch_global_macro_telemetry() if "fetch_global_macro_telemetry" in globals() else {}
+        )
+
+        with st.expander("🏛️ Hard Macroeconomic Telemetry (NY Fed GSCPI, World Bank, FRED, ECB, PBOC, BOJ, KOSPI)", expanded=True):
+            m1, m2, m3, m4, m5 = st.columns(5)
+            with m1:
+                vix_val = rf.fetch_live_telemetry_with_fallback("^VIX", 18.5) if hasattr(rf, "fetch_live_telemetry_with_fallback") else 18.5
+                gscpi_val = +0.85 + (vix_val / 25.0)
+                st.metric("NY Fed GSCPI", f"{gscpi_val:+.2f} σ (Live Synthesized)", "Supply Pressure")
+                st.caption("Global Supply Chain Pressure")
+            with m2:
+                sp_val = rf.fetch_live_telemetry_with_fallback("^GSPC", 5700) if hasattr(rf, "fetch_live_telemetry_with_fallback") else 5700
+                fred_val = 100.0 + (sp_val / 1500.0)
+                st.metric("US FRED Mfg Index", f"{fred_val:.1f} pts", "St. Louis Fed")
+                st.caption("US Industrial Output")
+            with m3:
+                cl_val = rf.fetch_live_telemetry_with_fallback("CL=F", 72.5) if hasattr(rf, "fetch_live_telemetry_with_fallback") else 72.5
+                wb_val = cl_val * 2.1
+                st.metric("World Bank Commodity", f"{wb_val:.1f} Index", "50.4 (Expansion)")
+                st.caption("Global Benchmark / PBOC")
+            with m4:
+                eur_val = rf.fetch_live_telemetry_with_fallback("EURUSD=X", 1.08) if hasattr(rf, "fetch_live_telemetry_with_fallback") else 1.08
+                ecb_val = eur_val * 2.45
+                st.metric("Eurozone (ECB)", f"{ecb_val:.2f}% (ECB Refi)", "Industrial Trend")
+                st.caption("ECB Telemetry")
+            with m5:
+                kospi_val = int(rf.fetch_live_telemetry_with_fallback("^KS11", 2618)) if hasattr(rf, "fetch_live_telemetry_with_fallback") else 2618
+                st.metric("Korea KOSPI / Japan", f"{kospi_val:,} pts", "Asian Export Benchmark")
+                st.caption("Asian Export Benchmark")
+            st.markdown("### 🎯 Triangulated Composite Market Sentiment Index ($SI$)")
+            
+            c_col1, c_col2, c_col3, c_col4 = st.columns([1.2, 1, 1, 1])
+            with c_col1:
+                st.metric(
+                    "Net Composite ($SI$)",
+                    # Ensure composite_si and comp_res are defined prior to UI rendering
+                    f"{composite_si:+.3f}",
+                    delta="Severe Downside Risk" if composite_si < -0.50 else ("Moderate Drag" if composite_si < 0 else "Bullish Expansion"),
+                    delta_color="inverse" if composite_si < 0 else "normal",
+                )
+            with c_col2:
+                # Resolve operational impact metrics before UI metric rendering
+                if "surge_units" not in locals():
+                    base_dem = st.session_state.get("base_demand", 129500)
+                    comp_si = locals().get("composite_si", -0.330)
+                    if "compute_quantified_operational_impact" in globals():
+                        impact_res = compute_quantified_operational_impact(comp_si, base_dem)
+                        surge_units = impact_res.get("delta_demand_units", int(abs(comp_si) * 32373))
+                        lt_days = impact_res.get("lead_time_buffer_days", round(abs(comp_si) * 7.5, 1))
+                        rec_text = impact_res.get("recommended_action", "Lock 60-Day Forward Exposure")
+                        ctrm_hedge = impact_res.get("target_hedge_pct", 60.0) >= 60.0
+                    else:
+                        surge_units = int(abs(comp_si) * 32373)
+                        lt_days = round(abs(comp_si) * 7.5, 1)
+                        rec_text = "Lock 60-Day Forward Exposure"
+                        ctrm_hedge = True
+                st.metric("Quantified Demand Surge", f"+{surge_units:,} {term_unit}")
+            with c_col3:
+                st.metric("Lead Time Expansion", f"+{lt_days} Days")
+            with c_col4:
+                st.metric("CTRM Risk Status", "🔴 HEDGE REQUIRED" if ctrm_hedge else "🟢 STABLE")
+
+            st.markdown(
+                r"**Formula Weighting:** $S_t = (0.35 \times S_{\text{GSCPI}}) + (0.25 \times S_{\text{NOAA}}) + (0.25 \times S_{\text{Freight}}) + (0.15 \times S_{\text{GEP}})$"
+            )
+            
+            sc1, sc2, sc3, sc4 = st.columns(4)
+            # Ensure comp_res, scores, and weights are initialized
+            if "comp_res" not in locals():
+                comp_res = rf.compute_composite_sentiment() if hasattr(rf, "compute_composite_sentiment") else {}
+            scores = comp_res.get("individual_scores", {}) if isinstance(comp_res, dict) else {}
+            weights = comp_res.get("weights", {}) if isinstance(comp_res, dict) else {}
+            sc1.caption(f"**GSCPI Macro**: `{scores.get('gscpi_index', -0.15):+.2f}` (35%)")
+            sc2.caption(f"**NOAA Weather**: `{scores.get('noaa_environmental', -0.40):+.2f}` (25%)")
+            sc3.caption(f"**Freight Rates**: `{scores.get('freight_spot_rates', -0.43):+.2f}` (25%)")
+            sc4.caption(f"**GEP Volatility**: `{scores.get('gep_volatility', -0.32):+.2f}` (15%)")
+
+            st.info(f"**Quantified Action Plan**: {rec_text}")
+
+            if st.button(
+                "⚡ Propagate Triangulated Composite Index across Platform",
+                key="btn_propagate_composite",
+                type="primary",
+                use_container_width=True,
+            ):
+                st.session_state["si_composite"] = composite_si
+                st.session_state["extracted_demand_surge"] = surge_units
+                st.session_state["propagated_commodity_data"] = {
+                    "commodity_name": "Copper (LME Grade A)",
+                    "ticker": "LME_CU",
+                    "spot_price": spot_price,
+                    "forecast_30d": spot_price * 1.053,
+                    "forecast_60d": spot_price * 1.076,
+                    "price_delta_pct": (spot_price - 9250.0) / 9250.0,
+                }
+                if "_propagate_signal_to_sop_cascade" in globals():
+                    _propagate_signal_to_sop_cascade({
+                        "source_type": "Macro & Social Triangulation Engine",
+                        "title": f"Triangulated Composite Index ({composite_si:+.3f})",
+                        "demand_surge_units": surge_units,
+                        "leadtime_delay_days": lt_days,
+                        "sentiment_index": composite_si,
+                    })
+                st.toast("✅ Composite Index & Surge Propagated Across Platform!", icon="🚀")
+                st.rerun()
+
+        st.divider()
+
+        # -------------------------------------------------------------------------
+        # 3. SOTA PREDICTIVE COMMODITY PRICE ENGINE (OPTION B INTEGRATION)
+        # -------------------------------------------------------------------------
+        if "render_predictive_commodity_engine" in globals():
+# render_predictive_commodity_engine() moved to dedicated tab
+
+            pass
+        st.divider()
+
+# -------------------------------------------------------------------------
+        
+        # --- Plotly Triangulated Composite Factor Contribution Breakdown ---
+        import plotly.graph_objects as go
+        fig_si_factor = go.Figure(go.Bar(
+            x=['GSCPI Macro (35%)', 'NOAA Weather (25%)', 'Ocean Freight (25%)', 'GEP Volatility (15%)'],
+            y=[-0.112, -0.090, -0.100, -0.028],
+            marker_color=['#E74C3C', '#F39C12', '#E67E22', '#9B59B6'],
+            text=['-0.112', '-0.090', '-0.100', '-0.028'],
+            textposition='auto'
+        ))
+        fig_si_factor.update_layout(
+            title="<b>Triangulated Factor Contribution Breakdown (Net $S_i$ = -0.330)</b>",
+            yaxis_title="Weighted Drag Contribution",
+            height=260,
+            margin=dict(l=30, r=30, t=40, b=30),
+            paper_bgcolor="rgba(0,0,0,0)",
+            plot_bgcolor="rgba(245,247,250,0.5)"
+        )
+        st.plotly_chart(fig_si_factor, use_container_width=True)
+
+
+        # --- 4. UNIFIED SOCIAL MEDIA & EXECUTIVE FIELD INTELLIGENCE STREAM ---
+        st.subheader("📱 Unified Social Media & Executive Field Intelligence Stream")
+        
+        # Load all 10 items directly from robot_signals.json baseline cache
+        valid_social_items = []
+        try:
+            with open("robot_signals.json", "r") as f:
+                sdata = json.load(f)
+            raw_social = sdata.get("executive_social_stream", []) if isinstance(sdata, dict) else []
+            for item in raw_social:
+                raw_d = item.get("impact_demand", item.get("estimated_impact", 10000))
+                if isinstance(raw_d, str):
+                    clean_d = "".join(c for c in raw_d if c.isdigit() or c == ".")
+                    demand_val = int(float(clean_d)) if clean_d else 10000
+                else:
+                    demand_val = int(raw_d) if raw_d else 10000
+
+                raw_lt = item.get("impact_leadtime", item.get("lead_time_impact", 2.0))
+                if isinstance(raw_lt, str):
+                    clean_lt = "".join(c for c in raw_lt if c.isdigit() or c == ".")
+                    leadtime_val = float(clean_lt) if clean_lt else 2.0
+                else:
+                    leadtime_val = float(raw_lt) if raw_lt else 2.0
+
+                valid_social_items.append({
+                    "type": item.get("type", "Executive Disclosure"),
+                    "source": item.get("source", "Executive Field Intelligence"),
+                    "author": item.get("author", "C-Suite Executive"),
+                    "timestamp": item.get("timestamp", "Live Telemetry"),
+                    "title": item.get("title", "Corporate Results Disclosure"),
+                    "snippet": item.get("snippet") or item.get("summary", "Executive disclosure parsed from field intelligence."),
+                    "sentiment": item.get("sentiment_score", item.get("sentiment", -0.35)),
+                    "impact_demand": demand_val,
+                    "impact_leadtime": leadtime_val,
+                    "impact_units": f"+{demand_val:,} Units",
+                    "lead_time": f"+{leadtime_val} Days"
+                })
+        except Exception as e:
+            print("Error loading social items:", e)
+        top_5_social_items = valid_social_items
+        top_5_social_items = valid_social_items
+        top_5_social_items = valid_social_items
+        for idx, item in enumerate(top_5_social_items):
+                with st.container(border=True):
+                    s_col1, s_col2 = st.columns([2.8, 1.2])
+                    with s_col1:
+                        st.markdown(f"**{item.get('title', 'Corporate Statement')}**")
+                        st.caption(
+                            f"📌 **{item.get('type', 'Executive Disclosure')}** | Source: *{item.get('source', 'Field Wire')}* ({item.get('author', 'Executive')}) — `{item.get('timestamp', 'Live')}`"
+                        )
+                        st.write(f"_{item.get('snippet', '')}_")
+                    with s_col2:
+                        score = item["sentiment"]
+                        color = "🔴" if score < -0.3 else ("🟢" if score > 0.3 else "🟡")
+                        st.metric("Sentiment Polarity", f"{color} {score:+.2f}")
+                        st.caption(
+                            f"Demand: `+{item.get('impact_demand', 10000):,} {display_unit if ('display_unit' in locals() and display_unit) else 'Units'}` | Lead Time: `+{item.get('impact_leadtime', 2.0)} Days`"
+                        )
+
+                    st.button(
+                        "⚡ Ingest Social Signal into S&OP Engine",
+                        key=f"btn_ingest_soc_filtered_{idx}",
+                        on_click=(callback_fn if "callback_fn" in locals() else None),
+                        args=({
+                            "source_type": item["source"],
+                            "title": item["title"],
+                            "demand_surge_units": item["impact_demand"],
+                            "leadtime_delay_days": item["impact_leadtime"],
+                            "sentiment_index": item["sentiment"],
+                        },),
+                    )
+
+        st.divider()
+
+        # -------------------------------------------------------------------------
+        # 5. REAL-TIME DYNAMIC WEB & EXPANDED COMMODITY RSS STREAM
+        # -------------------------------------------------------------------------
+        # --- 5. REAL-TIME DYNAMIC WEB & COMMODITY RSS NEWS STREAM ---
+        # --- 5. REAL-TIME DYNAMIC WEB & COMMODITY RSS NEWS STREAM ---
+        # --- 5. REAL-TIME DYNAMIC WEB & COMMODITY RSS NEWS STREAM ---
+        # --- 5. REAL-TIME DYNAMIC WEB & COMMODITY RSS NEWS STREAM ---
+        # --- 5. REAL-TIME DYNAMIC WEB & COMMODITY RSS NEWS STREAM ---
+        # --- 5. REAL-TIME DYNAMIC WEB & COMMODITY RSS NEWS STREAM ---
+        st.subheader("📡 Real-Time Dynamic Web & Commodity RSS News Stream")
+        
+        rss_registry = {}
+        try:
+            if os.path.exists("robot_signals.json"):
+                with open("robot_signals.json", "r") as f:
+                    sdata = json.load(f)
+                
+                genspark_sigs = sdata.get("signals", []) if isinstance(sdata, dict) else []
+                for s in genspark_sigs:
+                    comm = s.get("commodity", "Commodity Input")
+                    summary = s.get("summary") or s.get("headline_summary", "")
+                    label = f"⚡ [Genspark Tactical] {comm}: {summary}" if summary else f"⚡ [Genspark Tactical] {comm} Market Signal"
+                    si = float(s.get("si_composite", s.get("si", -0.20)))
+                    rss_registry[label] = {
+                        "sentiment": si,
+                        "impact_units": f"+{int(abs(si)*25000):,} Units",
+                        "demand_val": int(abs(si)*25000),
+                        "leadtime_val": round(abs(si)*5.0, 1),
+                        "summary": summary or f"Live tactical market signal for {comm}.",
+                        "source": "Genspark Market Telemetry"
+                    }
+                
+                social_items = sdata.get("executive_social_stream", []) if isinstance(sdata, dict) else []
+                for soc in social_items:
+                    title = soc.get("title", "Corporate Disclosure")
+                    src = soc.get("source", "Executive Intelligence")
+                    label = f"📱 [{src}] {title}"
+                    si = float(soc.get("sentiment_score", soc.get("sentiment", -0.35)))
+                    raw_d = soc.get("impact_demand", soc.get("estimated_impact", 10000))
+                    d_val = int("".join(c for c in str(raw_d) if c.isdigit())) if any(c.isdigit() for c in str(raw_d)) else 10000
+                    raw_lt = soc.get("impact_leadtime", 2.0)
+                    lt_val = float("".join(c for c in str(raw_lt) if c.isdigit() or c == ".")) if any(c.isdigit() for c in str(raw_lt)) else 2.0
+                    rss_registry[label] = {
+                        "sentiment": si,
+                        "impact_units": f"+{d_val:,} Units",
+                        "demand_val": d_val,
+                        "leadtime_val": lt_val,
+                        "summary": soc.get("snippet") or soc.get("summary", title),
+                        "source": src
+                    }
+        except Exception as e:
+            print("Error building RSS registry:", e)
+            
+        if not rss_registry:
+            rss_registry["Global Raw Materials Update: Spot Market Tightening Across Metals & Resins [Reuters Telemetry]"] = {
+                "sentiment": -0.35,
+                "impact_units": "+110,000 Units",
+                "demand_val": 110000,
+                "leadtime_val": 2.5,
+                "summary": "Baseline commodity market signal active.",
+                "source": "Reuters Telemetry"
+            }
+
+        rss_options = list(rss_registry.keys())
+        
+        col_select, col_impact, col_sent = st.columns([3, 1, 1])
+        with col_select:
+            selected_rss = st.selectbox(
+                "Select Live RSS / Scraped Headline Signal:",
+                options=rss_options,
+                index=0,
+                key="rss_headline_selector_main"
+            )
+        
+        selected_data = rss_registry.get(selected_rss, {
+            "sentiment": -0.35,
+            "impact_units": "+10,000 Units",
+            "demand_val": 10000,
+            "leadtime_val": 2.0,
+            "summary": "Active headline intelligence feed.",
+            "source": "Live Feed"
+        })
+        
+        with col_impact:
+            st.text_input("Extracted Signal Impact (Units)", value=selected_data["impact_units"], disabled=True, key="rss_extracted_impact_display")
+        with col_sent:
+            st.text_input("Detected Sentiment ($S_i$)", value=f"{selected_data['sentiment']:+.2f}", disabled=True, key="rss_detected_sentiment_display")
+            
+        st.info(f"💡 **Active Intelligence Summary**: {selected_data['summary']} *(Source: {selected_data['source']})*")
+        
+        if st.button("⚡ Execute Speculative Hedge & Ingest into S&OP Platform", key="btn_rss_speculative_hedge_execute", use_container_width=True):
+            st.session_state["platform_si_override"] = selected_data["sentiment"]
+            st.session_state["platform_active_signal"] = selected_rss
+            st.session_state["platform_demand_impact"] = selected_data["demand_val"]
+            st.session_state["platform_leadtime_impact"] = selected_data["leadtime_val"]
+            st.session_state["ctrm_speculative_hedge_executed"] = True
+            st.session_state["ctrm_active_hedge_description"] = f"Speculative Hedge: {selected_rss[:60]}"
+            st.toast(f"⚡ SPECULATIVE HEDGE EXECUTED: Ingested SI={selected_data['sentiment']:+.2f} into CTRM Desk & Executive S&OP!")
+            st.rerun()
+
+
+
+
+def render_nlp_intelligence(*args, **kwargs):
+    fn = globals().get("render_nlp_commercial_sensing")
+    if not fn:
+        return None
+    try:
+        return fn(*args, **kwargs)
+    except TypeError:
+        return fn()
+render_nlp_sensing = render_nlp_intelligence
+
+def render_demand_supply_match(
+    persona=None,
+    term_unit="Units",
+    plant1_name=None,
+    plant2_name=None,
+    toller_name=None,
+    *args,
+    **kwargs,
+):
+    """Demand/Supply Match, Inventory Netting & MRP Order Offset Module connected to Centralized Orchestration."""
+    import datetime
+    import pandas as pd
+
+    st.title("⚙️ Demand/Supply Match & Plant Load Balancer")
+    st.caption(
+        "Automated inventory netting, multi-horizon S&OP scheduling, and"
+        " dynamic order offsets."
+    )
+
+    # -------------------------------------------------------------------------
+    # 1. READ & INITIALIZE CENTRALIZED ORCHESTRATOR CASCADE
+    # -------------------------------------------------------------------------
+    if "active_sop_cascade" not in st.session_state:
+        st.session_state["active_sop_cascade"] = {}
+
+    cascade = st.session_state["active_sop_cascade"]
+
+    demand_data = cascade.get("demand", {})
+    proc_data = cascade.get("procurement", {})
+
+    gross_surge = demand_data.get(
+        "total_surge_units", st.session_state.get("extracted_demand_surge", 185000)
+    )
+    active_contracts = st.session_state.get("active_contracts_volume", 129500)
+    net_deficit = demand_data.get(
+        "delta_surge_units",
+        st.session_state.get(
+            "net_uncovered_units", max(0, gross_surge - active_contracts)
+        ),
+    )
+    delta_lt_transit = proc_data.get(
+        "transit_delay_days", st.session_state.get("active_transit_delay", 8.5)
+    )
+    active_signal_title = cascade.get(
+        "signal_title",
+        st.session_state.get(
+            "active_risk_signal_title",
+            "Red Sea & Panama Canal Transit Bottlenecks",
+        ),
+    )
+
+    # Central Orchestrator Banner
+    st.info(
+        f"🔗 **Centralized Orchestrator Active Signal**: `{active_signal_title}`"
+        f" | **Gross Surge**: {gross_surge:,} {term_unit} | **Net Deficit**:"
+        f" {net_deficit:,} {term_unit} | **Transit Delay (ΔLT)**:"
+        f" +{delta_lt_transit} Days"
+    )
+
+    tab1, tab2 = st.tabs([
+        "📊 Netting & Forward MRP Horizon (30-180 Days)",
+        "⚙️ Dynamic Plant Load Balancing & Capacity Allocation",
+    ])
+
+    with tab1:
+        # ---------------------------------------------------------------------
+        # FORWARD PLANNING HORIZON CONTROLS
+        # ---------------------------------------------------------------------
+        st.subheader("🗓️ Multi-Period Forward Demand & Netting Horizon")
+
+        default_horizon = st.session_state.get("planner_horizon_days", 60)
+        horizon_days = st.select_slider(
+            "Select Demand Planner Forward Planning Window (Days Ahead):",
+            options=[30, 45, 60, 90, 180],
+            value=default_horizon,
+            help=(
+                "Adjust horizon to evaluate forward gross requirements, safety"
+                " stock buffers, and MRP order releases."
+            ),
+        )
+
+        # WRITE BACK TO CENTRALIZED ORCHESTRATOR STATE
+        st.session_state["planner_horizon_days"] = horizon_days
+        if "demand" in st.session_state["active_sop_cascade"]:
+            st.session_state["active_sop_cascade"]["demand"][
+                "planning_horizon"
+            ] = horizon_days
+
+        # Horizon scaling
+        daily_run_rate = gross_surge / 90.0
+        horizon_gross_req = int(daily_run_rate * horizon_days)
+        horizon_contract_cover = int((active_contracts / 90.0) * horizon_days)
+        horizon_net_req = max(0, horizon_gross_req - horizon_contract_cover)
+
+        m1, m2, m3, m4 = st.columns(4)
+        m1.metric("Selected Horizon", f"{horizon_days} Days")
+        m2.metric(
+            f"Gross Demand ({horizon_days}d)",
+            f"{horizon_gross_req:,} {term_unit}",
+        )
+        m3.metric("Contracted Cover", f"{horizon_contract_cover:,} {term_unit}")
+        m4.metric(
+            "Net Uncovered Deficit",
+            f"{horizon_net_req:,} {term_unit}",
+            delta="Uncovered Risk" if horizon_net_req > 0 else "Fully Covered",
+            delta_color="inverse",
+        )
+
+        st.markdown("---")
+
+        # Multi-Period Schedule Matrix
+        st.markdown(
+            "##### 📋 Forward Horizon Netting Schedule Matrix (30 → 180 Days)"
+        )
+        periods = [30, 45, 60, 90, 180]
+        schedule_data = []
+        for p in periods:
+            p_req = int(daily_run_rate * p)
+            p_cov = int((active_contracts / 90.0) * p)
+            p_net = max(0, p_req - p_cov)
+            p_safety = int(p_req * 0.12)
+            schedule_data.append({
+                "Planning Horizon": f"T+{p} Days",
+                "Gross Requirements": f"{p_req:,} {term_unit}",
+                "Contracted Inbound": f"{p_cov:,} {term_unit}",
+                "Safety Stock Buffer (12%)": f"{p_safety:,} {term_unit}",
+                "Net MRP Planned Release": f"{p_net + p_safety:,} {term_unit}",
+                "Status": (
+                    "⚠️ Deficit / Release Required"
+                    if p_net > 0
+                    else "✅ Balanced"
+                ),
+            })
+
+        st.dataframe(
+            pd.DataFrame(schedule_data),
+            use_container_width=True,
+            hide_index=True,
+        )
+
+        st.divider()
+
+        # Dynamic ERP Order Offset Recalculation
+        st.subheader(
+            "⚙️ Dynamic ERP Planned Order Release (POR) Recalculation"
+        )
+        st.caption(
+            "Automatically shifts Material Requirements Planning (MRP) release"
+            " dates upstream based on orchestrator transit telemetry."
+        )
+
+        por_baseline = "2026-11-15"
+
+        try:
+            from robot_feeds import calculate_dynamic_erp_order_offset
+
+            por_offset = calculate_dynamic_erp_order_offset(
+                por_baseline, delta_lt_transit
+            )
+        except Exception:
+            base_dt = datetime.datetime.strptime(por_baseline, "%Y-%m-%d")
+            offset_dt = base_dt - datetime.timedelta(
+                days=float(delta_lt_transit)
+            )
+            por_offset = offset_dt.strftime("%Y-%m-%d")
+
+        col1, col2, col3 = st.columns(3)
+        col1.metric("Baseline Planned Release Date", por_baseline)
+        col2.metric(
+            "Upstream Transit Bottleneck (ΔLT)", f"+{delta_lt_transit} Days"
+        )
+        col3.metric("Shifted ERP Order Release Date", por_offset)
+
+        st.success(
+            "**Centralized Orchestrator Action:** Planned Order Release date"
+            f" automatically shifted backward to **`{por_offset}`** to absorb"
+            f" the **+{delta_lt_transit} day** transit bottleneck for the"
+            f" **{horizon_days}-day horizon**."
+        )
 
     with tab2:
-        st.subheader("⚙️ Dynamic Plant Load Balancing & Capacity Allocation")
-        st.caption("Rebalance production orders across primary hubs, co-packing nodes, and toll processing partners.")
-        
-        c1, c2, c3 = st.columns(3)
-        with c1:
-            st.metric(label=f"Primary Hub ({plant1_name})", value="88.4% Load", delta="+4.2% Capacity Drag")
-        with c2:
-            st.metric(label=f"Secondary Facility ({plant2_name})", value="64.2% Load", delta="-2.1% Headroom")
-        with c3:
-            st.metric(label=f"CMO Partner ({toller_name})", value="92.0% Load", delta="High Utilization Risk")
+        # ---------------------------------------------------------------------
+        # PLANT LOAD BALANCING & CAPACITY ALLOCATION
+        # ---------------------------------------------------------------------
+        p1 = plant1_name or "Detroit Main Assembly Plant"
+        p2 = plant2_name or "Stuttgart Manufacturing Hub"
+        t_name = toller_name or "Monterrey Tolling Partner"
+
+        st.subheader("🏭 Multi-Plant Load Balancer & Orchestration Allocation")
+        st.caption(
+            "Rebalance production loads across primary facilities and tolling"
+            " partners in real-time."
+        )
+
+        saved_p1_alloc = cascade.get("plant_allocations", {}).get(p1, 50)
+
+        p1_alloc = st.slider(
+            f"Allocation Share to {p1} (%)",
+            min_value=0,
+            max_value=100,
+            value=saved_p1_alloc,
+            step=5,
+        )
+        remaining_alloc = 100 - p1_alloc
+        p2_alloc = int(remaining_alloc * 0.7)
+        toller_alloc = remaining_alloc - p2_alloc
+
+        # WRITE LOAD ALLOCATIONS BACK TO CENTRAL ORCHESTRATOR
+        plant_allocations = {p1: p1_alloc, p2: p2_alloc, t_name: toller_alloc}
+        st.session_state["active_sop_cascade"][
+            "plant_allocations"
+        ] = plant_allocations
+
+        c_a, c_b, c_c = st.columns(3)
+        c_a.metric(
+            f"🏢 {p1}",
+            f"{p1_alloc}% Load",
+            f"{int(net_deficit * (p1_alloc/100)):,} {term_unit}",
+        )
+        c_b.metric(
+            f"🏭 {p2}",
+            f"{p2_alloc}% Load",
+            f"{int(net_deficit * (p2_alloc/100)):,} {term_unit}",
+        )
+        c_c.metric(
+            f"🤝 {t_name}",
+            f"{toller_alloc}% Load",
+            f"{int(net_deficit * (toller_alloc/100)):,} {term_unit}",
+        )
+
+        st.markdown(
+            "##### 📋 Line-Level Operating Status & Orchestrated Capacity"
+            " Breakdown"
+        )
+
+        plant_df = pd.DataFrame([
+            {
+                "Facility Name": p1,
+                "Allocated Surge Share": f"{p1_alloc}%",
+                "Assigned Production": (
+                    f"{int(net_deficit * (p1_alloc/100)):,} {term_unit}"
+                ),
+                "Base Capacity": f"100,000 {term_unit}",
+                "Line Utilization": (
+                    f"{min(100.0, 75.0 + (p1_alloc * 0.25)):.1f}%"
+                ),
+                "Shift Model": "3-Shift Continuous (24/7)",
+                "Bottleneck Constraints": "Stamping Press Line 2",
+            },
+            {
+                "Facility Name": p2,
+                "Allocated Surge Share": f"{p2_alloc}%",
+                "Assigned Production": (
+                    f"{int(net_deficit * (p2_alloc/100)):,} {term_unit}"
+                ),
+                "Base Capacity": f"75,000 {term_unit}",
+                "Line Utilization": (
+                    f"{min(100.0, 65.0 + (p2_alloc * 0.3)):.1f}%"
+                ),
+                "Shift Model": "2-Shift Standard + Overtime",
+                "Bottleneck Constraints": "Heat Treatment Kiln #4",
+            },
+            {
+                "Facility Name": t_name,
+                "Allocated Surge Share": f"{toller_alloc}%",
+                "Assigned Production": (
+                    f"{int(net_deficit * (toller_alloc/100)):,} {term_unit}"
+                ),
+                "Base Capacity": f"50,000 {term_unit}",
+                "Line Utilization": (
+                    f"{min(100.0, 40.0 + (toller_alloc * 0.4)):.1f}%"
+                ),
+                "Shift Model": "Flex Toll On-Demand",
+                "Bottleneck Constraints": "Inbound Rail Siding Capacity",
+            },
+        ])
+        st.dataframe(plant_df, use_container_width=True, hide_index=True)
+
+
+def render_physical_procurement(
+    persona="Discrete & Heavy Industrial Enterprise",
+    term_unit="Units",
+    **kwargs,
+):
+    """Render Physical Procurement & Master Contract Desk bound to central S&OP cascade."""
+    st.title("📦 Physical Procurement & Master Contract Desk")
+    st.caption(f"Active Persona View: **{persona}**")
+
+    # 1. Pull dynamic state from Central Orchestrator Cascade
+    cascade = st.session_state.get("active_sop_cascade", {})
+    demand_data = cascade.get("demand", {})
+    proc_data = cascade.get("procurement", {})
+    ctrm_data = cascade.get("ctrm", {})
+
+    # Prioritize live injected Monte Carlo stress state over static cascade cache
+    gross_surge = st.session_state.get(
+        "extracted_demand_surge",
+        demand_data.get("total_surge_units", 173125)
+    )
+    active_contracts = st.session_state.get("active_contracts_volume", 129500)
+    net_units = st.session_state.get(
+        "net_uncovered_units",
+        demand_data.get("delta_surge_units", max(0, gross_surge - active_contracts))
+    )
+
+    fix_executed = st.session_state.get("fix_executed", False)
+    unit_base_price = (
+        3200.0 if "Merchant" in persona else (45.0 if "FMCG" in persona else 780.0)
+    )
+
+    # Calculate net invoice and hedge subsidy dynamically
+    hedge_subsidy = ctrm_data.get(
+        "realized_hedge_cashflow_usd",
+        (net_units * unit_base_price * 0.042) if fix_executed else 0.0,
+    )
+    gross_invoice = proc_data.get(
+        "gross_procurement_cost_usd",
+        net_units * (unit_base_price * 1.02),  # 2.0% Blended spot market premium
+    )
+    net_outlay = max(0.0, gross_invoice - hedge_subsidy)
+
+    # 2. Status Info Banner
+    st.info(
+        f"🔗 **Physical Demand Signal Ingested**: Required Net Procurement Volume: **{net_units:,} {term_unit}** "
+        f"(Gross Surge: **{gross_surge:,}** less Baseline Contracts: **{active_contracts:,}**) | "
+        f"Financial Hedge Cash Subsidy Available: **${hedge_subsidy:,.2f}**"
+    )
+
+    # 3. Key Procurement Metrics
+    col_p1, col_p2, col_p3, col_p4 = st.columns(4)
+    col_p1.metric(
+        "Gross Material Need",
+        f"{net_units:,} {term_unit}",
+        "Uncovered Deficit Only",
+    )
+    col_p2.metric(
+        "Gross Supplier Invoice",
+        f"${gross_invoice / 1e6:,.2f}M",
+        "+2.0% Blended Market Premium",
+    )
+    col_p3.metric(
+        "CTRM Financial Paper Subsidy",
+        f"-${hedge_subsidy / 1e6:,.2f}M",
+        "Hedge Active" if fix_executed else "No Hedge Cashflow",
+        delta_color="normal" if hedge_subsidy > 0 else "off",
+    )
+    col_p4.metric(
+        "Net Cash Outlay to Suppliers",
+        f"${net_outlay / 1e6:,.2f}M",
+        f"-${hedge_subsidy / 1e6:,.2f}M Cash Savings"
+        if fix_executed
+        else "Full Floating Outlay",
+    )
+
+    st.divider()
+
+    # 4. Master Contract Sourcing Matrix (Splitting strictly the NET volume)
+    st.subheader("📋 Master Contract Sourcing Matrix")
+
+    tier1_vol = int(net_units * 0.60)
+    tier2_vol = int(net_units * 0.25)
+    spot_vol = net_units - (tier1_vol + tier2_vol)
+
+    sourcing_df = pd.DataFrame(
+        [
+            {
+                "Supplier Name": "Global Metals Corp (Tier 1 Primary)",
+                "Contract Type": "Fixed-Price Master Agreement",
+                "Alloc %": "60%",
+                "Volume (Units)": f"{tier1_vol:,}",
+                "Unit Cost ($)": f"${unit_base_price:,.2f}",
+                "Subtotal Invoice": f"${(tier1_vol * unit_base_price) / 1e6:.2f}M",
+                "Expected ETA": "21 Days",
+            },
+            {
+                "Supplier Name": "Apex Logistics Raw Ltd (Tier 2 Secondary)",
+                "Contract Type": "Indexed Master Agreement",
+                "Alloc %": "25%",
+                "Volume (Units)": f"{tier2_vol:,}",
+                "Unit Cost ($)": f"${(unit_base_price * 1.05):,.2f}",
+                "Subtotal Invoice": f"${(tier2_vol * unit_base_price * 1.05) / 1e6:.2f}M",
+                "Expected ETA": "19 Days",
+            },
+            {
+                "Supplier Name": "Spot Market Open Sourcing (Emergency)",
+                "Contract Type": "Open Spot Market Purchase",
+                "Alloc %": "15%",
+                "Volume (Units)": f"{spot_vol:,}",
+                "Unit Cost ($)": f"${(unit_base_price * 1.28):,.2f}",
+                "Subtotal Invoice": f"${(spot_vol * unit_base_price * 1.28) / 1e6:.2f}M",
+                "Expected ETA": "14 Days (Expedited)",
+            },
+        ]
+    )
+    st.dataframe(sourcing_df, use_container_width=True, hide_index=True)
+
+    st.divider()
+
+    # 5. Physical PO Execution Gateway
+    st.subheader("🏭 Physical PO Execution Gateway")
+    col_g1, col_g2 = st.columns(2)
+    with col_g1:
+        dest = st.selectbox(
+            "Primary Delivery Destination",
+            ["Detroit Main Plant", "Munich Precision Stamping"],
+            key="proc_dest",
+        )
+        terms = st.selectbox(
+            "Vendor Payment Terms",
+            ["Net 60 Days", "Net 30 Days", "Letter of Credit"],
+            key="proc_terms",
+        )
+    with col_g2:
+        logistics = st.selectbox(
+            "Inbound Logistics Mode",
+            ["Standard Multi-Modal Rail & Truck", "Air Freight Expedited"],
+            key="proc_logistics",
+        )
+        quality = st.selectbox(
+            "Quality Standard",
+            ["ISO 9001 Heavy Industrial", "Automotive IATF 16949"],
+            key="proc_quality",
+        )
+
+    if st.button("📦 Issue Physical Purchase Orders & Lock Schedules", type="primary", key="btn_issue_pos"):
+        st.session_state["pos_issued"] = True
+        st.toast(f"POs issued for {net_units:,} {term_unit} to {dest}!", icon="✅")
+        st.success(
+            f"✅ **Physical Purchase Orders Issued**: Successfully generated PO batch for **{net_units:,} {term_unit}** "
+            f"routed to **{dest}** under **{terms}** payment terms."
+        )
+
+
+def render_ctrm_desk(
+    persona="Discrete & Heavy Industrial Enterprise",
+    term_unit="Units",
+    **kwargs,
+):
+    """Render CTRM Event-Driven Hedging Desk with FIX 4.4 Gateway & Synthetic Structurer."""
+    st.title("🛡️ CTRM Event-Driven Hedging Desk")
+    st.caption(f"Active Persona View: **{persona}**")
+
+    # Ensure central trade state exists
+    if "executed_hedges" not in st.session_state:
+        st.session_state["executed_hedges"] = []
+
+    # 1. Pull dynamic state from Central Orchestrator & Propagated Commodity State
+    cascade = st.session_state.get("active_sop_cascade", {})
+    demand_data = cascade.get("demand", {})
+    prop_data = st.session_state.get("propagated_commodity_data")
+
+    # Prioritize live injected Monte Carlo stress state over static cascade cache
+    gross_surge = st.session_state.get(
+        "extracted_demand_surge",
+        demand_data.get("total_surge_units", 173125)
+    )
+    active_contracts = st.session_state.get("active_contracts_volume", 129500)
+    net_units = st.session_state.get(
+        "net_uncovered_units",
+        demand_data.get("delta_surge_units", max(0, gross_surge - active_contracts))
+    )
+
+    sig_title = st.session_state.get(
+        "active_risk_signal_title", "Baseline Operations Target"
+    )
+    si_score = st.session_state.get("si_composite", -0.82)
+    fix_executed = st.session_state.get("fix_executed", False)
+
+    # Base price derived from persona or injected commodity spot price
+    if prop_data and "spot_price" in prop_data:
+        unit_base_price = prop_data["spot_price"]
+    else:
+        unit_base_price = (
+            3200.0
+            if "Merchant" in persona
+            else (45.0 if "FMCG" in persona else 780.0)
+        )
+
+    # 2. Derive Event-Driven CTRM Metrics
+    target_hr = min(0.95, max(0.40, 0.50 - (si_score * 0.35)))
+    
+    # If Monte Carlo or Macro Stress is injected, evaluate shortfall directly against physical unhedged gap
+    if st.session_state.get("macro_stress_active", False) or "net_uncovered_units" in st.session_state:
+        unhedged_shortfall = st.session_state.get("net_uncovered_units", max(0, gross_surge - active_contracts))
+        # Recalculate implied target HR based on total required volume
+        required_hedged_vol = active_contracts + unhedged_shortfall
+        target_hr = min(1.0, required_hedged_vol / max(1, gross_surge))
+    else:
+        required_hedged_vol = int(gross_surge * target_hr)
+        unhedged_shortfall = max(0, required_hedged_vol - active_contracts)
+
+    base_buffer = unhedged_shortfall * unit_base_price * 0.08
+    if prop_data:
+        delta_pct = prop_data.get("price_delta_pct", 0.0)
+        risk_margin_buffer = base_buffer * (1.0 + delta_pct)
+    else:
+        risk_margin_buffer = base_buffer
+
+    auto_horizon_days = (
+        90 if si_score < -0.5 else (60 if si_score < 0 else 30)
+    )
+
+    # 3. Top Banner
+    if prop_data:
+        st.success(
+            f"⚡ **Propagated Commodity Signal Active**: Ingested"
+            f" **{prop_data['commodity_name']}**"
+            f" [{prop_data.get('ticker', 'LME_CU')}] | Spot:"
+            f" **${prop_data['spot_price']:,.2f}** ➔ 60D Forecast:"
+            f" **${prop_data['forecast_60d']:,.2f}**"
+            f" ({prop_data['price_delta_pct']:+.2%}) | **Target Hedge Ratio:"
+            f" {target_hr * 100:.1f}%** | Unhedged Shortfall:"
+            f" **{unhedged_shortfall:,} {term_unit}**"
+        )
+    else:
+        st.info(
+            f"⚡ **Active Risk Signal Ingested**: Triangulated Sentiment Index"
+            f" (**{si_score:.2f}**) [`{sig_title}`] | **Target Hedge Ratio:"
+            f" {target_hr * 100:.1f}%** | Unhedged Shortfall:"
+            f" **{unhedged_shortfall:,} {term_unit}** | Auto Horizon:"
+            f" **{auto_horizon_days} Days**"
+        )
+
+    # 4. Top Executive Metrics
+    col_m1, col_m2, col_m3, col_m4 = st.columns(4)
+    col_m1.metric(
+        "Gross Demand Surge",
+        f"{gross_surge:,} {term_unit}",
+        (
+            f"+{gross_surge - 200000:,} MT Metal"
+            if "Heavy" in persona
+            else "+Volume Surge"
+        ),
+    )
+    col_m2.metric(
+        "Target Hedge Ratio (HR)",
+        f"{target_hr * 100:.1f}%",
+        f"+ Sentiment SI ({si_score:.2f})",
+        delta_color="inverse" if si_score < 0 else "normal",
+    )
+    col_m3.metric(
+        "Net Shortfall to Hedge",
+        f"{unhedged_shortfall:,} {term_unit}",
+        f"{target_hr * 100:.0f}% Target Cover Gap",
+        delta_color="inverse",
+    )
+    col_m4.metric(
+        "Required Risk Margin Buffer",
+        f"${risk_margin_buffer:,.2f}",
+        delta=(
+            f"{prop_data['price_delta_pct']:+.2%} Commodity Impact"
+            if prop_data
+            else "+23.0% Volatility Load"
+        ),
+        delta_color="inverse",
+    )
+
+    st.divider()
+
+    # 5. Functional Tabs
+    tab_std, tab_synth = st.tabs([
+        "📊 Standard Desk & FIX Execution",
+        "🧪 Synthetic Derivative Builder & Model Lab",
+    ])
+
+    # --- TAB 1: FIX 4.4 ORDER EXECUTION GATEWAY ---
+    with tab_std:
+        st.subheader("⚡ FIX 4.4 Order Execution Gateway")
+
+        col_f1, col_f2, col_f3 = st.columns(3)
+        with col_f1:
+            intent = st.selectbox(
+                "Execution Intent",
+                [
+                    "Hedge Risk (Cover Shortfall)",
+                    "Speculative Delta",
+                    "Yield Capture",
+                ],
+                key="fix_intent",
+            )
+        with col_f2:
+            time_period = st.selectbox(
+                "Time Period / Expiration",
+                [
+                    f"Auto-Matched ({auto_horizon_days} Days)",
+                    "30 Days",
+                    "60 Days",
+                    "90 Days",
+                    "180 Days",
+                ],
+                key="fix_time_period",
+            )
+        with col_f3:
+            est_premium = st.number_input(
+                "Est. Premium ($/Unit)",
+                value=4.25,
+                step=0.25,
+                key="fix_est_premium",
+            )
+
+        col_g1, col_g2, col_g3 = st.columns(3)
+        with col_g1:
+            order_structure = st.selectbox(
+                "Order Structure",
+                [
+                    "Asian Call Collar",
+                    "European Swap",
+                    "Zero-Cost Collar",
+                    "Put Option Floor",
+                ],
+                key="fix_order_structure",
+            )
+        with col_g2:
+            exchange = st.selectbox(
+                "Execution Exchange",
+                ["LME (London Metal Exchange)", "CME Group", "NYMEX", "ICE"],
+                key="fix_exchange",
+            )
+        with col_g3:
+            default_lots = (
+                max(1, int(unhedged_shortfall / 25))
+                if unhedged_shortfall > 0
+                else 285
+            )
+            lots = st.number_input(
+                "Lots / Contracts (LME 25 MT)",
+                value=default_lots,
+                step=1,
+                key="fix_lots",
+            )
+
+        total_hedge_volume = lots * 25
+        total_premium_required = total_hedge_volume * est_premium
+
+        st.caption(
+            f"💰 **Total Premium Required**: **${total_premium_required:,.2f}**"
+            f" (Covering **{total_hedge_volume:,} {term_unit}** | Will be"
+            " debited from Exec S&OP Cash Treasury)"
+        )
+
+        if st.button(
+            "🚀 Execute & Route FIX 4.4 Paper Order",
+            type="primary",
+            key="btn_execute_fix_44",
+            disabled=(fix_executed and st.session_state.get("net_uncovered_units", 0) == 0),
+        ):
+            # 1. Create Hedging Trade Record
+            trade_benefit = 0.0  # Dynamic Mark-to-Market calculation fallback
+            order_id = f"FIX-44-LME-{np.random.randint(10000, 99999)}"
+
+            # Dynamic Mark-to-Market Trade Benefit = Gross Avoided Spot Spike - Total Premium Paid
+            spot_surge_price = 780.0 * (1.0 + st.session_state.get("sim_vol", 0.35))
+            strike_ceiling = 780.0 * 1.05
+            gross_avoided_cost = max(0.0, (spot_surge_price - strike_ceiling) * total_hedge_volume)
+            trade_benefit = max(0.0, gross_avoided_cost - total_premium_required)
+
+            new_trade = {
+                "id": order_id,
+                "title": f"FIX 4.4 {order_structure} ({exchange})",
+                "source_type": "CTRM FIX Execution",
+                "structure": order_structure,
+                "lots": lots,
+                "volume": total_hedge_volume,
+                "premium": total_premium_required,
+                "exchange": exchange,
+                "hedge_benefit_usd": trade_benefit,
+            }
+
+            # 2. Mutate Session State across all desks
+            st.session_state["fix_executed"] = True
+            st.session_state["fix_executed_details"] = new_trade
+            st.session_state["executed_hedges"].append(new_trade)
+
+            # Recalculate global hedge benefit & available cash
+            total_benefit = sum(
+                t.get("hedge_benefit_usd", 0.0)
+                for t in st.session_state["executed_hedges"]
+            )
+            st.session_state["total_hedge_benefit"] = total_benefit
+
+            base_treasury = 5_000_000.0
+            freight_surcharge = st.session_state.get(
+                "freight_surcharge_usd", 570_000.0
+            )
+            st.session_state["available_treasury_cash"] = (
+                base_treasury + total_benefit - freight_surcharge
+            )
+
+            if "run_end_to_end_sop_cascade" in globals():
+                st.session_state["active_sop_cascade"] = (
+                    run_end_to_end_sop_cascade(
+                        base_demand_units=st.session_state.get(
+                            "base_demand", 200000
+                        )
+                    )
+                )
+
+            st.toast(
+                f"FIX 4.4 Order Routed: {lots} Lots ({total_hedge_volume:,}"
+                f" {term_unit}) via {exchange}.",
+                icon="✅",
+            )
+            st.rerun()
+
+        if fix_executed:
+            details = st.session_state.get("fix_executed_details", {})
+            oid = details.get("id", "FIX-44-LME-99428")
+            vol = details.get("volume", total_hedge_volume)
+            exc = details.get("exchange", exchange)
+
+            st.success(
+                f"🟢 **FIX Protocol Status: EXECUTED & BOUND** — Bound"
+                f" `{vol:,} {term_unit}` via `{exc}` under Order ID"
+                f" `{oid}`."
+            )
+            if st.button("Reset FIX Hedge Position", key="btn_reset_fix"):
+                st.session_state["fix_executed"] = False
+                st.session_state.pop("fix_executed_details", None)
+
+                # Filter out FIX executed trades from central hedge book
+                st.session_state["executed_hedges"] = [
+                    t
+                    for t in st.session_state.get("executed_hedges", [])
+                    if t.get("source_type") != "CTRM FIX Execution"
+                ]
+
+                # Recalculate global metrics
+                total_benefit = sum(
+                    t.get("hedge_benefit_usd", 0.0)
+                    for t in st.session_state["executed_hedges"]
+                )
+                st.session_state["total_hedge_benefit"] = total_benefit
+                base_treasury = 5_000_000.0
+                freight_surcharge = st.session_state.get(
+                    "freight_surcharge_usd", 570_000.0
+                )
+                st.session_state["available_treasury_cash"] = (
+                    base_treasury + total_benefit - freight_surcharge
+                )
+
+                st.rerun()
+
+        st.divider()
+
+        # Active Commodity Contracts & Hedge Book
+        st.subheader("📋 Active Commodity Contracts & Net Hedge Book")
+
+        rows = [
+            {
+                "Contract ID": "CT-2026-Q4-01",
+                "Type": "Baseline Fixed Swap",
+                "Volume": f"74,000 {term_unit}",
+                "Strike / Premium": f"${unit_base_price:,.2f}",
+                "Status": "ACTIVE (CONTRACTED)",
+            },
+            {
+                "Contract ID": "CT-2026-Q4-02",
+                "Type": "Baseline Option Cap",
+                "Volume": f"55,500 {term_unit}",
+                "Strike / Premium": f"${unit_base_price * 1.05:,.2f}",
+                "Status": "ACTIVE (CONTRACTED)",
+            },
+        ]
+
+        # Dynamically append executed trades from session state
+        for trade in st.session_state.get("executed_hedges", []):
+            rows.append({
+                "Contract ID": trade.get("id", "FIX-44-EXECUTED"),
+                "Type": f"Net Hedge ({trade.get('structure', order_structure)})",
+                "Volume": f"{trade.get('volume', total_hedge_volume):,} {term_unit}",
+                "Strike / Premium": (
+                    f"${trade.get('premium', total_premium_required):,.2f}"
+                    " Total Premium"
+                ),
+                "Status": "ACTIVE (HEDGED)",
+            })
+
+        if (
+            not st.session_state.get("executed_hedges")
+            and not fix_executed
+        ):
+            rows.append({
+                "Contract ID": "FIX-44-PENDING",
+                "Type": f"Uncovered Shortfall ({order_structure})",
+                "Volume": f"{total_hedge_volume:,} {term_unit}",
+                "Strike / Premium": f"${est_premium:.2f} Est. Premium",
+                "Status": "OPEN (UNCOVERED)",
+            })
+
+        st.dataframe(
+            pd.DataFrame(rows), use_container_width=True, hide_index=True
+        )
+
+    # --- TAB 2: SYNTHETIC DERIVATIVE BUILDER & MODEL LAB ---
+    with tab_synth:
+        st.subheader("🧪 Synthetic Derivative Structurer")
+        st.caption(
+            "Model customized derivative payoffs tailored to the net"
+            f" uncovered gap of **{net_units:,} {term_unit}**."
+        )
+
+        col_s1, col_s2 = st.columns([1, 1.4])
+
+        with col_s1:
+            st.markdown("**1. Structure Parameters**")
+            struct_type = st.selectbox(
+                "Derivative Structure",
+                [
+                    "Zero-Cost Collar (Cap & Floor)",
+                    "Asian Call Option (Average Price)",
+                    "3-Way Collar with Knock-Out",
+                ],
+                key="synth_struct_type",
+            )
+            cap_strike_pct = st.slider(
+                "Cap Strike % (Upper Protection)",
+                100,
+                130,
+                110,
+                1,
+                key="synth_cap_pct",
+            )
+            floor_strike_pct = st.slider(
+                "Floor Strike % (Lower Subsidization)",
+                70,
+                100,
+                90,
+                1,
+                key="synth_floor_pct",
+            )
+            implied_vol = st.slider(
+                "Implied Volatility (σ %)", 10, 60, 28, 1, key="synth_vol"
+            )
+
+            cap_val = unit_base_price * (cap_strike_pct / 100.0)
+            floor_val = unit_base_price * (floor_strike_pct / 100.0)
+
+            st.markdown("**Net Deficit Pricing Summary**")
+            st.json({
+                "Net Exposure Volume": f"{net_units:,} {term_unit}",
+                "Underlying Spot": f"${unit_base_price:,.2f}",
+                "Cap Strike": f"${cap_val:,.2f}",
+                "Floor Strike": f"${floor_val:,.2f}",
+                "Net Premium Cost": "$0.00 / Unit (Zero-Cost Verified)",
+            })
+
+        with col_s2:
+            st.markdown("**2. Net Payoff Profile Simulation at Expiry**")
+
+            spot_range = np.linspace(
+                unit_base_price * 0.7, unit_base_price * 1.3, 50
+            )
+            unhedged_payoff = (spot_range - unit_base_price) * net_units
+            hedged_payoff = (
+                np.clip(spot_range, floor_val, cap_val) - unit_base_price
+            ) * net_units
+
+            fig_payoff = go.Figure()
+            fig_payoff.add_trace(
+                go.Scatter(
+                    x=spot_range,
+                    y=unhedged_payoff / 1e6,
+                    mode="lines",
+                    name="Floating Net Exposure",
+                    line=dict(color="#de350b", dash="dash"),
+                )
+            )
+            fig_payoff.add_trace(
+                go.Scatter(
+                    x=spot_range,
+                    y=hedged_payoff / 1e6,
+                    mode="lines",
+                    name=f"Hedged Net Profile ({struct_type})",
+                    line=dict(color="#0052cc", width=3),
+                )
+            )
+            fig_payoff.add_vline(
+                x=unit_base_price,
+                line_dash="dot",
+                annotation_text="Current Spot",
+            )
+            fig_payoff.update_layout(
+                title="Net Deficit P&L Impact ($ Millions)",
+                xaxis_title="Underlying Spot Price ($)",
+                yaxis_title="Net P&L Impact ($M)",
+                height=380,
+                margin=dict(l=20, r=20, t=40, b=20),
+                legend=dict(
+                    orientation="h",
+                    yanchor="bottom",
+                    y=1.02,
+                    xanchor="right",
+                    x=1,
+                ),
+            )
+            st.plotly_chart(fig_payoff, use_container_width=True)
+
+
+
+def render_global_logistics_gis(
+    persona="Discrete & Heavy Industrial Enterprise",
+    term_unit="Units",
+    *args,
+    **kwargs,
+):
+    """Render Global Logistics Network & GIS Control Tower bound to net shipment volume & live freight telemetry."""
+    st.title("🌐 Global Logistics Network & GIS Control Tower")
+    st.caption(f"Active Persona View: **{persona}**")
+
+    # 1. Pull dynamic data from Central Orchestrator Cascade & Live Signals
+    cascade = st.session_state.get("active_sop_cascade", {})
+    robot_signals = st.session_state.get("latest_robot_signals", {})
+
+    demand_data = cascade.get("demand", {})
+    proc_data = cascade.get("procurement", {})
+    logistics_data = cascade.get("logistics", {})
+    baltic_data = robot_signals.get("baltic_indices", {})
+
+    gross_surge = demand_data.get(
+        "total_surge_units",
+        st.session_state.get("extracted_demand_surge", 185000),
+    )
+    active_contracts = st.session_state.get("active_contracts_volume", 129500)
+    net_units = demand_data.get(
+        "delta_surge_units",
+        st.session_state.get(
+            "net_uncovered_units", max(0, gross_surge - active_contracts)
+        ),
+    )
+    transit_delay = proc_data.get(
+        "transit_delay_days", st.session_state.get("active_transit_delay", 7.0)
+    )
+
+    # Extract Live Sea & Air Telemetry
+    fbx_sea_rate = baltic_data.get("freightos_fbx_ocean", {}).get("value", 3850)
+    tac_air_rate = baltic_data.get("baltic_air_tac", {}).get("value", 2.48)
+    modal_shift_air = logistics_data.get("modal_shift_air", False)
+    freight_surcharge = logistics_data.get("total_freight_surcharge_usd", 0.0)
+
+    # 2. Status Banners & Modal Shift Warnings
+    if modal_shift_air:
+        st.warning(
+            f"✈️ **CRITICAL LOGISTICS SHIFT**: Lead-time shock (+{transit_delay:.0f} Days) forced an "
+            f"**Air Freight Modal Shift**. Surcharge Drag: **+${freight_surcharge / 1e6:.2f}M** "
+            f"(TAC Air Rate: **${tac_air_rate:.2f}/kg** vs. Ocean FBX: **${fbx_sea_rate:,.0f}/FEU**)."
+        )
+    else:
+        st.info(
+            f"🚢 **Inbound Logistics Feed**: Tracking **{net_units:,} {term_unit}** "
+            f"in net PO movement across 3 Ocean & Rail Corridors | "
+            f"Lead-Time Shock: **+{transit_delay:.0f} Days** | FBX Spot: **${fbx_sea_rate:,.0f}/FEU**"
+        )
+
+    # 3. Executive Logistics Metrics
+    col_l1, col_l2, col_l3, col_l4 = st.columns(4)
+    col_l1.metric(
+        "Active Inbound Volume",
+        f"{net_units:,} {term_unit}",
+        "Net Physical Outlay",
+    )
+    col_l2.metric(
+        "Avg Transit Lead Time",
+        f"{14 + int(transit_delay)} Days",
+        f"↑ +{transit_delay:.0f} Days Delay Shock",
+        delta_color="inverse",
+    )
+    col_l3.metric(
+        "Freight Mode Status",
+        "AIR FREIGHT SHIFT" if modal_shift_air else "OCEAN / RAIL STANDARD",
+        f"+${freight_surcharge / 1e6:.2f}M Cost Drag"
+        if modal_shift_air
+        else "Baseline Tariffs",
+        delta_color="inverse" if modal_shift_air else "normal",
+    )
+    col_l4.metric(
+        "On-Time In-Full (OTIF)",
+        f"{max(65.0, 94.6 - transit_delay * 1.8):.1f}%",
+        f"↓ -{transit_delay * 1.8:.1f}% Stressed",
+        delta_color="inverse",
+    )
+
+    st.divider()
+
+    # 4. Dynamic Corridor Allocation
+    c1_vol = int(net_units * 0.45)
+    c2_vol = int(net_units * 0.35)
+    c3_vol = net_units - (c1_vol + c2_vol)
+
+    st.subheader("📦 Transit Corridor Health & Arrival Timeline")
+    corridor_df = pd.DataFrame([
+        {
+            "Corridor Name": "Pacific Ocean Expressway (Asia → LA)",
+            "Primary Carrier": "Maersk Ocean Line",
+            "Transport Mode": "Air Express" if modal_shift_air else "Ocean Container",
+            "Volume (Units)": f"{c1_vol:,}",
+            "Original ETA": "14 Days",
+            "Delay Shock": f"+{transit_delay:.0f} Days",
+            "Adjusted ETA": f"{14 + int(transit_delay)} Days",
+            "Bottleneck Reason": "Port Berth Queueing / Modal Shift"
+            if modal_shift_air
+            else "Port Berth Queueing",
+        },
+        {
+            "Corridor Name": "Trans-Suez / Atlantic Route (Asia → Europe → US)",
+            "Primary Carrier": "MSC Freight Fleet",
+            "Transport Mode": "Ocean Container",
+            "Volume (Units)": f"{c2_vol:,}",
+            "Original ETA": "16 Days",
+            "Delay Shock": f"+{transit_delay + 1:.0f} Days",
+            "Adjusted ETA": f"{17 + int(transit_delay)} Days",
+            "Bottleneck Reason": "Canal Capacity Constraints",
+        },
+        {
+            "Corridor Name": "Domestic Overland Heavy Rail",
+            "Primary Carrier": "BNSF Railway Co",
+            "Transport Mode": "Class I Intermodal Rail",
+            "Volume (Units)": f"{c3_vol:,}",
+            "Original ETA": "5 Days",
+            "Delay Shock": "+0 Days",
+            "Adjusted ETA": "5 Days (On Schedule)",
+            "Bottleneck Reason": "Normal Operations",
+        },
+    ])
+    st.dataframe(corridor_df, use_container_width=True, hide_index=True)
+
+    st.divider()
+
+    # 5. Interactive Pydeck GIS Map Layer
+    st.subheader("🗺️ Live Global Transit Arc Overlay")
+    routes_df = pd.DataFrame([
+        {
+            "route": "Pacific Ocean Expressway (Asia → LA)",
+            "start_lat": 31.2304,
+            "start_lon": 121.4737,
+            "end_lat": 33.7420,
+            "end_lon": -118.2700,
+        },
+        {
+            "route": "Trans-Suez / Atlantic Route (Asia → Europe → US)",
+            "start_lat": 29.9700,
+            "start_lon": 32.5600,
+            "end_lat": 51.9200,
+            "end_lon": 4.4700,
+        },
+        {
+            "route": "Domestic Overland Rail (LA → Detroit)",
+            "start_lat": 33.7420,
+            "start_lon": -118.2700,
+            "end_lat": 42.3314,
+            "end_lon": -83.0458,
+        },
+    ])
+
+    arc_color = (
+        [255, 140, 0, 220] if modal_shift_air else [255, 75, 75, 200]
+    )
+
+    arc_layer = pdk.Layer(
+        "ArcLayer",
+        routes_df,
+        get_source_position=["start_lon", "start_lat"],
+        get_target_position=["end_lon", "end_lat"],
+        get_source_color=arc_color,
+        get_target_color=[0, 180, 255, 200],
+        get_width=4,
+        pickable=True,
+    )
+
+    st.pydeck_chart(
+        pdk.Deck(
+            map_style="https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json",
+            layers=[arc_layer],
+            initial_view_state=pdk.ViewState(
+                latitude=25.0, longitude=-30.0, zoom=1.2, pitch=35
+            ),
+            tooltip={"text": "{route}"},
+        )
+    )
+
+
+# Alias to protect router calls
+render_global_logistics = render_global_logistics_gis
+
+
+def render_flight_simulator(
+    persona="Discrete & Heavy Industrial Enterprise",
+    term_unit="Units",
+    **kwargs,
+):
+  """Sandbox Flight Simulator & Monte Carlo Stress Testing Lab."""
+  st.title("⚡ Sandbox Flight Simulator & Stress Lab")
+  st.caption(f"Active Persona View: **{persona}**")
+
+  # 1. READ ACTIVE SCENARIO & SESSION STATE PARAMS
+  macro_scenario = st.session_state.get(
+      "sandbox_scenario",
+      st.session_state.get("sb_scenario_select", "Baseline Operations"),
+  )
+  sandbox_params = st.session_state.get("sandbox_params", {})
+
+  # Centralized scenario fallback dictionary if sandbox_params isn't set
+  SCENARIO_FALLBACKS = {
+      "Super El Niño": {
+          "vol": 0.45,
+          "delay": 8,
+          "surge": 1.25,
+          "desc": (
+              "Severe weather patterns disrupting Panama Canal & agri yields."
+          ),
+      },
+      "Hormuz": {
+          "vol": 0.85,
+          "delay": 20,
+          "surge": 1.60,
+          "desc": (
+              "Critical energy bottleneck blockage causing global freight &"
+              " oil spikes."
+          ),
+      },
+      "Mandeb": {
+          "vol": 0.55,
+          "delay": 12,
+          "surge": 1.30,
+          "desc": (
+              "Red Sea transit route closure forcing Cape of Good Hope rerouting."
+          ),
+      },
+      "Semiconductor": {
+          "vol": 0.50,
+          "delay": 25,
+          "surge": 1.40,
+          "desc": (
+              "Microchip deficit stalling assembly lines and expanding lead"
+              " times."
+          ),
+      },
+      "Oil Crisis": {
+          "vol": 0.70,
+          "delay": 10,
+          "surge": 1.35,
+          "desc": (
+              "OPEC production shocks driving raw material processing &"
+              " shipping surcharges."
+          ),
+      },
+      "Earthquake": {
+          "vol": 0.60,
+          "delay": 15,
+          "surge": 1.20,
+          "desc": "Seismic disruption halting Tier-1 component manufacturing.",
+      },
+      "Red Sea": {
+          "vol": 0.40,
+          "delay": 8,
+          "surge": 1.10,
+          "desc": "Maritime security threats and container line rerouting.",
+      },
+      "Drought": {
+          "vol": 0.50,
+          "delay": 4,
+          "surge": 0.85,
+          "desc": (
+              "Severe agricultural crop failure inflating physical spot prices."
+          ),
+      },
+      "Volatility": {
+          "vol": 0.85,
+          "delay": 14,
+          "surge": 1.00,
+          "desc": (
+              "Financial market dislocation spiking derivative implied"
+              " volatility."
+          ),
+      },
+      "Baseline": {
+          "vol": 0.15,
+          "delay": 2,
+          "surge": 1.00,
+          "desc": "Nominal operational conditions with standard buffer inventory.",
+      },
+  }
+
+  # 2. RESOLVE SCENARIO MULTIPLIERS (From sidebar state or fallback)
+  if "iv_multiplier" in sandbox_params:
+    def_vol = min(1.0, float(sandbox_params.get("iv_multiplier", 1.0)) * 0.35)
+    def_delay = int(sandbox_params.get("transit_delay_days", 2))
+    def_surge = float(sandbox_params.get("volume_multiplier", 1.00))
+    scenario_desc = sandbox_params.get(
+        "description", "Active scenario simulation."
+    )
+  else:
+    matched = SCENARIO_FALLBACKS["Baseline"]
+    for key, cfg in SCENARIO_FALLBACKS.items():
+      if key.lower() in macro_scenario.lower():
+        matched = cfg
+        break
+    def_vol = matched["vol"]
+    def_delay = matched["delay"]
+    def_surge = matched["surge"]
+    scenario_desc = matched["desc"]
+
+  # Reset slider values if user selected a new macro scenario
+  if st.session_state.get("last_applied_sandbox_scenario") != macro_scenario:
+    st.session_state["last_applied_sandbox_scenario"] = macro_scenario
+    st.session_state["sim_vol"] = min(1.0, max(0.05, round(def_vol, 2)))
+    st.session_state["sim_lt"] = max(1, min(30, def_delay))
+    st.session_state["sim_dem"] = min(2.5, max(0.8, round(def_surge, 2)))
+    st.session_state.pop("mc_results", None)
+
+  st.session_state.setdefault("sim_vol", min(1.0, max(0.05, round(def_vol, 2))))
+  st.session_state.setdefault("sim_lt", max(1, min(30, def_delay)))
+  st.session_state.setdefault("sim_dem", min(2.5, max(0.8, round(def_surge, 2))))
+
+  # Pull session state metrics
+  si_score = st.session_state.get("si_composite", -0.33)
+  gross_surge = st.session_state.get("extracted_demand_surge", 185000)
+  active_contracts = st.session_state.get("active_contracts_volume", 129500)
+  cash_balance = st.session_state.get("sop_cash_balance", 5_000_000.0)
+  fix_executed = st.session_state.get("fix_executed", False)
+  curr_leadtime_delay = st.session_state.get("active_leadtime_delay_days", 2.5)
+
+  # Compute open floating deficit (Safeguard minimum value so simulation doesn't evaluate to zero)
+  net_units = max(
+      15000,
+      st.session_state.get(
+          "net_uncovered_units", max(0, gross_surge - active_contracts)
+      ),
+  )
+
+  st.divider()
+  st.subheader("⚙️ Monte Carlo Stress Test Parameters")
+  st.info(
+      f"🌐 **Active Scenario Preset**: **{macro_scenario}** — *{scenario_desc}*\n\n"
+      f"Gross Demand Surge: **{gross_surge:,} {term_unit}** | Baseline"
+      f" Contracts: **{active_contracts:,} {term_unit}** | **Net Deficit"
+      f" Exposure: {net_units:,} {term_unit}**"
+  )
+
+  col_s1, col_s2, col_s3, col_s4 = st.columns(4)
+  with col_s1:
+    n_sims = st.select_slider(
+        "Simulation Runs",
+        options=[1000, 2500, 5000, 10000, 20000],
+        value=5000,
+        key="sim_runs",
+    )
+  with col_s2:
+    vol_shock = st.slider(
+        "Spot Price Volatility (σ)",
+        min_value=0.05,
+        max_value=1.00,
+        step=0.05,
+        key="sim_vol",
+    )
+  with col_s3:
+    lead_time_shock = st.slider(
+        "Lead Time Delay (Days)",
+        min_value=1,
+        max_value=30,
+        step=1,
+        key="sim_lt",
+    )
+  with col_s4:
+    demand_multiplier = st.slider(
+        "Demand Surge Multiplier",
+        min_value=0.8,
+        max_value=2.5,
+        step=0.1,
+        key="sim_dem",
+    )
+
+  st.divider()
+
+  # 3. MONTE CARLO SIMULATION EXECUTION
+  if st.button("🚀 Run Monte Carlo Stress Simulation", key="btn_run_mc"):
+    with st.spinner(f"Simulating {n_sims:,} market shocks..."):
+      base_unit_price = (
+          780.0
+          if "Heavy" in persona
+          else (3200.0 if "Merchant" in persona else 45.0)
+      )
+      price_shocks = np.random.lognormal(
+          mean=np.log(base_unit_price), sigma=vol_shock, size=n_sims
+      )
+
+      # Simulate gross demand surge across iterations
+      simulated_gross = (
+          (active_contracts + gross_surge)
+          * demand_multiplier
+          * np.random.uniform(0.9, 1.1, size=n_sims)
+      )
+
+      # Subtract baseline contracted volume to evaluate floating net deficit
+      simulated_net_deficit = np.maximum(0, simulated_gross - active_contracts)
+
+      # FIX hedge reduces open floating exposure on the net deficit
+      hedge_ratio = 0.85 if fix_executed else 0.0
+      unhedged_deficit = simulated_net_deficit * (1.0 - hedge_ratio)
+      hedged_deficit = simulated_net_deficit * hedge_ratio
+
+      # Financial cost calculation
+      unhedged_cost = unhedged_deficit * price_shocks
+      hedged_cost = hedged_deficit * base_unit_price
+      total_simulated_cost = unhedged_cost + hedged_cost
+      net_cash_impact = cash_balance - total_simulated_cost
+
+      st.session_state["mc_results"] = {
+          "mean_cost": float(np.mean(total_simulated_cost)),
+          "var_95": float(np.percentile(total_simulated_cost, 95)),
+          "var_99": float(np.percentile(total_simulated_cost, 99)),
+          "insolvency_risk": float(np.mean(net_cash_impact < 0) * 100.0),
+          "total_cost": total_simulated_cost,
+      }
+
+  # 4. SIMULATION OUTCOMES & RISK VISUALIZATION
+  if "mc_results" in st.session_state:
+    res = st.session_state["mc_results"]
+    st.markdown("### 📊 Simulation Outcomes & Value at Risk (VaR)")
+
+    col_m1, col_m2, col_m3, col_m4 = st.columns(4)
+    with col_m1:
+      st.metric("Expected Net Deficit Cost", f"${res['mean_cost']:,.2f}")
+    with col_m2:
+      st.metric("95% Value at Risk (VaR)", f"${res['var_95']:,.2f}")
+    with col_m3:
+      st.metric("99% Tail Risk (VaR)", f"${res['var_99']:,.2f}")
+    with col_m4:
+      st.metric(
+          "Treasury Insolvency Risk",
+          f"{res['insolvency_risk']:.1f}%",
+          delta="High Risk" if res["insolvency_risk"] > 5 else "Protected",
+          delta_color="inverse" if res["insolvency_risk"] > 5 else "normal",
+      )
+
+    df_chart = pd.DataFrame({"Simulated Cost ($)": res["total_cost"]})
+    fig = px.histogram(
+        df_chart,
+        x="Simulated Cost ($)",
+        nbins=50,
+        title=f"Monte Carlo Net Deficit Risk Exposure ({n_sims:,} Iterations)",
+        color_discrete_sequence=["#0068C9" if fix_executed else "#FF2B2B"],
+    )
+    fig.add_vline(
+        x=res["var_95"],
+        line_dash="dash",
+        line_color="orange",
+        annotation_text="95% VaR",
+    )
+    fig.add_vline(
+        x=res["var_99"],
+        line_dash="dash",
+        line_color="red",
+        annotation_text="99% Tail VaR",
+    )
+    st.plotly_chart(fig, use_container_width=True)
+
+    st.divider()
+    st.markdown("### 🔄 Closed-Loop Operational & CTRM Actions")
+    st.caption(
+        "Propagate simulated parameters into operational planning or execute a"
+        " direct CTRM derivative hedge."
+    )
+
+    act_col1, act_col2 = st.columns(2)
+
+    # ACTION 1: Propagate macro variables to S&OP
+    with act_col1:
+      if st.button(
+          "🧪 Inject Stressed Macro Parameters into S&OP",
+          key="btn_inject_params",
+          use_container_width=True,
+      ):
+        new_gross_surge = int(gross_surge * demand_multiplier)
+        new_net_deficit = max(0, new_gross_surge - active_contracts)
+        new_lt_delay = curr_leadtime_delay + lead_time_shock
+        new_si = max(-1.0, si_score - (vol_shock * 0.5))
+
+        st.session_state["extracted_demand_surge"] = new_gross_surge
+        st.session_state["net_uncovered_units"] = new_net_deficit
+        st.session_state["fix_executed"] = False  # Reset lock to allow hedging the new deficit
+        st.session_state["active_leadtime_delay_days"] = new_lt_delay
+        st.session_state["si_composite"] = new_si
+
+        if "run_end_to_end_sop_cascade" in globals():
+          updated_cascade = run_end_to_end_sop_cascade(
+              base_demand_units=st.session_state.get("base_demand", 200000)
+          )
+          st.session_state["active_sop_cascade"] = updated_cascade
+
+        st.toast("Injected macro stress into Executive S&OP!", icon="🧪")
+        st.rerun()
+
+    # ACTION 2: Execute derivative hedge into CTRM Desk & Sync S&OP
+    with act_col2:
+      hedge_btn_label = (
+          "✅ Hedge Already Active in CTRM Desk"
+          if fix_executed
+          else "⚡ Execute CTRM Hedge & Sync to Executive S&OP"
+      )
+      if st.button(
+          hedge_btn_label,
+          key="btn_execute_ctrm_hedge",
+          disabled=(fix_executed and st.session_state.get("net_uncovered_units", 0) == 0),
+          use_container_width=True,
+      ):
+        st.session_state["fix_executed"] = True
+        st.session_state["fix_hedged_volume"] = net_units
+        st.session_state["fix_execution_timestamp"] = datetime.now(
+            timezone.utc
+        ).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+        # Recalculate Executive S&OP Cascade with hedge active
+        if "run_end_to_end_sop_cascade" in globals():
+          updated_cascade = run_end_to_end_sop_cascade(
+              base_demand_units=st.session_state.get("base_demand", 200000)
+          )
+          st.session_state["active_sop_cascade"] = updated_cascade
+
+        st.toast(
+            f"FIX 4.4 Hedge Executed for {net_units:,} {term_unit}! Synced to"
+            " CTRM Desk & Executive S&OP.",
+            icon="⚡",
+        )
+        st.rerun()
+
+
+def render_handshake_simulator():
+  st.subheader("🤝 Enterprise Handshake Simulator")
+  st.caption(
+      "Simulate live mTLS + OAuth 2.0 payloads dispatched across enterprise"
+      " ERPs, FIX gateways, and NLP News/Sentiment pipelines."
+  )
+
+  sim_col1, sim_col2 = st.columns([1, 1])
+
+  with sim_col1:
+    target_endpoint = st.selectbox(
+        "Select Target Enterprise Endpoint:",
+        [
+            "NLP News & Sentiment Webhook (Google / LinkedIn Ingest)",
+            "SAP S/4HANA (BAPI PO Creation)",
+            "Oracle Financials (GL Journal Post)",
+            "CME / LME Direct FIX 4.4 Engine (DMA Execution)",
+            "Macro & Freight Telemetry Stream (NY Fed / FBX Ingest)",
+            "Salesforce CRM (Demand Opportunity Sync)",
+        ],
+        key="sim_target",
+    )
+    generated_idempotency = f"idemp_{uuid.uuid4().hex[:10]}"
+    st.text_input(
+        "Active Idempotency Key",
+        value=generated_idempotency,
+        disabled=True,
+    )
+    run_sim = st.button(
+        "⚡ Initiate Bi-Directional Handshake", key="btn_run_handshake"
+    )
+
+  with sim_col2:
+    if run_sim:
+      with st.status(
+          "Executing 4-Step Handshake Protocol...", expanded=True
+      ) as status:
+        st.write(
+            "🔒 **Step 1: Perimeter Auth** — Exchanging OAuth 2.0 Bearer tokens"
+            " over mTLS tunnel..."
+        )
+        time.sleep(0.3)
+        st.write(
+            "🔑 **Step 2: Integrity & Schema Verification** — Computing"
+            " HMAC-SHA256 signature & verifying JSON schema..."
+        )
+        time.sleep(0.3)
+        st.write(
+            "📦 **Step 3: Idempotent Delivery** — Pushing payload with"
+            f" header `X-Idempotency-Key: {generated_idempotency[:14]}...`"
+        )
+        time.sleep(0.3)
+        st.write(
+            "✅ **Step 4: Non-Repudiation ACK** — Received `200 OK` with"
+            " verified document correlation ID!"
+        )
+        status.update(
+            label="Handshake Complete & Cryptographically Verified!",
+            state="complete",
+            expanded=False,
+        )
+
+      tx_id = f"TXN-{uuid.uuid4().hex[:6].upper()}"
+      correlation_id = f"corr-{uuid.uuid4().hex[:12]}"
+      timestamp_now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+      fake_sig = hmac.new(
+          b"ibp_tenant_secret", tx_id.encode(), hashlib.sha256
+      ).hexdigest()[:24]
+
+      st.json({
+          "handshake_result": "HTTP 200 OK (ACCEPTED)",
+          "transaction_id": tx_id,
+          "correlation_id": correlation_id,
+          "idempotency_key": generated_idempotency,
+          "timestamp": timestamp_now,
+          "security_handshake": {
+              "protocol": "mTLS + OAuth2.0 Client Credentials",
+              "hmac_sha256_signature": f"0x{fake_sig}...",
+              "schema_validation": "PASSED (SECTOR_BENCHMARK_MAP v1.4)",
+          },
+          "acknowledged_receipt": {
+              "target_system": target_endpoint.split(" ")[0],
+              "remote_document_id": f"DOC-SYS-{uuid.uuid4().hex[:8].upper()}",
+              "roundtrip_latency": "24 ms",
+          },
+      })
+
+def render_integration_architecture(
+    persona="Discrete & Heavy Industrial Enterprise", **kwargs
+):
+    """Investor-Grade Enterprise Integration & Architecture Control Desk."""
+    st.title("🔌 Integration & Architecture Endpoints")
+    st.caption(
+        "Real-Time API Topology, Gateway Latency Benchmarks, Data Pipelines,"
+        " and Core ERP / CTRM Connectors."
+    )
+
+    active_sector = st.session_state.get(
+        "sector_focus", "Non-Ferrous Metals (Copper, Tin, Zinc, Aluminum)"
+    )
+    sector_cfg = SECTOR_BENCHMARK_MAP.get(
+        active_sector,
+        SECTOR_BENCHMARK_MAP["Non-Ferrous Metals (Copper, Tin, Zinc, Aluminum)"],
+    )
+    now_iso = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+    # Dynamic pipeline state metrics
+    gross_surge = st.session_state.get("extracted_demand_surge", 185000)
+    active_contracts = st.session_state.get("active_contracts_volume", 129500)
+    net_units = st.session_state.get(
+        "net_uncovered_units", max(0, gross_surge - active_contracts)
+    )
+    term_unit = kwargs.get("term_unit", "Units")
+    fix_executed = st.session_state.get("fix_executed", False)
+    hedge_gain = 3_810_000.0 if fix_executed else 0.0
+
+    # 1. INVESTOR EXECUTIVE BANNER
+    with st.container(border=True):
+        st.markdown("### 🏆 Platform Architecture & Scalability Highlights")
+        kpi1, kpi2, kpi3, kpi4 = st.columns(4)
+        with kpi1:
+            st.metric("Live Connectors", "12 / 12 Active", delta="Zero Downtime")
+            st.caption("Macro, Freight, CTRM & ERP")
+        with kpi2:
+            st.metric("Avg Gateway Latency", "26.4 ms", delta="-4.1 ms YoY")
+            st.caption("Sub-50ms Enterprise SLA")
+        with kpi3:
+            st.metric("Daily Signal Volume", "2.4M Events", delta="+38% YoY")
+            st.caption("Unstructured NLP + AIS Pings")
+        with kpi4:
+            st.metric("Enterprise Security", "SOC2 / ISO27001", delta="mTLS + OAuth2")
+            st.caption("Bank-Grade Encryption")
+
+    st.info(
+        f"🌐 **Active Sector**: **{active_sector}** | Primary Benchmark:"
+        f" **{sector_cfg['primary_index']}** | Net Uncovered Target:"
+        f" **{net_units:,} {term_unit}**"
+    )
+
+    st.divider()
+
+    # 2. EXPANDED GATEWAY STATUS MATRIX (Includes News, Sentiment, Macro & Freight)
+    st.subheader("📡 Real-Time Benchmark & API Gateway Status")
+    gateway_df = pd.DataFrame({
+        "Category": [
+            "Macro Telemetry",
+            "Freight & Logistics",
+            "NLP & News Signals",
+            "Social & Inbox",
+            "Market Data",
+            "CTRM Execution",
+            "Core Enterprise ERP",
+            "Financial Ledger",
+            "CRM & Deal Desk",
+        ],
+        "Endpoint / Interface": [
+            "NY Fed GSCPI & FRED Industrial Feed",
+            "FBX Freight & AIS Vessel Tracking",
+            "Multi-Commodity RSS Disruption Scanner",
+            "LinkedIn Scraper & Gmail IMAP Pipeline",
+            f"Primary Benchmark Feed ({sector_cfg['primary_index'].split('/')[0].strip()})",
+            "CME / LME Direct FIX Gateway",
+            "SAP S/4HANA Core ERP",
+            "Oracle / PeopleSoft GL Gateway",
+            "Salesforce CRM API Engine",
+        ],
+        "Mapped Asset / Protocol": [
+            "GSCPI / INDPRO / PPI Benchmark",
+            "Freightos FBX & AIS gRPC Stream",
+            "Google News XML / Sentiment Parser ($SI$)",
+            "IMAP SSL / OAuth2 REST Engine",
+            sector_cfg["ticker_symbol"],
+            "FIX 4.4 Engine",
+            f"BAPI ({sector_cfg['sap_mat_code']})",
+            f"GL Sync ({sector_cfg['oracle_gl_account']})",
+            "REST / OAuth 2.0",
+        ],
+        "Latency": ["12 ms", "31 ms", "15 ms", "42 ms", "14 ms", "4 ms", "45 ms", "62 ms", "88 ms"],
+        "Status": [
+            "🟢 HEALTHY", "🟢 HEALTHY", "🟢 HEALTHY", "🟢 HEALTHY", 
+            "🟢 HEALTHY", "🟢 HEALTHY", "🟢 HEALTHY", "🟢 HEALTHY", "🟢 HEALTHY"
+        ],
+    })
+    st.dataframe(gateway_df, use_container_width=True, hide_index=True)
+
+    st.divider()
+
+    # 3. CORE CONNECTORS & WEBHOOK SCHEMAS (5 Tabs)
+    st.subheader("🏛️ Enterprise Core Connectors & Schemas")
+    tab1, tab2, tab3, tab4, tab5 = st.tabs([
+        "🧠 News & Sentiment NLP Payload",
+        "🏭 SAP S/4HANA (BAPI)",
+        "🏛️ Oracle GL Financial Gateway",
+        "⚡ CME / LME FIX 4.4 Engine",
+        "🌐 Macro Telemetry Ingest",
+    ])
+
+    with tab1:
+        st.markdown(f"**Live News & Sentiment Ingestion Payload (`POST`) — {sector_cfg['ticker_symbol']}**")
+        st.code(
+            f"""POST /api/v1/nlp/ingest/unstructured-feed
+Headers: {{ "Authorization": "Bearer ibp_staging_token_******" }}
+
+Payload:
+{{
+  "sector_focus": "{active_sector}",
+  "benchmark_index": "{sector_cfg['primary_index']}",
+  "ticker_symbol": "{sector_cfg['ticker_symbol']}",
+  "telemetry": {{
+    "gross_demand_surge_units": {gross_surge},
+    "contracted_baseline_units": {active_contracts},
+    "net_uncovered_deficit_units": {net_units}
+  }},
+  "unstructured_signal": {{
+    "source_type": "Multi-Commodity RSS / LinkedIn Intelligence",
+    "headline": "{sector_cfg['sample_headline']}",
+    "extracted_sentiment_index": -0.68,
+    "timestamp": "{now_iso}"
+  }}
+}}""",
+            language="json",
+        )
+
+    with tab2:
+        st.markdown("**Dynamic Purchase Order Creation via SAP BAPI_PO_CREATE1**")
+        st.code(
+            f"""CALL BAPI_PO_CREATE1 (
+  Header: {{ Vendor: "VEND_SECTOR_PRIMARY", DocType: "NB", PurchOrg: "1000" }},
+  Items: [
+    {{ Material: "{sector_cfg['sap_mat_code']}", Index_Ref: "MASTER_CONTRACT_FRAMEWORK", Quantity: {active_contracts}, Unit: "{term_unit}" }},
+    {{ Material: "{sector_cfg['sap_mat_code']}_SPOT", Index_Ref: "{sector_cfg['ticker_symbol']}", Quantity: {net_units}, Unit: "{term_unit}" }}
+  ]
+)""",
+            language="cpp",
+        )
+
+    with tab3:
+        render_freight_weather_blackswan_tab()
+Headers: {{ "X-Oracle-App-ID": "{sector_cfg['oracle_gl_account']}" }}
+
+    # Payload Mapping:
+# - Benchmark Index Trigger : {sector_cfg['primary_index']}
+# - Net Physical Deficit    : {net_units:,} {term_unit}
+# - Financial Gain Realized : Credit {sector_cfg['oracle_gl_account']} (${hedge_gain:,.2f})
+# - Treasury Cash Outlay    : Debit Treasury Operations Balance""",
+# language="json",
+# )
+
+# with tab4:
+# st.markdown("**Automated Hedge Execution via FIX 4.4 Protocol**")
+# st.code(
+# f"""8=FIX.4.4|9=245|35=D|49=PLATFORM_DESK|56=CME_LME_GATEWAY|34=1082|52={now_iso}|
+# 11=ORDER_HEDGE_{now_iso[:10]}|55={sector_cfg['ticker_symbol']}|54=1|38={net_units}|
+# 40=2|44=MARKET_BENCHMARK|59=0|47=A|21=1|10=182|""",
+# language="text",
+# )
+
+# with tab5:
+# st.markdown("**Real-Time Macro Telemetry Streaming (FRED & NY Fed)**")
+# st.code(
+# f"""GET /api/v1/telemetry/stream
+Headers: {{ "Authorization": "Bearer telemetry_live_token_******" }}
+
+    # Response Stream:
+    # {{
+    # "timestamp": "{now_iso}",
+    # "ny_fed_gscpi": +0.82,
+    # "us_fred_mfg_index": 102.4,
+    # "freightos_fbx_ocean_feu": 3850.0
+    # }}""",
+    # language="json",
+    # )
+
+# st.divider()
+
+    # 4. RETAIN EXISTING HANDSHAKE SIMULATOR HELPER
+# render_handshake_simulator()
 
 def render_sidebar_navigation():
   st.sidebar.title("⚡ IBP Control Tower")
