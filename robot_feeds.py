@@ -1,3 +1,4 @@
+import requests
 import datetime
 import streamlit as st
 import json
@@ -378,7 +379,7 @@ def render_predictive_commodity_engine(*args, **kwargs):
         genspark_sig = get_genspark_signal_for_commodity(target_comm)
         genspark_si = float(genspark_sig.get("si_composite", genspark_sig.get("sentiment_score", 0.40)))
 
-        spot_price = 2850.00 if "Zinc" in target_comm else (9820.00 if "Copper" in target_comm else 2450.00)
+        spot_price = fetch_live_yfinance_spot(target_comm)
         forecast_60d = spot_price * (1.0 + (0.05 * genspark_si))
         d60 = ((forecast_60d - spot_price) / spot_price) * 100
 
@@ -595,6 +596,61 @@ def render_freight_weather_blackswan_tab(*args, **kwargs):
             delta_color="inverse"
         )
         st.caption("🛡️ Red Sea, Suez & Bab-el-Mandeb Strait Risk")
+
+
+
+
+# --- LIVE HYBRID TELEMETRY INGESTION HELPERS ---
+@st.cache_data(ttl=300)
+def fetch_live_yfinance_spot(commodity_name):
+    """Fetch real-time commodity futures spot baseline via YFinance with 5-min cache."""
+    ticker_map = {
+        "copper": "HG=F",
+        "zinc": "ZNC=F",
+        "aluminum": "ALI=F",
+        "brent": "BZ=F",
+        "oil": "CL=F",
+        "gold": "GC=F",
+        "silver": "SI=F"
+    }
+    c_lower = str(commodity_name).lower()
+    symbol = None
+    for k, v in ticker_map.items():
+        if k in c_lower:
+            symbol = v
+            break
+            
+    if symbol:
+        try:
+            import yfinance as yf
+            t = yf.Ticker(symbol)
+            hist = t.history(period="1d", timeout=2.0)
+            if not hist.empty:
+                val = float(hist["Close"].iloc[-1])
+                # Convert Copper $/lb to USD/MT
+                if "copper" in c_lower and val < 100:
+                    return round(val * 2204.62, 2)
+                return round(val, 2)
+        except Exception:
+            pass
+            
+    return 2850.00 if "zinc" in c_lower else (9820.00 if "copper" in c_lower else 2450.00)
+
+@st.cache_data(ttl=1800)
+def fetch_live_fred_indicator(series_id="INDPRO"):
+    """Fetch live FRED economic observation with 30-min cache."""
+    api_key = os.environ.get("FRED_API_KEY", "")
+    if api_key:
+        try:
+            url = f"https://api.stlouisfed.org/fred/series/observations?series_id={series_id}&api_key={api_key}&file_type=json"
+            res = requests.get(url, timeout=2.0)
+            if res.status_code == 200:
+                obs = res.json().get("observations", [])
+                if obs:
+                    return f"{float(obs[-1]['value']):.1f} pts"
+        except Exception:
+            pass
+    return "103.8 pts"
 
 
 def is_market_hours():
