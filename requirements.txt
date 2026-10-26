@@ -1,15 +1,6 @@
---extra-index-url https://download.pytorch.org/whl/cpu
-torch
-scikit-learn
 streamlit
-pandas
 numpy
+pandas
 plotly
-pydeck
-requests
-scipy
-beautifulsoup4
-feedparser
-httpx
 yfinance
-lxml
+requests
