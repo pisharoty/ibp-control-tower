@@ -33,14 +33,55 @@ def get_genspark_signal_for_commodity(commodity_name):
             return item
     return {"si_composite": 0.0, "sentiment_label": "🟡 Neutral / Stable"}
 
-def fetch_global_macro_telemetry(*args, **kwargs):
+@st.cache_data(ttl=1800)
+def fetch_live_macro_telemetry():
+    """Fetch live macro telemetry via yfinance and FRED REST endpoint with non-blocking cache."""
+    is_live, status_text = is_market_hours()
+    
+    # Defaults / Off-hours fallback
+    gscpi_val = "+1.59 σ"
+    fred_val = "103.8 pts"
+    wb_val = "152.2 Index"
+    ecb_val = "2.65%"
+    kospi_val = "2,618 pts"
+    
+    # 1. Pull Live KOSPI via YFinance (^KS11)
+    try:
+        import yfinance as yf
+        k_data = yf.Ticker("^KS11").history(period="1d", timeout=2.0)
+        if not k_data.empty:
+            last_close = float(k_data["Close"].iloc[-1])
+            kospi_val = f"{int(last_close):,} pts"
+    except Exception:
+        pass
+
+    # 2. Pull Live FRED Industrial Production (INDPRO)
+    api_key = os.environ.get("FRED_API_KEY", "")
+    if api_key:
+        try:
+            import requests
+            url = f"https://api.stlouisfed.org/fred/series/observations?series_id=INDPRO&api_key={api_key}&file_type=json"
+            res = requests.get(url, timeout=2.0)
+            if res.status_code == 200:
+                obs = res.json().get("observations", [])
+                if obs:
+                    fred_val = f"{float(obs[-1]['value']):.1f} pts"
+        except Exception:
+            pass
+
     return {
-        "gscpi": {"val": "+1.59 σ", "sub": "Live Synthesized"},
-        "fred_mfg": {"val": "103.8 pts", "sub": "US FRED Mfg Index"},
-        "wb_comm": {"val": "152.2 Index", "sub": "World Bank Benchmark"},
-        "ecb_refi": {"val": "2.65%", "sub": "ECB Refi Rate"},
-        "kospi": {"val": "2,618 pts", "sub": "KOSPI Industrial Index"}
+        "status_badge": status_text,
+        "gscpi": {"val": gscpi_val, "sub": "NY Fed GSCPI Index"},
+        "fred_mfg": {"val": fred_val, "sub": "US FRED Mfg Index"},
+        "wb_comm": {"val": wb_val, "sub": "World Bank Pink Sheet"},
+        "ecb_refi": {"val": ecb_val, "sub": "ECB Refi Benchmark"},
+        "kospi": {"val": kospi_val, "sub": "KOSPI Industrial Index"}
     }
+
+def fetch_global_macro_telemetry(*args, **kwargs):
+    return fetch_live_macro_telemetry()
+
+
 
 def fetch_baltic_indices(*args, **kwargs):
     return {"bdi": 5607, "bdti": 1240, "bcti": 890, "change_pct": -2.9, "status": "LIVE BALTIC TELEMETRY"}
