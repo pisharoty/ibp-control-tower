@@ -121,6 +121,9 @@ def fetch_global_macro_telemetry(*args, **kwargs):
 # --- LIVE MULTI-CHANNEL TELEMETRY & FREIGHT ENGINE ---
 
 @st.cache_data(ttl=300)
+# --- LIVE MULTI-CHANNEL TELEMETRY & FREIGHT ENGINE ---
+
+@st.cache_data(ttl=300)
 def fetch_baltic_indices(*args, **kwargs):
     """Fetch live Baltic Dry Freight & Shipping telemetry via REST proxy."""
     try:
