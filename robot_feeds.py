@@ -34,6 +34,24 @@ def get_genspark_signal_for_commodity(commodity_name):
     return {"si_composite": 0.0, "sentiment_label": "🟡 Neutral / Stable"}
 
 @st.cache_data(ttl=30)
+def fetch_direct_yahoo_price(ticker):
+    """Fetch live market price directly via HTTP REST API with zero package dependencies."""
+    try:
+        import requests
+        url = f"https://query1.finance.yahoo.com/v8/finance/chart/{ticker}?range=1d&interval=1m"
+        headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"}
+        res = requests.get(url, headers=headers, timeout=2.5)
+        if res.status_code == 200:
+            meta = res.json()["chart"]["result"][0]["meta"]
+            price = meta.get("regularMarketPrice") or meta.get("chartPreviousClose")
+            if price:
+                return float(price)
+    except Exception:
+        pass
+    return None
+
+
+@st.cache_data(ttl=30)
 def fetch_live_macro_telemetry():
     """Fetch live macroeconomic telemetry across equity, USD, and FRED feeds."""
     is_live, status_text = is_market_hours()
