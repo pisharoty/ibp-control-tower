@@ -44,12 +44,12 @@ def execute_ctrm_trade(trade_title="CTRM FIX Protocol Hedge", benefit_per_trade=
     st.rerun()
 
 # SIDEBAR NAVIGATION ROUTER
-st.sidebar.title("⚡ IBP Control Tower")
+st.sidebar.title("⚡ Predictive Commodity Intelligence Platform")
 
 persona = st.sidebar.selectbox(
     "🏢 Enterprise Operating Persona:",
     [
-        "🏭 Discrete & Heavy Industrial Enterprise",
+        "🏭 Commercial Commodities & Trading Enterprise",
         "📦 Process Goods & FMCG Enterprise",
         "📈 Merchant Trading & Commodity Risk Desk"
     ],
@@ -57,22 +57,22 @@ persona = st.sidebar.selectbox(
 )
 
 modules = [
-    "📊 Executive S&OP Control Tower",
-    "📦 Enterprise Inventory & Position Manager",
-    "🧠 NLP Commercial Sensing & Field Intelligence",
-    "⚙️ Demand/Supply Match & Plant Load Balancer",
-    "📈 Physical Procurement & Master Contract Desk",
-    "🛡️ CTRM Derivatives & Commodity Risk Desk",
-    "🌐 Global Logistics Network & GIS Control Tower",
-    "🧪 Sandbox Flight Simulator & Stress Lab",
+    "📊 Global Trade Flows & S&OP Engine",
+    "📦 Commodity Inventory & Position Analytics",
+    "🧠 Alternative Data & Sentiment Vector Matrix",
+    "⚙️ Machine Learning Supply/Demand Projections",
+    "📈 Physical Cargo & Contract Intelligence",
+    "🛡️ Backtested Portfolio & CTRM Risk Desk",
+    "🌐 Real-Time AIS Cargo & GIS Telemetry",
+    "🧪 Monte Carlo Risk & Scenario Simulator",
     "🔌 Integration & Architecture Endpoints"
 ]
 
 selected_module = st.sidebar.radio("Navigation Modules:", modules, key="sidebar_module_radio")
 
 # MODULE 1: EXECUTIVE S&OP CONTROL TOWER
-def render_executive_sop(persona="Discrete & Heavy Industrial Enterprise", term_unit="Units"):
-    st.title("📊 Executive S&OP Control Tower")
+def render_executive_sop(persona="Commercial Commodities & Trading Enterprise", term_unit="Units"):
+    st.title("📊 Global Trade Flows & S&OP Engine")
     st.caption(f"Active Persona View: **{persona}**")
     
     surge = st.session_state.get("platform_demand_impact", st.session_state.get("extracted_demand_surge", 65000))
@@ -108,9 +108,9 @@ def render_executive_sop(persona="Discrete & Heavy Industrial Enterprise", term_
         st.success(f"🟢 **CTRM Risk Desk**: {len(st.session_state['executed_hedges'])} Hedges Executed | Gain: +${total_hedge_gain:,.2f}")
 
 # MODULE 3: NLP COMMERCIAL SENSING
-def render_nlp_commercial_sensing(persona="Discrete & Heavy Industrial Enterprise"):
-    st.title("🧠 NLP Commercial Sensing & Field Intelligence")
-    st.caption("Active Persona View: Discrete & Heavy Industrial Enterprise | Ingest unstructured signals from live RSS feeds, executive disclosures, email debriefs, hard macro indicators (NY Fed, FRED, World Bank, ECB, PBOC, KOSPI), and ocean/air freight telemetry.")
+def render_nlp_commercial_sensing(persona="Commercial Commodities & Trading Enterprise"):
+    st.title("🧠 Alternative Data & Sentiment Vector Matrix")
+    st.caption("A data-driven commodity intelligence and machine-learning forecasting platform providing real-time cargo tracking, supply/demand projections, and backtested analytics across 50+ commodities.")
     
     tab1, tab2, tab3 = st.tabs([
         "📡 Live Web, Macro & Social Signals", 
@@ -198,8 +198,8 @@ def render_nlp_commercial_sensing(persona="Discrete & Heavy Industrial Enterpris
                             st.rerun()
 
 # MODULE 4: DEMAND/SUPPLY MATCH
-def render_demand_supply_match(persona="Discrete & Heavy Industrial Enterprise", term_unit="Units"):
-    st.title("⚙️ Demand/Supply Match & Plant Load Balancer")
+def render_demand_supply_match(persona="Commercial Commodities & Trading Enterprise", term_unit="Units"):
+    st.title("⚙️ Machine Learning Supply/Demand Projections")
     st.caption("Automated inventory netting, multi-horizon S&OP scheduling, dynamic order offsets, and plant load balancing.")
     
     surge_units = st.session_state.get("platform_demand_impact", st.session_state.get("extracted_demand_surge", 102968))
@@ -280,8 +280,8 @@ def render_demand_supply_match(persona="Discrete & Heavy Industrial Enterprise",
             st.toast("✅ Plant Load Rebalanced across Detroit, Munich, and Ohio CMO Nodes!")
 
 # MODULE 5: PHYSICAL PROCUREMENT
-def render_physical_procurement(persona="Discrete & Heavy Industrial Enterprise", term_unit="Units"):
-    st.title("📈 Physical Procurement & Master Contract Desk")
+def render_physical_procurement(persona="Commercial Commodities & Trading Enterprise", term_unit="Units"):
+    st.title("📈 Physical Cargo & Contract Intelligence")
     st.caption("Physical vendor contract execution, direct material sourcing, tier-1 risk scorecards, and price adjustment clauses.")
     
     st.subheader("📋 Active Master Physical Supply Contracts Booking Register")
@@ -321,8 +321,8 @@ def render_physical_procurement(persona="Discrete & Heavy Industrial Enterprise"
         st.rerun()
 
 # MODULE 6: CTRM DERIVATIVES & COMMODITY RISK DESK (ENHANCED WITH SYNTHETIC & MULTI-OPTION STRATEGIES)
-def render_ctrm_desk(persona="Discrete & Heavy Industrial Enterprise", term_unit="Units"):
-    st.title("🛡️ CTRM Derivatives & Commodity Risk Desk")
+def render_ctrm_desk(persona="Commercial Commodities & Trading Enterprise", term_unit="Units"):
+    st.title("🛡️ Backtested Portfolio & CTRM Risk Desk")
     st.caption("Event-driven financial hedging, Black76 multi-option pricing, strategy payoff modeling, FIX 4.4 gateway, and derivatives register.")
     
     st.info(f"📡 **Active Ingested Risk Signal**: {st.session_state.get('platform_active_signal', 'Baseline Operations Target')}")
@@ -408,8 +408,8 @@ def render_ctrm_desk(persona="Discrete & Heavy Industrial Enterprise", term_unit
         st.dataframe(pd.DataFrame(hedges), use_container_width=True, hide_index=True)
 
 # MODULE 7: GLOBAL LOGISTICS GIS (EXPANDED WITH RICH MAP & TELEMETRY REGISTERS)
-def render_global_logistics_gis(persona="Discrete & Heavy Industrial Enterprise", term_unit="Units"):
-    st.title("🌐 Global Logistics Network & GIS Control Tower")
+def render_global_logistics_gis(persona="Commercial Commodities & Trading Enterprise", term_unit="Units"):
+    st.title("🌐 Real-Time AIS Cargo & GIS Telemetry")
     st.caption("Real-time ocean AIS vessel tracking, port congestion, maritime chokepoints, and freight lane telemetry.")
     
     nodes = pd.DataFrame({
@@ -443,8 +443,8 @@ def render_global_logistics_gis(persona="Discrete & Heavy Industrial Enterprise"
     st.dataframe(pd.DataFrame(lanes_data), use_container_width=True, hide_index=True)
 
 # MODULE 8: SANDBOX FLIGHT SIMULATOR (ENHANCED WITH MONTE CARLO & PROPAGATION)
-def render_flight_simulator(persona="Discrete & Heavy Industrial Enterprise", term_unit="Units"):
-    st.title("🧪 Sandbox Flight Simulator & Stress Lab")
+def render_flight_simulator(persona="Commercial Commodities & Trading Enterprise", term_unit="Units"):
+    st.title("🧪 Monte Carlo Risk & Scenario Simulator")
     st.caption("Monte Carlo risk simulation, fat-tailed volatility stress testing, and direct scenario propagation into platform state.")
     
     st.subheader("⚙️ Macro Stress Scenario & Monte Carlo Parameters")
@@ -498,7 +498,7 @@ def render_flight_simulator(persona="Discrete & Heavy Industrial Enterprise", te
         st.rerun()
 
 # MODULE 9: INTEGRATION & ARCHITECTURE ENDPOINTS (EXPANDED CATALOG & ARCHITECTURE BLUEPRINT)
-def render_integration_architecture(persona="Discrete & Heavy Industrial Enterprise", selected_module=""):
+def render_integration_architecture(persona="Commercial Commodities & Trading Enterprise", selected_module=""):
     st.title("🔌 Integration & Architecture Endpoints")
     st.caption("REST API endpoints, Webhook listeners, FIX 4.4 protocol specifications, and SAP S/4HANA / Oracle ERP connectors.")
     
