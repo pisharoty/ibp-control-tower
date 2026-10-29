@@ -1,5 +1,14 @@
 import streamlit as st
 
+if "active_mc_scenario" not in st.session_state:
+    st.session_state["active_mc_scenario"] = None
+if "mc_expected_loss" not in st.session_state:
+    st.session_state["mc_expected_loss"] = 0.0
+if "mc_transit_delay" not in st.session_state:
+    st.session_state["mc_transit_delay"] = 0.0
+
+import streamlit as st
+
 if "rerouted_vessels" not in st.session_state:
     st.session_state["rerouted_vessels"] = []
 if "executed_hedges" not in st.session_state:
@@ -85,6 +94,8 @@ def render_executive_sop(persona=None):
 
     rerouted = st.session_state.get("rerouted_vessels", [])
     hedges = st.session_state.get("executed_hedges", [])
+    mc_scenario = st.session_state.get("active_mc_scenario", None)
+    mc_loss = st.session_state.get("mc_expected_loss", 0.0)
 
     twin_data = get_digital_twin_telemetry_feed()
     total_transit_drag = 0.0
@@ -103,27 +114,44 @@ def render_executive_sop(persona=None):
     base_aop = 120.0
     cogs = -70.0
     surge_rev = 10.0
-    net_ebitda = base_aop + cogs + surge_rev - drag_m + hedge_benefit
+    net_ebitda = base_aop + cogs + surge_rev - drag_m - mc_loss + hedge_benefit
 
     col_m1, col_m2, col_m3, col_m4 = st.columns(4)
     col_m1.metric("Annual Operating Plan (AOP)", f"${base_aop:.1f}M", "+4.2% YoY")
     col_m2.metric("Unconstrained Demand", "$125.94M", "+23,750 Units")
     col_m3.metric("CTRM Hedge Benefit", f"+${hedge_benefit:.2f}M", f"{len(hedges)} Digital Twin Hedges Locked")
-    col_m4.metric("Available Treasury Cash", f"${15.29 + (1.14 - drag_m):.2f}M", f"-${drag_m:.2f}M Carrying Drag")
+    col_m4.metric("Available Treasury Cash", f"${15.29 + (1.14 - drag_m) - mc_loss:.2f}M", f"-${drag_m + mc_loss:.2f}M Total Drag")
 
     col_w1, col_w2 = st.columns([2, 1])
 
     with col_w1:
         st.subheader("📊 Financial P&L Margin Waterfall")
         import plotly.graph_objects as go
+        
+        x_bars = ["Base AOP Rev", "Base COGS", "Surge Rev", "Freight Drag"]
+        measures = ["relative", "relative", "relative", "relative"]
+        y_vals = [base_aop, cogs, surge_rev, -drag_m]
+        text_vals = [f"+${base_aop:.1f}M", f"-${abs(cogs):.1f}M", f"+${surge_rev:.1f}M", f"-${drag_m:.2f}M"]
+
+        if mc_loss > 0:
+            x_bars.append("Macro Stress Shock")
+            measures.append("relative")
+            y_vals.append(-mc_loss)
+            text_vals.append(f"-${mc_loss:.2f}M")
+
+        x_bars.extend(["Hedge Benefit", "Net EBITDA"])
+        measures.extend(["relative", "total"])
+        y_vals.extend([hedge_benefit, None])
+        text_vals.extend([f"+${hedge_benefit:.2f}M", f"${net_ebitda:.2f}M"])
+
         fig = go.Figure(go.Waterfall(
             name="P&L Waterfall",
             orientation="v",
-            measure=["relative", "relative", "relative", "relative", "relative", "total"],
-            x=["Base AOP Rev", "Base COGS", "Surge Rev", "Freight & Twin Drag", "Hedge Benefit", "Net EBITDA"],
+            measure=measures,
+            x=x_bars,
             textposition="outside",
-            text=[f"+${base_aop:.1f}M", f"-${abs(cogs):.1f}M", f"+${surge_rev:.1f}M", f"-${drag_m:.2f}M", f"+${hedge_benefit:.2f}M", f"${net_ebitda:.2f}M"],
-            y=[base_aop, cogs, surge_rev, -drag_m, hedge_benefit, None],
+            text=text_vals,
+            y=y_vals,
             connector={"line": {"color": "rgb(63, 63, 63)"}},
             decreasing={"marker": {"color": "#ef553b"}},
             increasing={"marker": {"color": "#00cc96"}},
@@ -139,16 +167,20 @@ def render_executive_sop(persona=None):
 
     with col_w2:
         st.subheader("► Live Operational Desk Feeds")
-        st.markdown("• **Active Signal**: Sub-Factor Weight Shift (GSCPI:35% / NOAA:25% / Freight:25% / GEP:15%)")
+        
+        if mc_scenario:
+            st.error(f"🔥 **Macro Stress Active**: **{mc_scenario}** injected (-${mc_loss:.2f}M P&L Drag).")
+        else:
+            st.markdown("• **Active Signal**: Sub-Factor Weight Shift (GSCPI:35% / NOAA:25% / Freight:25% / GEP:15%)")
         
         if rerouted:
             r_str = ", ".join(rerouted)
-            st.success(f"• **Logistics Desk**: 🚢 Digital Twin Reroute Executed for **{r_str}** via Cape of Good Hope. Demurrage eliminated!")
+            st.success(f"• **Logistics Desk**: 🚢 Digital Twin Reroute Executed for **{r_str}** via Cape of Good Hope.")
         else:
             st.warning("• **Logistics Desk**: Lead time delay drag set at +3.5 days (Panama/Suez queues active).")
 
         if hedges:
-            st.success(f"• **CTRM Risk Desk**: ⚡ {len(hedges)} Digital Twin FIX 4.4 Short Futures Position(s) Locked | Active Margin Lock In Effect.")
+            st.success(f"• **CTRM Risk Desk**: ⚡ {len(hedges)} Digital Twin FIX 4.4 Short Futures Position(s) Locked.")
         else:
             st.info("• **CTRM Risk Desk**: 0 Digital Twin Hedges Executed.")
 
@@ -156,7 +188,7 @@ def render_executive_sop(persona=None):
     st.subheader("💰 Digital Twin Carrying Cost Drag on P&L Waterfall")
     col_pnl1, col_pnl2, col_pnl3 = st.columns(3)
     col_pnl1.metric("Gross EBITDA Target", "$120.00M")
-    col_pnl2.metric("In-Transit Carrying & Demurrage Drag", f"-${drag_m:.2f}M", delta=f"Saved ${1.14 - drag_m:.2f}M via Rerouting" if rerouted else "-SOFR Capital & Demurrage", delta_color="normal" if rerouted else "inverse")
+    col_pnl2.metric("In-Transit Carrying & Demurrage Drag", f"-${drag_m + mc_loss:.2f}M", delta=f"Injected Macro Loss: -${mc_loss:.2f}M" if mc_loss > 0 else f"Saved ${1.14 - drag_m:.2f}M via Rerouting", delta_color="inverse")
     col_pnl3.metric("Net Adjusted EBITDA", f"${net_ebitda:.2f}M")
 
 
@@ -374,6 +406,11 @@ def render_physical_procurement(persona="Commercial Commodities & Trading Enterp
 
 # MODULE 6: CTRM DERIVATIVES & COMMODITY RISK DESK (ENHANCED WITH SYNTHETIC & MULTI-OPTION STRATEGIES)
 def render_ctrm_desk(persona="Commercial Commodities & Trading Enterprise", term_unit="Units"):
+
+    mc_scenario_ctrm = st.session_state.get("active_mc_scenario", None)
+    mc_loss_ctrm = st.session_state.get("mc_expected_loss", 0.0)
+    if mc_scenario_ctrm:
+        st.warning(f"🚨 **ENTERPRISE MACRO STRESS INJECTED**: **{mc_scenario_ctrm}** | Systemic VaR Baseline Elevated by **+${mc_loss_ctrm:.2f}M**. Recommended Action: Execute FIX 4.4 derivatives hedges to protect gross margin.")
     st.title("🛡️ Backtested Portfolio & CTRM Risk Desk")
     st.caption("Event-driven financial hedging, Black76 multi-option pricing, strategy payoff modeling, FIX 4.4 gateway, and derivatives register.")
     
@@ -607,77 +644,41 @@ def render_flight_simulator(persona=None):
     scenarios = {
         "🌋 Super El Niño Climate & Hydroelectric Shock": {
             "desc": "Simulates global drought, severe hydro-power deficits, ag-bulk yield collapse, and Panama Canal draft restrictions reducing daily vessel transits by 40%.",
-            "loss": 32.50,
-            "var95": 48.20,
-            "cvar": 65.80,
-            "delay": 8.5,
-            "type": "warning"
+            "loss": 32.50, "var95": 48.20, "cvar": 65.80, "delay": 8.5, "type": "warning"
         },
         "⚓ Choke Point Blockade & Digital Twin Carrying Cost Surge": {
             "desc": "Simulates dual Panama/Suez Canal choke point closures, 20-day floating demurrage queues, SOFR capital tie-up spikes, and forced Cape of Good Hope rerouting bunker burn.",
-            "loss": 41.80,
-            "var95": 58.40,
-            "cvar": 82.10,
-            "delay": 16.2,
-            "type": "error"
+            "loss": 41.80, "var95": 58.40, "cvar": 82.10, "delay": 16.2, "type": "error"
         },
         "🔥 Geopolitical Escalation & Bunker Fuel Spike": {
             "desc": "Simulates regional conflict escalations, Middle East shipping lane avoidance, insurance premium surges, and $900/MT VLSFO bunker fuel prices.",
-            "loss": 24.10,
-            "var95": 36.90,
-            "cvar": 51.30,
-            "delay": 6.0,
-            "type": "info"
+            "loss": 24.10, "var95": 36.90, "cvar": 51.30, "delay": 6.0, "type": "info"
         },
         "🛢️ Strait of Hormuz Tanker Crisis & Energy Lockout": {
             "desc": "Simulates severe maritime blockage of 21% global petroleum flow, crude spikes above $140/bbl, P&I club insurance cancellations, and emergency LNG rerouting.",
-            "loss": 58.90,
-            "var95": 82.40,
-            "cvar": 115.60,
-            "delay": 21.0,
-            "type": "error"
+            "loss": 58.90, "var95": 82.40, "cvar": 115.60, "delay": 21.0, "type": "error"
         },
         "🌾 Black Sea Conflict & Nitrogen Fertilizer Feedstock Shock": {
             "desc": "Simulates grain export corridor shutdown, Black Sea port blockades, natural gas feedstock spikes driving nitrogen fertilizer prices +180%, and ag-yield deficits.",
-            "loss": 29.40,
-            "var95": 44.10,
-            "cvar": 62.30,
-            "delay": 12.0,
-            "type": "warning"
+            "loss": 29.40, "var95": 44.10, "cvar": 62.30, "delay": 12.0, "type": "warning"
         },
         "☕ Brazilian Polar Frost & Arabica Softs Crop Collapse": {
             "desc": "Simulates Antarctic air mass freezing key coffee/sugar belts in Minas Gerais, wiping out 25% of Arabica trees, driving +120% spot price inflation and 3-year recovery lags.",
-            "loss": 18.60,
-            "var95": 29.80,
-            "cvar": 41.50,
-            "delay": 4.5,
-            "type": "warning"
+            "loss": 18.60, "var95": 29.80, "cvar": 41.50, "delay": 4.5, "type": "warning"
         },
         "🌊 Ocean Marine Heatwave & Cargo Thermal Loss Spike": {
             "desc": "Simulates sea surface temperatures spiking +2.8°C above baseline, doubling LNG boil-off rates, accelerating reefer container compressor failures, and triggering toxic algae port closures.",
-            "loss": 22.30,
-            "var95": 33.70,
-            "cvar": 47.90,
-            "delay": 7.0,
-            "type": "info"
+            "loss": 22.30, "var95": 33.70, "cvar": 47.90, "delay": 7.0, "type": "info"
         },
         "🦢 Black Swan Multi-Vector Systemic Cascade": {
             "desc": "Simulates simultaneous compound tail-risk: widespread cyber-attack on port Terminal Operating Systems (TOS), grid failure across major transshipment hubs, and sovereign trade defaults.",
-            "loss": 74.20,
-            "var95": 108.50,
-            "cvar": 152.00,
-            "delay": 28.5,
-            "type": "error"
+            "loss": 74.20, "var95": 108.50, "cvar": 152.00, "delay": 28.5, "type": "error"
         }
     }
 
     with col_mc1:
         st.subheader("⚙️ Macro Stress Scenario Parameters")
-        scenario_choice = st.selectbox(
-            "Select Macro Stress Scenario",
-            list(scenarios.keys())
-        )
-
+        scenario_choice = st.selectbox("Select Macro Stress Scenario", list(scenarios.keys()))
         sim_runs = st.slider("Monte Carlo Iterations", min_value=1000, max_value=25000, value=10000, step=1000)
         confidence_level = st.selectbox("Confidence Level (VaR)", [0.90, 0.95, 0.99], index=1)
 
@@ -685,7 +686,6 @@ def render_flight_simulator(persona=None):
 
     with col_mc2:
         st.subheader("📊 Stochastic P&L Impact & Value at Risk (VaR)")
-
         if selected["type"] == "error":
             st.error(f"**Scenario Description**: {selected['desc']}")
         elif selected["type"] == "warning":
@@ -709,12 +709,27 @@ def render_flight_simulator(persona=None):
 
     import numpy as np
     import pandas as pd
-
     np.random.seed(42)
     losses = np.random.normal(loc=expected_loss_m, scale=expected_loss_m * 0.35, size=sim_runs)
     chart_df = pd.DataFrame({"Simulated EBITDA Loss ($M)": losses})
-
     st.bar_chart(chart_df.iloc[:100])
+
+    col_i1, col_i2 = st.columns(2)
+    with col_i1:
+        if st.button("🚀 Inject Selected Stress Scenario into CTRM & S&OP Engine", key="btn_inject_mc"):
+            st.session_state["active_mc_scenario"] = scenario_choice
+            st.session_state["mc_expected_loss"] = expected_loss_m
+            st.session_state["mc_transit_delay"] = mean_delay_days
+            st.success(f"✅ **Scenario Injected Platform-Wide**: '{scenario_choice}' is now live across CTRM Risk Desk and S&OP EBITDA Waterfall (-${expected_loss_m:.2f}M Stress Drag).")
+
+    with col_i2:
+        if st.session_state.get("active_mc_scenario"):
+            st.info(f"⚡ **Currently Active Injected Stress**: **{st.session_state['active_mc_scenario']}** (-${st.session_state['mc_expected_loss']:.2f}M Loss Impact)")
+            if st.button("🔄 Reset / Clear Active Macro Stress", key="btn_clear_mc"):
+                st.session_state["active_mc_scenario"] = None
+                st.session_state["mc_expected_loss"] = 0.0
+                st.session_state["mc_transit_delay"] = 0.0
+                st.rerun()
 
 
 def render_integration_architecture(persona="Commercial Commodities & Trading Enterprise", selected_module=""):
