@@ -1,3 +1,10 @@
+import streamlit as st
+
+if "rerouted_vessels" not in st.session_state:
+    st.session_state["rerouted_vessels"] = []
+if "executed_hedges" not in st.session_state:
+    st.session_state["executed_hedges"] = []
+
 from robot_feeds import calculate_inventory_carrying_cost, calculate_demurrage_and_decay, simulate_rerouting_arbitrage, get_digital_twin_telemetry_feed
 import streamlit as st
 import json
@@ -72,55 +79,61 @@ modules = [
 nav_choice = selected_module = st.sidebar.radio("Navigation Modules:", modules, key="sidebar_module_radio")
 
 # MODULE 1: EXECUTIVE S&OP CONTROL TOWER
-def render_executive_sop(persona="Commercial Commodities & Trading Enterprise", term_unit="Units"):
-    st.title("📊 Global Trade Flows & S&OP Engine")
-    st.caption(f"Active Persona View: **{persona}**")
-    
-    surge = st.session_state.get("platform_demand_impact", st.session_state.get("extracted_demand_surge", 65000))
-    si = st.session_state.get("platform_si_override", st.session_state.get("si_composite", -0.33))
-    
-    total_hedge_gain = sum(t.get("Hedge Benefit ($)", 3250000.0) for t in st.session_state["executed_hedges"]) or 3250000.0
-    
-    c1, c2, c3, c4 = st.columns(4)
-    c1.metric("Annual Operating Plan (AOP)", "$120.0M", "+4.2% YoY")
-    c2.metric("Unconstrained Demand", f"${(120.0 + surge*0.00025):.2f}M", f"+{surge:,} {term_unit}")
-    c3.metric("CTRM Hedge Benefit", f"+${total_hedge_gain/1e6:.2f}M", f"{len(st.session_state['executed_hedges'])} Trades Locked")
-    c4.metric("Available Treasury Cash", f"${(4.43 + total_hedge_gain/1e6):,.2f}M", "-$0.57M Freight Drag")
-    
-    st.divider()
-    
-    col_p1, col_p2 = st.columns([1.3, 1])
-    with col_p1:
-        st.subheader("💵 Financial P&L Margin Waterfall")
-        fig = go.Figure(go.Waterfall(
-            name="P&L Reconciliation", orientation="v",
-            measure=["relative", "relative", "relative", "relative", "relative", "total"],
-            x=["Base AOP Rev", "Base COGS", "Surge Rev", "Freight Drag", "Hedge Benefit", "Net EBITDA"],
-            y=[120.0, -78.0, surge*0.00025, -0.57, total_hedge_gain/1e6, 0],
-            connector={"line": {"color": "rgb(63, 63, 63)"}}
-        ))
-        fig.update_layout(height=340, margin=dict(l=20, r=20, t=20, b=20))
-        st.plotly_chart(fig, use_container_width=True)
+def render_executive_sop():
+    st.header("📊 Global Trade Flows & S&OP Engine")
+    st.caption("Integrated Business Planning, P&L EBITDA Margin Waterfall, and Live Desk Signal Synchronization.")
 
-    with col_p2:
-        st.subheader("🚩 Live Operational Desk Feeds")
-        st.info(f"🔹 **Active Signal**: {st.session_state.get('platform_active_signal', 'Baseline Operations Target')}")
-        st.warning(f"✈️ **Logistics Desk**: Lead time delay drag set at +{st.session_state.get('platform_leadtime_impact', 2.5)} days")
-        st.success(f"🟢 **CTRM Risk Desk**: {len(st.session_state['executed_hedges'])} Hedges Executed | Gain: +${total_hedge_gain:,.2f}")
+    rerouted = st.session_state.get("rerouted_vessels", [])
+    hedges = st.session_state.get("executed_hedges", [])
 
-# MODULE 3: NLP COMMERCIAL SENSING
-
-    # --- DIGITAL TWIN P&L WATERFALL INTEGRATION ---
     twin_data = get_digital_twin_telemetry_feed()
-    total_transit_drag = sum(v["carrying_cost_usd"] + v["demurrage_penalty_usd"] for v in twin_data)
+    total_transit_drag = 0.0
+    for v in twin_data:
+        v_name = v["vessel_name"]
+        c_cost = v["carrying_cost_usd"]
+        d_cost = v["demurrage_penalty_usd"]
+        
+        if any(r in v_name for r in rerouted):
+            total_transit_drag += c_cost + 56958.90
+        else:
+            total_transit_drag += c_cost + d_cost
+
     drag_m = total_transit_drag / 1000000.0
     net_ebitda = 120.0 - drag_m
+    hedge_benefit = 3.25 + len(hedges) * 2.15
+
+    col_m1, col_m2, col_m3, col_m4 = st.columns(4)
+    col_m1.metric("Annual Operating Plan (AOP)", "$120.0M", "+4.2% YoY")
+    col_m2.metric("Unconstrained Demand", "$125.94M", "+23,750 Units")
+    col_m3.metric("CTRM Hedge Benefit", f"+${hedge_benefit:.2f}M", f"{len(hedges)} Digital Twin Hedges Locked")
+    col_m4.metric("Available Treasury Cash", f"${15.29 + (1.14 - drag_m):.2f}M", f"-${drag_m:.2f}M Carrying Drag")
+
+    col_w1, col_w2 = st.columns([2, 1])
+
+    with col_w1:
+        st.subheader("📊 Financial P&L Margin Waterfall")
+        st.info(f"**Live Net EBITDA Target**: **${net_ebitda:.2f}M** (Gross $120.00M minus **${drag_m:.2f}M** active in-transit carrying & demurrage drag).")
+
+    with col_w2:
+        st.subheader("► Live Operational Desk Feeds")
+        st.markdown("• **Active Signal**: Sub-Factor Weight Shift (GSCPI:35% / NOAA:25% / Freight:25% / GEP:15%)")
+        
+        if rerouted:
+            r_str = ", ".join(rerouted)
+            st.success(f"• **Logistics Desk**: 🚢 Digital Twin Reroute Executed for **{r_str}** via Cape of Good Hope. Demurrage eliminated!")
+        else:
+            st.warning("• **Logistics Desk**: Lead time delay drag set at +3.5 days (Panama/Suez queues active).")
+
+        if hedges:
+            st.success(f"• **CTRM Risk Desk**: ⚡ {len(hedges)} Digital Twin FIX 4.4 Short Futures Position(s) Locked | Active Margin Lock In Effect.")
+        else:
+            st.info("• **CTRM Risk Desk**: 0 Digital Twin Hedges Executed.")
 
     st.markdown("---")
     st.subheader("💰 Digital Twin Carrying Cost Drag on P&L Waterfall")
     col_pnl1, col_pnl2, col_pnl3 = st.columns(3)
     col_pnl1.metric("Gross EBITDA Target", "$120.00M")
-    col_pnl2.metric("In-Transit Carrying & Demurrage Drag", f"-${drag_m:.2f}M", delta="-SOFR & Demurrage", delta_color="inverse")
+    col_pnl2.metric("In-Transit Carrying & Demurrage Drag", f"-${drag_m:.2f}M", delta=f"Saved ${1.14 - drag_m:.2f}M via Rerouting" if rerouted else "-SOFR Capital & Demurrage", delta_color="normal" if rerouted else "inverse")
     col_pnl3.metric("Net Adjusted EBITDA", f"${net_ebitda:.2f}M")
 
 
@@ -450,9 +463,13 @@ def render_ctrm_desk(persona="Commercial Commodities & Trading Enterprise", term
             col_b1, col_b2 = st.columns(2)
             with col_b1:
                 if st.button(f"⚡ Trigger FIX 4.4 Hedge ({v_name})", key=f"fix_hedge_btn_{i}"):
+                    if v_name not in st.session_state["executed_hedges"]:
+                        st.session_state["executed_hedges"].append(v_name)
                     st.success(f"✅ **FIX 4.4 Financial Hedge Dispatched**: Executed prompt short futures position for {v_comm} cargo on {v_name} via LME/CME broker gateway.")
             with col_b2:
                 if st.button(f"🚢 Dispatch Reroute Order ({v_name})", key=f"ctrm_reroute_btn_{i}"):
+                    if v_name not in st.session_state["rerouted_vessels"]:
+                        st.session_state["rerouted_vessels"].append(v_name)
                     st.success(f"✅ **Voyage Reroute Transmitted**: Voyage instructions dispatched to vessel master for {v_name} to divert via Cape of Good Hope.")
     if not has_alerts:
         st.success("All active voyages operating within acceptable carrying cost thresholds (<50% margin erosion).")
@@ -552,11 +569,11 @@ def render_global_logistics_gis(persona="Commercial Commodities & Trading Enterp
     st.subheader("📦 Live In-Transit Cargo Digital Twin State Feed")
     twin_feed_data = get_digital_twin_telemetry_feed()
     st.dataframe(twin_feed_data, use_container_width=True)
-
     if st.button("🚢 Execute Reroute Order (Cape of Good Hope)", key="btn_exec_ais_reroute"):
+        v_name = vessel_select.split(" (")[0]
+        if v_name not in st.session_state["rerouted_vessels"]:
+            st.session_state["rerouted_vessels"].append(v_name)
         st.success(f"✅ **Voyage Reroute Order Transmitted**: Vessel master for **{vessel_select}** instructed via AIS feed to abandon choke point queue and divert via Cape of Good Hope. Net margin saved!")
-
-
 
 def render_flight_simulator(persona="Commercial Commodities & Trading Enterprise", term_unit="Units"):
     st.title("🧪 Monte Carlo Risk & Scenario Simulator")
