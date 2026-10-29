@@ -600,45 +600,103 @@ def render_global_logistics_gis(persona="Commercial Commodities & Trading Enterp
 
 def render_flight_simulator(persona=None):
     st.header("🎲 Monte Carlo Risk & Scenario Simulator")
-    st.caption("Stochastic stress testing of multi-variable supply chain shocks, weather disruptions, and maritime carrying cost volatility.")
+    st.caption("Stochastic stress testing of multi-variable supply chain shocks, weather disruptions, geopolitical crises, and maritime carrying cost volatility.")
 
     col_mc1, col_mc2 = st.columns([1, 2])
+
+    scenarios = {
+        "🌋 Super El Niño Climate & Hydroelectric Shock": {
+            "desc": "Simulates global drought, severe hydro-power deficits, ag-bulk yield collapse, and Panama Canal draft restrictions reducing daily vessel transits by 40%.",
+            "loss": 32.50,
+            "var95": 48.20,
+            "cvar": 65.80,
+            "delay": 8.5,
+            "type": "warning"
+        },
+        "⚓ Choke Point Blockade & Digital Twin Carrying Cost Surge": {
+            "desc": "Simulates dual Panama/Suez Canal choke point closures, 20-day floating demurrage queues, SOFR capital tie-up spikes, and forced Cape of Good Hope rerouting bunker burn.",
+            "loss": 41.80,
+            "var95": 58.40,
+            "cvar": 82.10,
+            "delay": 16.2,
+            "type": "error"
+        },
+        "🔥 Geopolitical Escalation & Bunker Fuel Spike": {
+            "desc": "Simulates regional conflict escalations, Middle East shipping lane avoidance, insurance premium surges, and $900/MT VLSFO bunker fuel prices.",
+            "loss": 24.10,
+            "var95": 36.90,
+            "cvar": 51.30,
+            "delay": 6.0,
+            "type": "info"
+        },
+        "🛢️ Strait of Hormuz Tanker Crisis & Energy Lockout": {
+            "desc": "Simulates severe maritime blockage of 21% global petroleum flow, crude spikes above $140/bbl, P&I club insurance cancellations, and emergency LNG rerouting.",
+            "loss": 58.90,
+            "var95": 82.40,
+            "cvar": 115.60,
+            "delay": 21.0,
+            "type": "error"
+        },
+        "🌾 Black Sea Conflict & Nitrogen Fertilizer Feedstock Shock": {
+            "desc": "Simulates grain export corridor shutdown, Black Sea port blockades, natural gas feedstock spikes driving nitrogen fertilizer prices +180%, and ag-yield deficits.",
+            "loss": 29.40,
+            "var95": 44.10,
+            "cvar": 62.30,
+            "delay": 12.0,
+            "type": "warning"
+        },
+        "☕ Brazilian Polar Frost & Arabica Softs Crop Collapse": {
+            "desc": "Simulates Antarctic air mass freezing key coffee/sugar belts in Minas Gerais, wiping out 25% of Arabica trees, driving +120% spot price inflation and 3-year recovery lags.",
+            "loss": 18.60,
+            "var95": 29.80,
+            "cvar": 41.50,
+            "delay": 4.5,
+            "type": "warning"
+        },
+        "🌊 Ocean Marine Heatwave & Cargo Thermal Loss Spike": {
+            "desc": "Simulates sea surface temperatures spiking +2.8°C above baseline, doubling LNG boil-off rates, accelerating reefer container compressor failures, and triggering toxic algae port closures.",
+            "loss": 22.30,
+            "var95": 33.70,
+            "cvar": 47.90,
+            "delay": 7.0,
+            "type": "info"
+        },
+        "🦢 Black Swan Multi-Vector Systemic Cascade": {
+            "desc": "Simulates simultaneous compound tail-risk: widespread cyber-attack on port Terminal Operating Systems (TOS), grid failure across major transshipment hubs, and sovereign trade defaults.",
+            "loss": 74.20,
+            "var95": 108.50,
+            "cvar": 152.00,
+            "delay": 28.5,
+            "type": "error"
+        }
+    }
 
     with col_mc1:
         st.subheader("⚙️ Macro Stress Scenario Parameters")
         scenario_choice = st.selectbox(
             "Select Macro Stress Scenario",
-            [
-                "🌋 Super El Niño Climate & Hydroelectric Shock",
-                "⚓ Choke Point Blockade & Digital Twin Carrying Cost Surge",
-                "🔥 Geopolitical Escalation & Bunker Fuel Spike"
-            ]
+            list(scenarios.keys())
         )
 
         sim_runs = st.slider("Monte Carlo Iterations", min_value=1000, max_value=25000, value=10000, step=1000)
         confidence_level = st.selectbox("Confidence Level (VaR)", [0.90, 0.95, 0.99], index=1)
 
+    selected = scenarios[scenario_choice]
+
     with col_mc2:
         st.subheader("📊 Stochastic P&L Impact & Value at Risk (VaR)")
 
-        if "Super El Niño" in scenario_choice:
-            st.warning("**Scenario Description**: Simulates global drought, severe hydro-power deficits, ag-bulk yield collapse, and Panama Canal draft restrictions reducing daily vessel transits by 40%.")
-            expected_loss_m = 32.50
-            var_95_m = 48.20
-            tail_risk_m = 65.80
-            mean_delay_days = 8.5
-        elif "Choke Point Blockade" in scenario_choice:
-            st.error("**Scenario Description**: Simulates dual Panama/Suez Canal choke point closures, 20-day floating demurrage queues, SOFR capital tie-up spikes, and forced Cape of Good Hope rerouting bunker burn.")
-            expected_loss_m = 41.80
-            var_95_m = 58.40
-            tail_risk_m = 82.10
-            mean_delay_days = 16.2
+        if selected["type"] == "error":
+            st.error(f"**Scenario Description**: {selected['desc']}")
+        elif selected["type"] == "warning":
+            st.warning(f"**Scenario Description**: {selected['desc']}")
         else:
-            st.info("**Scenario Description**: Simulates regional conflict escalations, Middle East shipping lane avoidance, insurance premium surges, and $900/MT VLSFO bunker fuel prices.")
-            expected_loss_m = 24.10
-            var_95_m = 36.90
-            tail_risk_m = 51.30
-            mean_delay_days = 6.0
+            st.info(f"**Scenario Description**: {selected['desc']}")
+
+        expected_loss_m = selected["loss"]
+        var_95_m = selected["var95"]
+        tail_risk_m = selected["cvar"]
+        mean_delay_days = selected["delay"]
 
         col_v1, col_v2, col_v3, col_v4 = st.columns(4)
         col_v1.metric("Expected Margin Loss", f"-${expected_loss_m:.2f}M")
