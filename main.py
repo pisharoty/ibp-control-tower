@@ -1,3 +1,4 @@
+from robot_feeds import calculate_inventory_carrying_cost, calculate_demurrage_and_decay, simulate_rerouting_arbitrage, get_digital_twin_telemetry_feed
 import streamlit as st
 import json
 import os
@@ -443,6 +444,68 @@ def render_global_logistics_gis(persona="Commercial Commodities & Trading Enterp
     st.dataframe(pd.DataFrame(lanes_data), use_container_width=True, hide_index=True)
 
 # MODULE 8: SANDBOX FLIGHT SIMULATOR (ENHANCED WITH MONTE CARLO & PROPAGATION)
+
+    # --- DIGITAL TWIN SIMULATOR & TELEMETRY ---
+    st.markdown("---")
+    st.header("🌐 Maritime Digital Twin & Rerouting Arbitrage Engine")
+    st.caption("Live physics-based modeling of vessel transit velocity, SOFR capital tie-up, laytime demurrage, and corridor economics.")
+
+    col_sim1, col_sim2 = st.columns([1, 2])
+    with col_sim1:
+        st.subheader("⚙️ Scenario Parameters")
+        vessel_select = st.selectbox("Select Active Voyage", ["MV Kpler Horizon (Panama)", "MT Gulf Pioneer (Suez)", "MV Pacific Explorer (Bab-el-Mandeb)"])
+        canal_queue = st.slider("Choke Point Queue Wait (Days)", min_value=0.0, max_value=25.0, value=12.0, step=0.5)
+        cargo_val = st.number_input("Cargo Nominal Value ($ USD)", min_value=1000000, value=33000000, step=500000)
+        sofr_rate = st.slider("SOFR Benchmark Rate (%)", min_value=1.0, max_value=8.0, value=4.8, step=0.1) / 100.0
+
+    with col_sim2:
+        st.subheader("🔀 Route Arbitrage Trade Decision Support")
+        arb_res = simulate_rerouting_arbitrage(
+            vessel_name=vessel_select,
+            canal_queue_days=canal_queue,
+            cargo_value_usd=cargo_val,
+            sofr_rate_pct=sofr_rate
+        )
+
+        opt_a = arb_res["option_a_choke_wait"]
+        opt_b = arb_res["option_b_cape_reroute"]
+
+        rec_msg = arb_res["margin_preservation_summary"]
+        st.info(f"**Recommendation**: {rec_msg}")
+
+        col_a, col_b = st.columns(2)
+        with col_a:
+            st.markdown("### Route A: Choke Point Queue")
+            q_days = opt_a["queue_days"]
+            dem_a = opt_a["demurrage_cost_usd"]
+            cap_a = opt_a["capital_tieup_cost_usd"]
+            sur_a = opt_a["canal_toll_surcharge_usd"]
+            tot_a = opt_a["total_route_cost_usd"]
+
+            st.write(f"• Queue Wait: **{q_days} Days**")
+            st.write(f"• Demurrage Penalty: **${dem_a:,.2f}**")
+            st.write(f"• Capital Tie-up (SOFR): **${cap_a:,.2f}**")
+            st.write(f"• Canal Toll Surcharge: **${sur_a:,.2f}**")
+            st.metric("Total Route Drag", f"${tot_a:,.2f}")
+
+        with col_b:
+            st.markdown("### Route B: Cape Reroute")
+            s_days = opt_b["extra_sailing_days"]
+            bun_b = opt_b["extra_bunker_cost_usd"]
+            cap_b = opt_b["capital_tieup_cost_usd"]
+            tot_b = opt_b["total_route_cost_usd"]
+
+            st.write(f"• Extra Sailing: **{s_days} Days**")
+            st.write(f"• Extra Bunker Fuel: **${bun_b:,.2f}**")
+            st.write(f"• Capital Tie-up (SOFR): **${cap_b:,.2f}**")
+            st.write("• Demurrage Penalty: **$0.00**")
+            st.metric("Total Route Drag", f"${tot_b:,.2f}")
+
+    st.subheader("📦 Live In-Transit Cargo Digital Twin State Feed")
+    twin_feed_data = get_digital_twin_telemetry_feed()
+    st.dataframe(twin_feed_data, use_container_width=True)
+
+
 def render_flight_simulator(persona="Commercial Commodities & Trading Enterprise", term_unit="Units"):
     st.title("🧪 Monte Carlo Risk & Scenario Simulator")
     st.caption("Monte Carlo risk simulation, fat-tailed volatility stress testing, and direct scenario propagation into platform state.")
