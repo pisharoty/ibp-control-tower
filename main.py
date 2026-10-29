@@ -99,11 +99,14 @@ def render_executive_sop(persona=None):
             total_transit_drag += c_cost + d_cost
 
     drag_m = total_transit_drag / 1000000.0
-    net_ebitda = 120.0 - drag_m
     hedge_benefit = 3.25 + len(hedges) * 2.15
+    base_aop = 120.0
+    cogs = -70.0
+    surge_rev = 10.0
+    net_ebitda = base_aop + cogs + surge_rev - drag_m + hedge_benefit
 
     col_m1, col_m2, col_m3, col_m4 = st.columns(4)
-    col_m1.metric("Annual Operating Plan (AOP)", "$120.0M", "+4.2% YoY")
+    col_m1.metric("Annual Operating Plan (AOP)", f"${base_aop:.1f}M", "+4.2% YoY")
     col_m2.metric("Unconstrained Demand", "$125.94M", "+23,750 Units")
     col_m3.metric("CTRM Hedge Benefit", f"+${hedge_benefit:.2f}M", f"{len(hedges)} Digital Twin Hedges Locked")
     col_m4.metric("Available Treasury Cash", f"${15.29 + (1.14 - drag_m):.2f}M", f"-${drag_m:.2f}M Carrying Drag")
@@ -112,7 +115,27 @@ def render_executive_sop(persona=None):
 
     with col_w1:
         st.subheader("📊 Financial P&L Margin Waterfall")
-        st.info(f"**Live Net EBITDA Target**: **${net_ebitda:.2f}M** (Gross $120.00M minus **${drag_m:.2f}M** active in-transit carrying & demurrage drag).")
+        import plotly.graph_objects as go
+        fig = go.Figure(go.Waterfall(
+            name="P&L Waterfall",
+            orientation="v",
+            measure=["relative", "relative", "relative", "relative", "relative", "total"],
+            x=["Base AOP Rev", "Base COGS", "Surge Rev", "Freight & Twin Drag", "Hedge Benefit", "Net EBITDA"],
+            textposition="outside",
+            text=[f"+${base_aop:.1f}M", f"-${abs(cogs):.1f}M", f"+${surge_rev:.1f}M", f"-${drag_m:.2f}M", f"+${hedge_benefit:.2f}M", f"${net_ebitda:.2f}M"],
+            y=[base_aop, cogs, surge_rev, -drag_m, hedge_benefit, None],
+            connector={"line": {"color": "rgb(63, 63, 63)"}},
+            decreasing={"marker": {"color": "#ef553b"}},
+            increasing={"marker": {"color": "#00cc96"}},
+            totals={"marker": {"color": "#1d70b8"}}
+        ))
+        fig.update_layout(
+            title="Dynamic EBITDA Margin Waterfall ($M USD)",
+            showlegend=False,
+            height=340,
+            margin=dict(l=20, r=20, t=40, b=20)
+        )
+        st.plotly_chart(fig, use_container_width=True)
 
     with col_w2:
         st.subheader("► Live Operational Desk Feeds")
