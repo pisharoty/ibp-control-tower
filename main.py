@@ -68,7 +68,7 @@ modules = [
     "🔌 Integration & Architecture Endpoints"
 ]
 
-selected_module = st.sidebar.radio("Navigation Modules:", modules, key="sidebar_module_radio")
+nav_choice = st.sidebar.radio("Navigation Modules:", modules, key="sidebar_module_radio")
 
 # MODULE 1: EXECUTIVE S&OP CONTROL TOWER
 def render_executive_sop(persona="Commercial Commodities & Trading Enterprise", term_unit="Units"):
