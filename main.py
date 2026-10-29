@@ -79,7 +79,7 @@ modules = [
 nav_choice = selected_module = st.sidebar.radio("Navigation Modules:", modules, key="sidebar_module_radio")
 
 # MODULE 1: EXECUTIVE S&OP CONTROL TOWER
-def render_executive_sop():
+def render_executive_sop(persona=None):
     st.header("📊 Global Trade Flows & S&OP Engine")
     st.caption("Integrated Business Planning, P&L EBITDA Margin Waterfall, and Live Desk Signal Synchronization.")
 
