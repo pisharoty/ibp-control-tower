@@ -431,7 +431,7 @@ def render_ctrm_desk(persona="Commercial Commodities & Trading Enterprise", term
     st.subheader("🚨 Digital Twin Automated Margin Erosion & Liquidation Alerts")
 
     has_alerts = False
-    for v in twin_data_ctrm:
+    for i, v in enumerate(twin_data_ctrm):
         v_name = v["vessel_name"]
         v_comm = v["commodity"]
         v_c_cost = v["carrying_cost_usd"]
@@ -447,9 +447,15 @@ def render_ctrm_desk(persona="Commercial Commodities & Trading Enterprise", term
                 f"accumulated **${total_drag:,.2f}** in transit drag (SOFR Capital Tie-up: ${v_c_cost:,.2f} | Demurrage: ${v_d_cost:,.2f}). "
                 f"**Recommendation**: {v_rec} (Saves ${v_sav:,.2f}) or execute prompt futures liquidation."
             )
+            col_b1, col_b2 = st.columns(2)
+            with col_b1:
+                if st.button(f"⚡ Trigger FIX 4.4 Hedge ({v_name})", key=f"fix_hedge_btn_{i}"):
+                    st.success(f"✅ **FIX 4.4 Financial Hedge Dispatched**: Executed prompt short futures position for {v_comm} cargo on {v_name} via LME/CME broker gateway.")
+            with col_b2:
+                if st.button(f"🚢 Dispatch Reroute Order ({v_name})", key=f"ctrm_reroute_btn_{i}"):
+                    st.success(f"✅ **Voyage Reroute Transmitted**: Voyage instructions dispatched to vessel master for {v_name} to divert via Cape of Good Hope.")
     if not has_alerts:
         st.success("All active voyages operating within acceptable carrying cost thresholds (<50% margin erosion).")
-
 
 def render_global_logistics_gis(persona="Commercial Commodities & Trading Enterprise", term_unit="Units"):
     st.title("🌐 Real-Time AIS Cargo & GIS Telemetry")
@@ -546,6 +552,10 @@ def render_global_logistics_gis(persona="Commercial Commodities & Trading Enterp
     st.subheader("📦 Live In-Transit Cargo Digital Twin State Feed")
     twin_feed_data = get_digital_twin_telemetry_feed()
     st.dataframe(twin_feed_data, use_container_width=True)
+
+    if st.button("🚢 Execute Reroute Order (Cape of Good Hope)", key="btn_exec_ais_reroute"):
+        st.success(f"✅ **Voyage Reroute Order Transmitted**: Vessel master for **{vessel_select}** instructed via AIS feed to abandon choke point queue and divert via Cape of Good Hope. Net margin saved!")
+
 
 
 def render_flight_simulator(persona="Commercial Commodities & Trading Enterprise", term_unit="Units"):
