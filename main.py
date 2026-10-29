@@ -598,7 +598,7 @@ def render_global_logistics_gis(persona="Commercial Commodities & Trading Enterp
             st.session_state["rerouted_vessels"].append(v_name)
         st.success(f"✅ **Voyage Reroute Order Transmitted**: Vessel master for **{vessel_select}** instructed via AIS feed to abandon choke point queue and divert via Cape of Good Hope. Net margin saved!")
 
-def render_flight_simulator():
+def render_flight_simulator(persona=None):
     st.header("🎲 Monte Carlo Risk & Scenario Simulator")
     st.caption("Stochastic stress testing of multi-variable supply chain shocks, weather disruptions, and maritime carrying cost volatility.")
 
