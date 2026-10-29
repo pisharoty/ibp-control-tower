@@ -68,7 +68,7 @@ modules = [
     "🔌 Integration & Architecture Endpoints"
 ]
 
-nav_choice = st.sidebar.radio("Navigation Modules:", modules, key="sidebar_module_radio")
+nav_choice = selected_module = st.sidebar.radio("Navigation Modules:", modules, key="sidebar_module_radio")
 
 # MODULE 1: EXECUTIVE S&OP CONTROL TOWER
 def render_executive_sop(persona="Commercial Commodities & Trading Enterprise", term_unit="Units"):
@@ -276,7 +276,7 @@ def render_demand_supply_match(persona="Commercial Commodities & Trading Enterpr
         ohio_alloc = 100 - (detroit_alloc + munich_alloc)
         st.caption(f"Ohio CMO Allocation: **{ohio_alloc}%**")
         
-        if st.button("🚀 Rebalance Plant Capacity & Re-route S&OP Load", type="primary"):
+        if any(k in str(selected_module) for k in ["Global Trade", "S&OP", "Executive"]):
             st.toast("✅ Plant Load Rebalanced across Detroit, Munich, and Ohio CMO Nodes!")
 
 # MODULE 5: PHYSICAL PROCUREMENT
@@ -488,7 +488,7 @@ def render_flight_simulator(persona="Commercial Commodities & Trading Enterprise
     st.plotly_chart(mc_res["fig"], use_container_width=True)
 
     st.divider()
-    if st.button("⚡ Propagate Monte Carlo Scenario to Exec S&OP & CTRM", type="primary", use_container_width=True, key="btn_propagate_mc_sop"):
+    if any(k in str(selected_module) for k in ["Global Trade", "S&OP", "Executive"]):
         calc_si = -0.45 if "Blockade" in scenario_select or "Shock" in scenario_select else (-0.65 if "Vol" in scenario_select else -0.15)
         st.session_state["platform_si_override"] = calc_si
         st.session_state["platform_demand_impact"] = 100000 + mc_res["add_surge"]
@@ -600,23 +600,23 @@ Host: ibp-control-tower.enterprise.com
     st.info("🔹 **Risk Execution Gateway**: Low-latency FIX 4.4 binary protocol integration with CME, LME, and ICE brokers.")
 
 # MAIN ROUTER EXECUTION
-if "Executive S&OP" in selected_module:
+if any(k in str(selected_module) for k in ["Global Trade", "S&OP", "Executive"]):
     render_executive_sop(persona)
-elif "Inventory" in selected_module or "Position Manager" in selected_module:
+elif any(k in str(selected_module) for k in ["Inventory", "Position"]):
     render_inventory_position_manager()
-elif "NLP Commercial" in selected_module:
+elif any(k in str(selected_module) for k in ["Alternative Data", "Sentiment", "NLP"]):
     render_nlp_commercial_sensing(persona)
-elif "Demand/Supply Match" in selected_module:
+elif any(k in str(selected_module) for k in ["Machine Learning", "Supply/Demand", "Load Balancer"]):
     render_demand_supply_match(persona)
-elif "Physical Procurement" in selected_module:
+elif any(k in str(selected_module) for k in ["Physical Cargo", "Contract", "Procurement"]):
     render_physical_procurement(persona)
-elif "CTRM" in selected_module:
+elif any(k in str(selected_module) for k in ["Backtested Portfolio", "CTRM", "Risk Desk"]):
     render_ctrm_desk(persona)
-elif "Global Logistics" in selected_module:
+elif any(k in str(selected_module) for k in ["Real-Time AIS", "GIS", "Logistics"]):
     render_global_logistics_gis(persona)
-elif "Sandbox" in selected_module:
+elif any(k in str(selected_module) for k in ["Monte Carlo", "Scenario", "Sandbox", "Stress"]):
     render_flight_simulator(persona)
-elif "Integration" in selected_module:
+elif any(k in str(selected_module) for k in ["Integration", "Endpoints"]):
     render_integration_architecture(persona, selected_module)
 else:
     render_executive_sop(persona)
