@@ -926,3 +926,126 @@ def render_executive_email_debrief_stream():
                     st.session_state["platform_active_signal"] = item.get("title")
                     st.toast(f"⚡ Ingested Executive Advisory #{idx+1}!")
                     st.rerun()
+
+
+# ==============================================================================
+# DIGITAL TWIN CARGO & ROUTE STATE ENGINE
+# ==============================================================================
+
+def calculate_inventory_carrying_cost(
+    spot_price_usd: float,
+    cargo_volume_mt: float,
+    transit_days: float,
+    sofr_rate_pct: float = 0.048,
+    sofr_spread_pct: float = 0.015,
+    storage_rate_per_mt_day: float = 0.15
+) -> dict:
+    total_cargo_value = float(spot_price_usd) * float(cargo_volume_mt)
+    annual_cost_of_capital = sofr_rate_pct + sofr_spread_pct
+    daily_capital_cost = total_cargo_value * (annual_cost_of_capital / 365.0)
+    total_capital_cost = daily_capital_cost * float(transit_days)
+    total_storage_cost = float(storage_rate_per_mt_day) * float(cargo_volume_mt) * float(transit_days)
+    total_carrying_cost = total_capital_cost + total_storage_cost
+    return {
+        "cargo_value_usd": round(total_cargo_value, 2),
+        "daily_capital_cost_usd": round(daily_capital_cost, 2),
+        "total_capital_cost_usd": round(total_capital_cost, 2),
+        "total_storage_cost_usd": round(total_storage_cost, 2),
+        "total_carrying_cost_usd": round(total_carrying_cost, 2),
+        "carrying_cost_per_mt": round(total_carrying_cost / max(1, cargo_volume_mt), 2)
+    }
+
+def calculate_demurrage_and_decay(
+    queue_days: float,
+    laytime_free_days: float = 2.0,
+    daily_demurrage_usd: float = 28000.0,
+    cargo_volume_mt: float = 15000.0,
+    daily_shrinkage_pct: float = 0.0005
+) -> dict:
+    billable_queue_days = max(0.0, float(queue_days) - float(laytime_free_days))
+    total_demurrage_cost = billable_queue_days * float(daily_demurrage_usd)
+    retained_volume_ratio = (1.0 - float(daily_shrinkage_pct)) ** float(queue_days)
+    deliverable_volume_mt = float(cargo_volume_mt) * retained_volume_ratio
+    volumetric_loss_mt = float(cargo_volume_mt) - deliverable_volume_mt
+    return {
+        "billable_demurrage_days": round(billable_queue_days, 1),
+        "total_demurrage_cost_usd": round(total_demurrage_cost, 2),
+        "volumetric_loss_mt": round(volumetric_loss_mt, 2),
+        "deliverable_volume_mt": round(deliverable_volume_mt, 2)
+    }
+
+def simulate_rerouting_arbitrage(
+    vessel_name: str = "MV Kpler Horizon",
+    cargo_type: str = "LNG Bulk / Copper Cathode",
+    canal_queue_days: float = 12.0,
+    canal_transit_surcharge_usd: float = 350000.0,
+    extra_cape_sailing_days: float = 10.0,
+    daily_bunker_burn_mt: float = 32.0,
+    bunker_fuel_price_usd_per_mt: float = 620.0,
+    cargo_value_usd: float = 33000000.0,
+    daily_demurrage_rate_usd: float = 28000.0,
+    laytime_free_days: float = 2.0,
+    sofr_rate_pct: float = 0.048
+) -> dict:
+    demurrage_a = max(0.0, canal_queue_days - laytime_free_days) * daily_demurrage_rate_usd
+    capital_cost_a = cargo_value_usd * ((sofr_rate_pct + 0.015) / 365.0) * canal_queue_days
+    total_cost_a = demurrage_a + capital_cost_a + canal_transit_surcharge_usd
+    
+    bunker_cost_b = extra_cape_sailing_days * daily_bunker_burn_mt * bunker_fuel_price_usd_per_mt
+    capital_cost_b = cargo_value_usd * ((sofr_rate_pct + 0.015) / 365.0) * extra_cape_sailing_days
+    total_cost_b = bunker_cost_b + capital_cost_b
+    
+    net_savings = total_cost_a - total_cost_b
+    optimal_route = "Reroute via Cape of Good Hope" if net_savings > 0 else "Wait in Canal Queue"
+    
+    return {
+        "vessel_name": vessel_name,
+        "cargo_type": cargo_type,
+        "option_a_choke_wait": {
+            "queue_days": canal_queue_days,
+            "demurrage_cost_usd": round(demurrage_a, 2),
+            "capital_tieup_cost_usd": round(capital_cost_a, 2),
+            "canal_toll_surcharge_usd": round(canal_transit_surcharge_usd, 2),
+            "total_route_cost_usd": round(total_cost_a, 2)
+        },
+        "option_b_cape_reroute": {
+            "extra_sailing_days": extra_cape_sailing_days,
+            "extra_bunker_cost_usd": round(bunker_cost_b, 2),
+            "capital_tieup_cost_usd": round(capital_cost_b, 2),
+            "demurrage_cost_usd": 0.0,
+            "canal_toll_surcharge_usd": 0.0,
+            "total_route_cost_usd": round(total_cost_b, 2)
+        },
+        "arbitrage_delta_usd": round(abs(net_savings), 2),
+        "optimal_recommendation": optimal_route,
+        "margin_preservation_summary": f"Choosing {optimal_route} saves ${abs(net_savings):,.2f} in net trade margin."
+    }
+
+def get_digital_twin_telemetry_feed() -> list:
+    vessels = [
+        {"name": "MV Kpler Horizon", "cargo": "Primary Aluminum Ingot", "vol_mt": 15000, "spot": 2200, "days": 18, "queue": 12.0, "route": "Panama Route"},
+        {"name": "MT Gulf Pioneer", "cargo": "LNG Bulk Cargo", "vol_mt": 45000, "spot": 650, "days": 24, "queue": 3.5, "route": "Suez Route"},
+        {"name": "MV Pacific Explorer", "cargo": "Copper Cathodes Grade A", "vol_mt": 10000, "spot": 4200, "days": 14, "queue": 8.0, "route": "Bab-el-Mandeb"},
+        {"name": "MT Baltic Venture", "cargo": "Ultra-Low Sulfur Diesel", "vol_mt": 30000, "spot": 780, "days": 12, "queue": 1.0, "route": "English Channel"}
+    ]
+    twin_feed = []
+    for v in vessels:
+        carrying = calculate_inventory_carrying_cost(v["spot"], v["vol_mt"], v["days"])
+        demurrage = calculate_demurrage_and_decay(v["queue"], cargo_volume_mt=v["vol_mt"])
+        arbs = simulate_rerouting_arbitrage(
+            vessel_name=v["name"],
+            cargo_type=v["cargo"],
+            canal_queue_days=v["queue"],
+            cargo_value_usd=carrying["cargo_value_usd"]
+        )
+        twin_feed.append({
+            "vessel_name": v["name"],
+            "commodity": v["cargo"],
+            "cargo_volume_mt": v["vol_mt"],
+            "carrying_cost_usd": carrying["total_carrying_cost_usd"],
+            "demurrage_penalty_usd": demurrage["total_demurrage_cost_usd"],
+            "volumetric_loss_mt": demurrage["volumetric_loss_mt"],
+            "reroute_recommendation": arbs["optimal_recommendation"],
+            "savings_usd": arbs["arbitrage_delta_usd"]
+        })
+    return twin_feed
