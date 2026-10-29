@@ -410,6 +410,54 @@ def render_ctrm_desk(persona="Commercial Commodities & Trading Enterprise", term
     mc_scenario_ctrm = st.session_state.get("active_mc_scenario", None)
     mc_loss_ctrm = st.session_state.get("mc_expected_loss", 0.0)
     if mc_scenario_ctrm:
+        st.error(f"🚨 **ENTERPRISE MACRO STRESS INJECTED**: **{mc_scenario_ctrm}** | Systemic VaR Baseline Elevated by **+${mc_loss_ctrm:.2f}M**")
+        
+        st.markdown("### ⚡ Scenario-Specific FIX 4.4 Financial Execution Desk")
+        
+        c_h1, c_h2 = st.columns([2, 1])
+        
+        if "Strait of Hormuz" in mc_scenario_ctrm:
+            hedge_label = "🛢️ Execute FIX 4.4 Brent Crude & LNG Asian Call Option ($140 Cap)"
+            hedge_key = "Brent/LNG Crude Call Spread (Hormuz Crisis)"
+            hedge_desc = "Locks in cap on crude price spikes above $140/bbl and offsets emergency LNG rerouting costs via CME/ICE broker gateway."
+        elif "Black Sea" in mc_scenario_ctrm:
+            hedge_label = "🌾 Execute FIX 4.4 Wheat Futures & TTF Gas Collar"
+            hedge_key = "Black Sea Ag & Gas Collar"
+            hedge_desc = "Protects grain delivery margins and hedges nitrogen fertilizer feedstock gas spikes via CME/EEX."
+        elif "Brazilian Polar Frost" in mc_scenario_ctrm:
+            hedge_label = "☕ Execute FIX 4.4 Arabica Coffee Bullish Call Spread"
+            hedge_key = "Arabica Coffee Futures Spread (Brazil Frost)"
+            hedge_desc = "Protects against soft commodity spot inflation (+120%) and crop loss margin erosion via ICE."
+        elif "Super El Niño" in mc_scenario_ctrm:
+            hedge_label = "🌋 Execute FIX 4.4 Ag-Bulk & Panama FFA Freight Hedge"
+            hedge_key = "Panama FFA & Ag-Bulk Hedge"
+            hedge_desc = "Hedges against 40% daily Panama transit reductions and grain draft penalties via Baltic Exchange."
+        elif "Choke Point Blockade" in mc_scenario_ctrm:
+            hedge_label = "⚓ Execute FIX 4.4 Bunker Burn & Suez Freight Swap"
+            hedge_key = "Suez Freight Rate Swap & Cape Bunker Burn"
+            hedge_desc = "Locks in Cape of Good Hope rerouting bunker burn rates and floating demurrage exposure."
+        elif "Geopolitical Escalation" in mc_scenario_ctrm:
+            hedge_label = "🔥 Execute FIX 4.4 VLSFO Bunker Fuel Call Collar"
+            hedge_key = "VLSFO Bunker Fuel Call Option"
+            hedge_desc = "Protects against marine fuel spikes above $900/MT and shipping insurance surcharges."
+        elif "Marine Heatwave" in mc_scenario_ctrm:
+            hedge_label = "🌊 Execute FIX 4.4 Thermal Loss Derivative & Spoilage Insurance"
+            hedge_key = "Cargo Thermal Spoilage Insurance Derivative"
+            hedge_desc = "Offsets LNG boil-off losses and reefer container thermal loss claims."
+        else:
+            hedge_label = "🦢 Execute FIX 4.4 Systemic Cross-Asset Tail Risk Collar"
+            hedge_key = "Multi-Vector Systemic Risk Collar"
+            hedge_desc = "Deploys sovereign CDS and port TOS cyber outage financial protection hedges."
+
+        with c_h1:
+            if st.button(hedge_label, key="btn_exec_macro_hedge"):
+                if hedge_key not in st.session_state["executed_hedges"]:
+                    st.session_state["executed_hedges"].append(hedge_key)
+                st.success(f"✅ **FIX 4.4 Derivatives Hedge Dispatched**: {hedge_key} executed via LME/CME/ICE gateway!")
+
+        with c_h2:
+            st.info(f"**Strategy Context**: {hedge_desc}")
+        st.markdown("---")
         st.warning(f"🚨 **ENTERPRISE MACRO STRESS INJECTED**: **{mc_scenario_ctrm}** | Systemic VaR Baseline Elevated by **+${mc_loss_ctrm:.2f}M**. Recommended Action: Execute FIX 4.4 derivatives hedges to protect gross margin.")
     st.title("🛡️ Backtested Portfolio & CTRM Risk Desk")
     st.caption("Event-driven financial hedging, Black76 multi-option pricing, strategy payoff modeling, FIX 4.4 gateway, and derivatives register.")
