@@ -109,6 +109,21 @@ def render_executive_sop(persona="Commercial Commodities & Trading Enterprise", 
         st.success(f"🟢 **CTRM Risk Desk**: {len(st.session_state['executed_hedges'])} Hedges Executed | Gain: +${total_hedge_gain:,.2f}")
 
 # MODULE 3: NLP COMMERCIAL SENSING
+
+    # --- DIGITAL TWIN P&L WATERFALL INTEGRATION ---
+    twin_data = get_digital_twin_telemetry_feed()
+    total_transit_drag = sum(v["carrying_cost_usd"] + v["demurrage_penalty_usd"] for v in twin_data)
+    drag_m = total_transit_drag / 1000000.0
+    net_ebitda = 120.0 - drag_m
+
+    st.markdown("---")
+    st.subheader("💰 Digital Twin Carrying Cost Drag on P&L Waterfall")
+    col_pnl1, col_pnl2, col_pnl3 = st.columns(3)
+    col_pnl1.metric("Gross EBITDA Target", "$120.00M")
+    col_pnl2.metric("In-Transit Carrying & Demurrage Drag", f"-${drag_m:.2f}M", delta="-SOFR & Demurrage", delta_color="inverse")
+    col_pnl3.metric("Net Adjusted EBITDA", f"${net_ebitda:.2f}M")
+
+
 def render_nlp_commercial_sensing(persona="Commercial Commodities & Trading Enterprise"):
     st.title("🧠 Alternative Data & Sentiment Vector Matrix")
     st.caption("A data-driven commodity intelligence and machine-learning forecasting platform providing real-time cargo tracking, supply/demand projections, and backtested analytics across 50+ commodities.")
@@ -409,6 +424,33 @@ def render_ctrm_desk(persona="Commercial Commodities & Trading Enterprise", term
         st.dataframe(pd.DataFrame(hedges), use_container_width=True, hide_index=True)
 
 # MODULE 7: GLOBAL LOGISTICS GIS (EXPANDED WITH RICH MAP & TELEMETRY REGISTERS)
+
+    # --- DIGITAL TWIN AUTOMATED MARGIN EROSION ALERTS ---
+    twin_data_ctrm = get_digital_twin_telemetry_feed()
+    st.markdown("---")
+    st.subheader("🚨 Digital Twin Automated Margin Erosion & Liquidation Alerts")
+
+    has_alerts = False
+    for v in twin_data_ctrm:
+        v_name = v["vessel_name"]
+        v_comm = v["commodity"]
+        v_c_cost = v["carrying_cost_usd"]
+        v_d_cost = v["demurrage_penalty_usd"]
+        v_rec = v["reroute_recommendation"]
+        v_sav = v["savings_usd"]
+        total_drag = v_c_cost + v_d_cost
+
+        if total_drag > 300000:
+            has_alerts = True
+            st.error(
+                f"**MARGIN EROSION ALERT (>50%)**: Vessel **{v_name}** ({v_comm}) "
+                f"accumulated **${total_drag:,.2f}** in transit drag (SOFR Capital Tie-up: ${v_c_cost:,.2f} | Demurrage: ${v_d_cost:,.2f}). "
+                f"**Recommendation**: {v_rec} (Saves ${v_sav:,.2f}) or execute prompt futures liquidation."
+            )
+    if not has_alerts:
+        st.success("All active voyages operating within acceptable carrying cost thresholds (<50% margin erosion).")
+
+
 def render_global_logistics_gis(persona="Commercial Commodities & Trading Enterprise", term_unit="Units"):
     st.title("🌐 Real-Time AIS Cargo & GIS Telemetry")
     st.caption("Real-time ocean AIS vessel tracking, port congestion, maritime chokepoints, and freight lane telemetry.")
