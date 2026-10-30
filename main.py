@@ -163,7 +163,7 @@ def render_executive_sop(persona=None):
             height=340,
             margin=dict(l=20, r=20, t=40, b=20)
         )
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(fig, width='stretch')
 
     with col_w2:
         st.subheader("► Live Operational Desk Feeds")
@@ -196,6 +196,9 @@ def render_nlp_commercial_sensing(persona="Commercial Commodities & Trading Ente
     st.title("🧠 Alternative Data & Sentiment Vector Matrix")
     st.caption("A data-driven commodity intelligence and machine-learning forecasting platform providing real-time cargo tracking, supply/demand projections, and backtested analytics across 50+ commodities.")
     
+    if "selected_sector" not in st.session_state:
+        st.session_state["selected_sector"] = "Metals & Mining"
+
     tab1, tab2, tab3 = st.tabs([
         "📡 Live Web, Macro & Social Signals", 
         "📧 Email & Event Debrief Parser", 
@@ -218,12 +221,21 @@ def render_nlp_commercial_sensing(persona="Commercial Commodities & Trading Ente
         st.subheader("📧 Executive Email & Field Intelligence Debrief Stream")
         st.caption("Parsing post-trade show debriefs, executive LinkedIn disclosures, and CFO field updates before ERP entry.")
         
+        active_sector = st.session_state.get("selected_sector", "Metals & Mining")
+        st.info(f"🏢 Active Sector Filter: **{active_sector}**")
+        
         try:
             with open("robot_signals.json", "r") as f:
                 sig_data = json.load(f)
-            debrief_list = sig_data.get("email_debriefs", sig_data.get("field_intelligence", []))
+            raw_debriefs = sig_data.get("email_debriefs", sig_data.get("field_intelligence", []))
         except Exception:
-            debrief_list = []
+            raw_debriefs = []
+        
+        debrief_list = [d for d in raw_debriefs if d.get("sector") == active_sector]
+        if not debrief_list:
+            debrief_list = [d for d in raw_debriefs if any(w in d.get("title", "").lower() or w in d.get("author", "").lower() or w in d.get("commodity", "").lower() for w in active_sector.lower().split())]
+        if not debrief_list:
+            debrief_list = raw_debriefs[:4]
         
         if not debrief_list:
             st.info("No active executive event debriefs available.")
@@ -232,13 +244,13 @@ def render_nlp_commercial_sensing(persona="Commercial Commodities & Trading Ente
             for idx, item in enumerate(debrief_list):
                 with cols_t2[idx % 2]:
                     with st.container(border=True):
-                        st.caption(f"**{item.get('source', 'Executive Briefing')}** | **{item.get('author', 'Field Sourcing')}** | Commodity: **{item.get('commodity', 'General')}**")
+                        st.caption(f"**{item.get('source', 'Executive Briefing')}** | **{item.get('author', 'Field Sourcing')}** | Sector: **{item.get('sector', active_sector)}**")
                         st.markdown(f"#### {item.get('headline', item.get('title', 'Debrief'))}")
                         st.write(item.get('content', 'Executive field intelligence report regarding spot supply constraints.'))
                         si = float(item.get('sentiment_score', -0.33))
                         st.metric("Sentiment Impact ($S_i$)", f"{si:+.2f}")
                         
-                        if st.button(f"⚡ Ingest Debrief #{idx+1}", key=f"btn_tab2_ingest_{idx}", use_container_width=True):
+                        if st.button(f"⚡ Ingest Debrief #{idx+1}", key=f"btn_tab2_ingest_{idx}", width='stretch'):
                             st.session_state["platform_si_override"] = si
                             st.session_state["platform_demand_impact"] = item.get("impact_demand", 15400)
                             st.session_state["platform_leadtime_impact"] = item.get("impact_leadtime", 4.2)
@@ -273,13 +285,14 @@ def render_nlp_commercial_sensing(persona="Commercial Commodities & Trading Ente
                         lt = float(item.get('impact_leadtime', 4.5))
                         st.metric("Lead Time Drag", f"+{lt:.1f} Days", delta=f"SI: {si:+.2f}")
                         
-                        if st.button(f"⚡ Ingest Freight Signal #{idx+1}", key=f"btn_tab3_ingest_{idx}", use_container_width=True):
+                        if st.button(f"⚡ Ingest Freight Signal #{idx+1}", key=f"btn_tab3_ingest_{idx}", width='stretch'):
                             st.session_state["platform_si_override"] = si
                             st.session_state["platform_leadtime_impact"] = lt
                             st.session_state["platform_demand_impact"] = item.get("impact_demand", 16500)
                             st.session_state["platform_active_signal"] = item.get("headline", "")
                             st.toast(f"⚡ Freight Disruption Signal #{idx+1} Ingested into S&OP Platform!")
                             st.rerun()
+
 
 # MODULE 4: DEMAND/SUPPLY MATCH
 def render_demand_supply_match(persona="Commercial Commodities & Trading Enterprise", term_unit="Units"):
@@ -326,7 +339,7 @@ def render_demand_supply_match(persona="Commercial Commodities & Trading Enterpr
                 "Net Planned Release": f"{p_net + int(p_req*0.12):,} {term_unit}",
                 "MRP Status": "⚠️ Deficit / Release Needed" if p_net > 0 else "✅ Balanced"
             })
-        st.dataframe(pd.DataFrame(matrix), use_container_width=True, hide_index=True)
+        st.dataframe(pd.DataFrame(matrix), width='stretch', hide_index=True)
 
         st.divider()
         st.subheader("⚙️ Upstream ERP Planned Order Release (POR) Recalculation")
@@ -377,7 +390,7 @@ def render_physical_procurement(persona="Commercial Commodities & Trading Enterp
             {"Contract ID": "CTR-2026-C9", "Commodity": "Semiconductor MCUs", "Supplier": "TSMC Wafer Foundry", "Volume": "100,000 Units", "Fixed Price": "$450 / Unit", "GL Account": "GL-5200-SEMI", "Status": "🟢 Executing"}
         ]
 
-    st.dataframe(pd.DataFrame(st.session_state["physical_contracts_list"]), use_container_width=True, hide_index=True)
+    st.dataframe(pd.DataFrame(st.session_state["physical_contracts_list"]), width='stretch', hide_index=True)
 
     st.divider()
     st.subheader("📝 Commit New Physical Supply Contract")
@@ -503,7 +516,7 @@ def render_ctrm_desk(persona="Commercial Commodities & Trading Enterprise", term
     gcols[3].metric("Gamma (Γ)", f"{greeks['gamma']:.5f}")
     gcols[4].metric("Vega (ν)", f"${greeks['vega']:,.2f}")
 
-    st.plotly_chart(rf.plot_strategy_payoff(spot_f, k1_strike, k2_strike, strategy_type, volume=vol_input), use_container_width=True)
+    st.plotly_chart(rf.plot_strategy_payoff(spot_f, k1_strike, k2_strike, strategy_type, volume=vol_input), width='stretch')
 
     st.divider()
     st.subheader("⚡ FIX 4.4 Financial Hedge Execution Gateway")
@@ -518,7 +531,7 @@ def render_ctrm_desk(persona="Commercial Commodities & Trading Enterprise", term
         """, language="text")
     with fcol2:
         st.markdown("##### Executive Trade Execution")
-        if st.button("⚡ Execute Derivative Order via FIX 4.4", type="primary", use_container_width=True, key="btn_exec_ctrm_fix"):
+        if st.button("⚡ Execute Derivative Order via FIX 4.4", type="primary", width='stretch', key="btn_exec_ctrm_fix"):
             trade_count = len(st.session_state.get("executed_hedges", [])) + 1
             benefit = abs(greeks['total_premium']) if greeks['total_premium'] != 0 else 3250000.0
             new_trade = {
@@ -542,7 +555,7 @@ def render_ctrm_desk(persona="Commercial Commodities & Trading Enterprise", term
     if not hedges:
         st.info("No derivative trades executed yet. Configure parameters above and click 'Execute Derivative Order'.")
     else:
-        st.dataframe(pd.DataFrame(hedges), use_container_width=True, hide_index=True)
+        st.dataframe(pd.DataFrame(hedges), width='stretch', hide_index=True)
 
 # MODULE 7: GLOBAL LOGISTICS GIS (EXPANDED WITH RICH MAP & TELEMETRY REGISTERS)
 
@@ -603,7 +616,7 @@ def render_global_logistics_gis(persona="Commercial Commodities & Trading Enterp
     })
     
     fig = rf.create_gis_map_figure(nodes)
-    st.plotly_chart(fig, use_container_width=True)
+    st.plotly_chart(fig, width='stretch')
 
     st.divider()
     st.subheader("📡 Global Maritime Shipping Lanes Telemetry Register")
@@ -614,7 +627,7 @@ def render_global_logistics_gis(persona="Commercial Commodities & Trading Enterp
         {"Shipping Lane Corridor": "Transatlantic North Europe to US East Coast", "FBX Rate ($/FEU)": "$2,100", "YoY Change": "-2.1%", "Avg Transit (Days)": "10.5 Days", "Congestion Delay": "+0.5 Days", "Status": "🟢 Smooth Flow"},
         {"Shipping Lane Corridor": "US Gulf to East Asia (Panama Canal)", "FBX Rate ($/FEU)": "$3,950", "YoY Change": "+12.4%", "Avg Transit (Days)": "22.8 Days", "Congestion Delay": "+6.0 Days", "Status": "🟡 Draft Restrictions"}
     ]
-    st.dataframe(pd.DataFrame(lanes_data), use_container_width=True, hide_index=True)
+    st.dataframe(pd.DataFrame(lanes_data), width='stretch', hide_index=True)
 
 # MODULE 8: SANDBOX FLIGHT SIMULATOR (ENHANCED WITH MONTE CARLO & PROPAGATION)
 
@@ -676,7 +689,7 @@ def render_global_logistics_gis(persona="Commercial Commodities & Trading Enterp
 
     st.subheader("📦 Live In-Transit Cargo Digital Twin State Feed")
     twin_feed_data = get_digital_twin_telemetry_feed()
-    st.dataframe(twin_feed_data, use_container_width=True)
+    st.dataframe(twin_feed_data, width='stretch')
     if st.button("🚢 Execute Reroute Order (Cape of Good Hope)", key="btn_exec_ais_reroute"):
         v_name = vessel_select.split(" (")[0]
         if v_name not in st.session_state["rerouted_vessels"]:
