@@ -1191,3 +1191,13 @@ def render_rss_breaking_news_stream():
                         st.session_state["platform_active_signal"] = art.get('title', '')
                         st.toast(f"⚡ Ingested RSS News Item #{idx+1} into Platform State!")
                         st.rerun()
+
+def stream_executive_debrief(text: str, words_per_sec: float = 35.0):
+    """Yield text word-by-word to create a live typewriter streaming effect in Streamlit."""
+    import time
+    delay = 1.0 / words_per_sec
+    def _word_generator():
+        for word in text.split(" "):
+            yield word + " "
+            time.sleep(delay)
+    st.write_stream(_word_generator)
