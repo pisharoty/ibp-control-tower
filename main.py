@@ -206,6 +206,13 @@ def render_nlp_commercial_sensing(persona="Commercial Commodities & Trading Ente
     ])
     
     with tab1:
+        # Dynamically load live market ticks from robot_signals.json if available
+        try:
+            with open("robot_signals.json", "r") as f:
+                robot_data = json.load(f)
+            live_ticks = robot_data.get("live_ticks", {})
+        except Exception:
+            live_ticks = {}
         st.subheader("📡 Live Genspark Tactical Market Signals")
         rf.render_genspark_overlay()
 
@@ -437,6 +444,13 @@ def render_demand_supply_match(persona="Commercial Commodities & Trading Enterpr
     ])
     
     with tab1:
+        # Dynamically load live market ticks from robot_signals.json if available
+        try:
+            with open("robot_signals.json", "r") as f:
+                robot_data = json.load(f)
+            live_ticks = robot_data.get("live_ticks", {})
+        except Exception:
+            live_ticks = {}
         st.subheader("🗓️ Multi-Period Forward Demand & Netting Horizon")
         horizon_days = st.select_slider("Select Forward Window (Days):", [30, 45, 60, 90, 180], value=60, key="mrp_horizon_slider")
         
