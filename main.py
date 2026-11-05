@@ -199,6 +199,18 @@ def render_nlp_commercial_sensing(persona="Commercial Commodities & Trading Ente
     if "selected_sector" not in st.session_state:
         st.session_state["selected_sector"] = "Metals & Mining"
 
+    # Load live multi-channel telemetry vectors from robot_signals.json
+    try:
+        with open("robot_signals.json", "r", encoding="utf-8") as f:
+            robot_data = json.load(f)
+        live_ticks = robot_data.get("live_ticks", {})
+        macro_telemetry = robot_data.get("macro_telemetry", {})
+        weather_telemetry = robot_data.get("weather_telemetry", {})
+        ais_telemetry = robot_data.get("ais_cargo_telemetry", {})
+        gis_telemetry = robot_data.get("gis_spatial_telemetry", {})
+    except Exception:
+        live_ticks, macro_telemetry, weather_telemetry, ais_telemetry, gis_telemetry = {}, {}, {}, {}, {}
+
     tab1, tab2, tab3 = st.tabs([
         "📡 Live Web, Macro & Social Signals", 
         "📧 Email & Event Debrief Parser", 
