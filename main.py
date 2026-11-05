@@ -218,142 +218,6 @@ def render_nlp_commercial_sensing(persona="Commercial Commodities & Trading Ente
         rf.render_rss_breaking_news_stream()
 
     with tab2:
-        st.subheader("📧 Executive Email & Field Intelligence Debrief Stream")
-        st.caption("Parsing post-trade show debriefs, executive LinkedIn disclosures, and CFO field updates before ERP entry.")
-        
-        active_sector = st.session_state.get("selected_sector", "Metals & Mining")
-        st.info(f"🏢 Active Sector Filter: **{active_sector}**")
-        
-        try:
-            with open("robot_signals.json", "r") as f:
-                sig_data = json.load(f)
-            raw_debriefs = sig_data.get("email_debriefs", sig_data.get("field_intelligence", []))
-        except Exception:
-            raw_debriefs = []
-        
-        debrief_list = [d for d in raw_debriefs if d.get("sector") == active_sector]
-        if not debrief_list:
-            debrief_list = [d for d in raw_debriefs if any(w in d.get("title", "").lower() or w in d.get("author", "").lower() or w in d.get("commodity", "").lower() for w in active_sector.lower().split())]
-        if not debrief_list:
-            debrief_list = raw_debriefs[:4]
-        
-        if not debrief_list:
-            st.info("No active executive event debriefs available.")
-        else:
-            cols_t2 = st.columns(2)
-            for idx, item in enumerate(debrief_list):
-                with cols_t2[idx % 2]:
-                    with st.container(border=True):
-                        st.caption(f"**{item.get('source', 'Executive Briefing')}** | **{item.get('author', 'Field Sourcing')}** | Sector: **{item.get('sector', active_sector)}**")
-                        st.markdown(f"#### {item.get('headline', item.get('title', 'Debrief'))}")
-                        st.write(item.get('content', 'Executive field intelligence report regarding spot supply constraints.'))
-                        si = float(item.get('sentiment_score', -0.33))
-                        st.metric("Sentiment Impact ($S_i$)", f"{si:+.2f}")
-                        
-                        if st.button(f"⚡ Ingest Debrief #{idx+1}", key=f"btn_tab2_ingest_{idx}", width='stretch'):
-                            st.session_state["platform_si_override"] = si
-                            st.session_state["platform_demand_impact"] = item.get("impact_demand", 15400)
-                            st.session_state["platform_leadtime_impact"] = item.get("impact_leadtime", 4.2)
-                            st.session_state["platform_active_signal"] = item.get("headline", item.get("title", ""))
-                            st.toast(f"⚡ Executive Debrief #{idx+1} Ingested into S&OP Platform!")
-                            st.rerun()
-
-    with tab3:
-        st.subheader("⚓ Live Maritime Freight, Weather & Black Swan Feeds")
-        st.caption("Real-time ocean/air spot freight indices, NOAA severe weather tracking, and geopolitical chokepoints.")
-        
-        rf.render_freight_weather_blackswan_tab()
-
-        st.markdown("---")
-        st.markdown("#### 📡 Real-time Telemetry Incident Stream")
-        
-        try:
-            with open("robot_signals.json", "r") as f:
-                sig_data = json.load(f)
-            freight_list = sig_data.get("freight_telemetry_feeds", sig_data.get("freight_weather_feeds", []))
-        except Exception:
-            freight_list = []
-        
-        if freight_list:
-            cols_t3 = st.columns(2)
-            for idx, item in enumerate(freight_list):
-                with cols_t3[idx % 2]:
-                    with st.container(border=True):
-                        st.caption(f"**{item.get('source', 'Telemetry Feed')}** | Corridor: **{item.get('commodity', 'Logistics')}**")
-                        st.markdown(f"#### {item.get('headline', item.get('title', 'Freight Disruption'))}")
-                        si = float(item.get('sentiment_score', -0.42))
-                        lt = float(item.get('impact_leadtime', 4.5))
-                        st.metric("Lead Time Drag", f"+{lt:.1f} Days", delta=f"SI: {si:+.2f}")
-                        
-                        if st.button(f"⚡ Ingest Freight Signal #{idx+1}", key=f"btn_tab3_ingest_{idx}", width='stretch'):
-                            st.session_state["platform_si_override"] = si
-                            st.session_state["platform_leadtime_impact"] = lt
-                            st.session_state["platform_demand_impact"] = item.get("impact_demand", 16500)
-                            st.session_state["platform_active_signal"] = item.get("headline", "")
-                            st.toast(f"⚡ Freight Disruption Signal #{idx+1} Ingested into S&OP Platform!")
-                            st.rerun()
-
-
-# MODULE 4: DEMAND/SUPPLY MATCH
-def render_demand_supply_match(persona="Commercial Commodities & Trading Enterprise", term_unit="Units"):
-    st.title("⚙️ Machine Learning Supply/Demand Projections")
-    st.caption("Automated inventory netting, multi-horizon S&OP scheduling, dynamic order offsets, and plant load balancing.")
-    
-    surge_units = st.session_state.get("platform_demand_impact", st.session_state.get("extracted_demand_surge", 102968))
-    delta_lt = st.session_state.get("platform_leadtime_impact", 2.5)
-    
-    st.info(f"🔗 **Active Orchestrated Signal**: `{st.session_state.get('platform_active_signal', 'Baseline Operations Target')}` | **Surge**: {surge_units:,} {term_unit} | **ΔLT Transit Delay**: +{delta_lt} Days")
-    
-    tab1, tab2 = st.tabs([
-        "📊 Netting & Forward MRP Horizon (30-180 Days)",
-        "⚙️ Dynamic Plant Load Balancing & Capacity Allocation"
-    ])
-    
-    with tab1:
-        st.subheader("🗓️ Multi-Period Forward Demand & Netting Horizon")
-        horizon_days = st.select_slider("Select Forward Window (Days):", [30, 45, 60, 90, 180], value=60, key="mrp_horizon_slider")
-        
-        daily_rate = surge_units / 90.0
-        req_vol = int(daily_rate * horizon_days)
-        cov_vol = int(req_vol * 0.65)
-        net_def = max(0, req_vol - cov_vol)
-        
-        m1, m2, m3, m4 = st.columns(4)
-        m1.metric("Selected Horizon", f"{horizon_days} Days")
-        m2.metric(f"Gross Req ({horizon_days}d)", f"{req_vol:,} {term_unit}")
-        m3.metric("Contracted Inbound", f"{cov_vol:,} {term_unit}")
-        m4.metric("Net Uncovered Deficit", f"{net_def:,} {term_unit}", delta="Uncovered Risk" if net_def > 0 else "Balanced", delta_color="inverse")
-
-        st.markdown("##### 📋 Forward MRP Netting Schedule Matrix")
-        periods = [30, 45, 60, 90, 180]
-        matrix = []
-        for p in periods:
-            p_req = int(daily_rate * p)
-            p_cov = int(p_req * 0.65)
-            p_net = max(0, p_req - p_cov)
-            matrix.append({
-                "Horizon": f"T+{p} Days",
-                "Gross Req": f"{p_req:,} {term_unit}",
-                "Contract Cover": f"{p_cov:,} {term_unit}",
-                "Safety Stock Buffer (12%)": f"{int(p_req*0.12):,} {term_unit}",
-                "Net Planned Release": f"{p_net + int(p_req*0.12):,} {term_unit}",
-                "MRP Status": "⚠️ Deficit / Release Needed" if p_net > 0 else "✅ Balanced"
-            })
-        st.dataframe(pd.DataFrame(matrix), width='stretch', hide_index=True)
-
-        st.divider()
-        st.subheader("⚙️ Upstream ERP Planned Order Release (POR) Recalculation")
-        base_release = "2026-11-15"
-        shifted_release = "2026-11-07"
-        
-        o1, o2, o3 = st.columns(3)
-        o1.metric("Baseline Order Release Date", base_release)
-        o2.metric("Upstream Transit Delay (ΔLT)", f"+{delta_lt} Days")
-        o3.metric("Shifted ERP Release Date", shifted_release)
-        
-        st.success(f"**Automated ERP Action**: Planned Order Release shifted backward to **`{shifted_release}`** to absorb the **+{delta_lt} day** bottleneck.")
-
-    with tab2:
         st.subheader("Alternative Data & Multi-Source Intelligence Scraper Matrix")
         st.caption("Multi-channel signal scraping, NLP sentiment scoring (VADER), and predictive anomaly vector propagation.")
 
@@ -396,21 +260,8 @@ def render_demand_supply_match(persona="Commercial Commodities & Trading Enterpr
 
         selected_ticker = target_symbol.split()[0]
         raw_name = target_symbol.split("(")[1].replace(")", "") if "(" in target_symbol else target_symbol
-        
-        try:
-            with open("robot_signals.json", "r") as f:
-                robot_data = json.load(f)
-            live_ticks_t2 = robot_data.get("live_ticks", {})
-        except Exception:
-            live_ticks_t2 = {}
-
-        tick_info = live_ticks_t2.get(selected_ticker, {})
-        if "vader" in tick_info:
-            avg_score = float(tick_info["vader"])
-        else:
-            hash_val = sum(ord(c) for c in target_symbol)
-            avg_score = float(((hash_val % 100) - 48) / 100.0) if selected_ticker != "HO=F" else -0.0200
-
+        hash_val = sum(ord(c) for c in target_symbol)
+        avg_score = float(((hash_val % 100) - 48) / 100.0) if selected_ticker != "HO=F" else -0.0200
         leadtime_drag = round(max(0.5, abs(avg_score) * 5.2), 1)
         demand_impact = int(112200 + avg_score * 18500)
         delta_lbl = "Bearish Drag" if avg_score < 0 else "Bullish Signal"
@@ -459,7 +310,6 @@ def render_demand_supply_match(persona="Commercial Commodities & Trading Enterpr
 
         with sub_social:
             st.subheader(f"💬 Community & Trader Sentiment Scraper for {selected_ticker}")
-            hash_val = sum(ord(c) for c in target_symbol)
             social_data = [
                 {"Platform": "r/Commodities", "Topic": f"{raw_name} Stocks & Refining Margins", "Sentiment": f"{avg_score:+.2f} ({'Bullish' if avg_score > 0 else 'Bearish'})", "Mentions": 1420 + hash_val % 500},
                 {"Platform": "r/Maritime", "Topic": f"Panama & Suez Transit Slots for {selected_ticker}", "Sentiment": f"{-abs(avg_score):+.2f} (Logistics Drag)", "Mentions": 2890},
