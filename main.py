@@ -206,6 +206,16 @@ def render_nlp_commercial_sensing(persona="Commercial Commodities & Trading Ente
     ])
     
     with tab1:
+
+        # Dynamically load live market ticks from robot_signals.json if available
+        import json
+        try:
+            with open("robot_signals.json", "r") as f:
+                robot_data = json.load(f)
+            live_ticks = robot_data.get("live_ticks", {})
+        except Exception:
+            live_ticks = {}
+
         st.subheader("📡 Live Genspark Tactical Market Signals")
         rf.render_genspark_overlay()
 
@@ -223,7 +233,33 @@ def render_nlp_commercial_sensing(persona="Commercial Commodities & Trading Ente
 
         c_sym, c_depth, c_btn = st.columns([2, 2, 2])
         with c_sym:
-            target_symbol = st.selectbox("Target Commodity / Asset Stream:", ["HO=F (Heating Oil / Distillates)", "CL=F (WTI Crude)", "BZ=F (Brent Crude)", "NG=F (Natural Gas)"])
+            target_symbol = st.selectbox(
+            "Target Commodity / Asset Stream:",
+            [
+                "HO=F (ULSD Heating Oil / Distillates)",
+                "CL=F (WTI Crude Oil)",
+                "BZ=F (Brent Crude Oil)",
+                "NG=F (Henry Hub Natural Gas)",
+                "RB=F (RBOB Gasoline)",
+                "HG=F (LME Copper Cathode)",
+                "ALI=F (Primary Aluminum Ingot)",
+                "ZN=F (Special High Grade Zinc)",
+                "GC=F (Gold Spot / Futures)",
+                "SI=F (Silver Spot / Futures)",
+                "LIT (Battery Grade Lithium)",
+                "KC=F (Arabica Coffee & Softs)",
+                "ZW=F (CBOT Milling Wheat)",
+                "ZC=F (CBOT Yellow Corn)",
+                "ZS=F (CBOT Soybeans)",
+                "SB=F (ICE Raw Sugar)",
+                "NTR (Potassium Chloride & MOP)",
+                "CF (Ammonia & Nitrogen Feedstock)",
+                "MOS (Phosphates & Acid Benchmark)",
+                "BDRY (Baltic Dry Shipping Index)",
+                "ZIM (Ocean Container Transport)",
+                "EXPD (Global Freight Logistics)"
+            ]
+        )
         with c_depth:
             feed_mode = st.select_slider("Scraper Feed Depth Mode:", options=["Standard Feeds", "Deep Multi-Channel Scraper"], value="Deep Multi-Channel Scraper")
         with c_btn:
@@ -395,6 +431,16 @@ def render_demand_supply_match(persona="Commercial Commodities & Trading Enterpr
     ])
     
     with tab1:
+
+        # Dynamically load live market ticks from robot_signals.json if available
+        import json
+        try:
+            with open("robot_signals.json", "r") as f:
+                robot_data = json.load(f)
+            live_ticks = robot_data.get("live_ticks", {})
+        except Exception:
+            live_ticks = {}
+
         st.subheader("🗓️ Multi-Period Forward Demand & Netting Horizon")
         horizon_days = st.select_slider("Select Forward Window (Days):", [30, 45, 60, 90, 180], value=60, key="mrp_horizon_slider")
         
