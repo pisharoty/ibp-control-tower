@@ -309,6 +309,50 @@ def render_demand_supply_match(persona="Commercial Commodities & Trading Enterpr
         "⚙️ Dynamic Plant Load Balancing & Capacity Allocation"
     ])
     
+    with tab1:
+        st.subheader("🗓️ Multi-Period Forward Demand & Netting Horizon")
+        horizon_days = st.select_slider("Select Forward Window (Days):", [30, 45, 60, 90, 180], value=60, key="mrp_horizon_slider")
+        
+        daily_rate = surge_units / 90.0
+        req_vol = int(daily_rate * horizon_days)
+        cov_vol = int(req_vol * 0.65)
+        net_def = max(0, req_vol - cov_vol)
+        
+        m1, m2, m3, m4 = st.columns(4)
+        m1.metric("Selected Horizon", f"{horizon_days} Days")
+        m2.metric(f"Gross Req ({horizon_days}d)", f"{req_vol:,} {term_unit}")
+        m3.metric("Contracted Inbound", f"{cov_vol:,} {term_unit}")
+        m4.metric("Net Uncovered Deficit", f"{net_def:,} {term_unit}", delta="Uncovered Risk" if net_def > 0 else "Balanced", delta_color="inverse")
+
+        st.markdown("##### 📋 Forward MRP Netting Schedule Matrix")
+        periods = [30, 45, 60, 90, 180]
+        matrix = []
+        for p in periods:
+            p_req = int(daily_rate * p)
+            p_cov = int(p_req * 0.65)
+            p_net = max(0, p_req - p_cov)
+            matrix.append({
+                "Horizon": f"T+{p} Days",
+                "Gross Req": f"{p_req:,} {term_unit}",
+                "Contract Cover": f"{p_cov:,} {term_unit}",
+                "Safety Stock Buffer (12%)": f"{int(p_req*0.12):,} {term_unit}",
+                "Net Planned Release": f"{p_net + int(p_req*0.12):,} {term_unit}",
+                "MRP Status": "⚠️ Deficit / Release Needed" if p_net > 0 else "✅ Balanced"
+            })
+        st.dataframe(pd.DataFrame(matrix), width='stretch', hide_index=True)
+
+        st.divider()
+        st.subheader("⚙️ Upstream ERP Planned Order Release (POR) Recalculation")
+        base_release = "2026-11-15"
+        shifted_release = "2026-11-07"
+        
+        o1, o2, o3 = st.columns(3)
+        o1.metric("Baseline Order Release Date", base_release)
+        o2.metric("Upstream Transit Delay (ΔLT)", f"+{delta_lt} Days")
+        o3.metric("Shifted ERP Release Date", shifted_release)
+        
+        st.success(f"**Automated ERP Action**: Planned Order Release shifted backward to **`{shifted_release}`** to absorb the **+{delta_lt} day** bottleneck.")
+
     with tab2:
         st.subheader("Alternative Data & Multi-Source Intelligence Scraper Matrix")
         st.caption("Multi-channel signal scraping, NLP sentiment scoring (VADER), and predictive anomaly vector propagation.")
