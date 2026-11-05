@@ -514,7 +514,6 @@ def render_demand_supply_match(persona="Commercial Commodities & Trading Enterpr
                 st.session_state["platform_active_signal"] = "El Niño Severe Drought Anomaly (+6.8d)"
                 st.toast("⚡ Ingested NOAA El Niño Anomaly into CTRM & S&OP Engine!", icon="🚀")
 
-# MODULE 4: DEMAND/SUPPLY MATCH
 def render_demand_supply_match(persona="Commercial Commodities & Trading Enterprise", term_unit="Units"):
     st.title("⚙️ Machine Learning Supply/Demand Projections")
     st.caption("Automated inventory netting, multi-horizon S&OP scheduling, dynamic order offsets, and plant load balancing.")
