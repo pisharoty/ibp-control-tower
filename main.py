@@ -342,39 +342,74 @@ def render_nlp_commercial_sensing(persona="Commercial Commodities & Trading Ente
             st.success(f"✅ Propagated Live Signal Vector to S&OP, CTRM, and Simulator Desks! (Lead-Time Drag: +{leadtime_drag}d)")
 
     with tab3:
-        st.subheader("⚓ Live Maritime Freight, Weather & Black Swan Feeds")
-        st.caption("Real-time ocean/air spot freight indices, NOAA severe weather tracking, and geopolitical chokepoints.")
+        st.subheader("⚓ Real-Time AIS Cargo & GIS Spatial Telemetry Desk")
+        st.caption("Downstream multi-modal ingestion of satellite AIS vessel tracking, GIS atmospheric storm layers, ocean container freight spot rates, and chokepoint congestion dynamics.")
 
         m1, m2, m3, m4 = st.columns(4)
         with m1:
-            st.metric("Baltic Dry Freight Index (BDI)", "5,484 pts", delta="-1.8% WoW", delta_color="inverse")
-            st.caption("🚢 Capesize & Panamax Bulk Carrier Telemetry")
+            st.metric(
+                "Tracked AIS Cargo Fleet",
+                str(ais_telemetry.get("active_vessels_tracked", "1,420 Tankers & Carriers")),
+                delta=str(ais_telemetry.get("suez_reroute_factor", "+12.4% Route Dist")),
+                delta_color="inverse"
+            )
+            st.caption("🚢 Satellite AIS Density Vector")
+
         with m2:
-            st.metric("FBX Global Ocean Freight", "$3,420 / FEU", delta="+4.2% MoM", delta_color="inverse")
-            st.caption("📦 Freightos Baltic Index (40ft Container Spot)")
+            st.metric(
+                "Chokepoint Congestion Index",
+                str(ais_telemetry.get("chokepoint_congestion_idx", "88.4 / 100")),
+                delta=str(ais_telemetry.get("panama_queue_count", "34 Vessels In Queue")),
+                delta_color="inverse"
+            )
+            st.caption("📍 Panama Canal & Suez Slot Delay")
+
         with m3:
-            st.metric("NOAA Severe Climate Anomaly", "+1.28 σ Anomaly", delta="Moderate Threat", delta_color="off")
-            st.caption("🌩️ Global Port Storm & Typhoon Delay Index")
+            st.metric(
+                "NOAA GIS Climate Anomaly",
+                str(weather_telemetry.get("noaa_anomaly", "+1.28 σ Anomaly")),
+                delta=str(weather_telemetry.get("noaa_status", "Moderate Threat")),
+                delta_color="off"
+            )
+            st.caption("🌩️ Storm & Typhoon Radar Layer")
+
         with m4:
-            st.metric("Geopolitical Choke-Point Risk", "ELEVATED", delta="+6.8 Days Delay", delta_color="inverse")
-            st.caption("🚩 Red Sea, Suez & Bab-el-Mandeb Strait Risk")
+            st.metric(
+                "GIS Derived Spatial Drag",
+                str(gis_telemetry.get("gis_leadtime_modifier", "+2.4 Days Spatial Drag")),
+                delta=str(gis_telemetry.get("refinery_radar_status", "94% Operational")),
+                delta_color="inverse"
+            )
+        st.caption("🛰️ Terminal Ports & Refining Footprints")
 
         st.markdown("---")
 
-        st.subheader("🚢 Real-Time Telemetry Incident Stream")
+        st.subheader("🌐 Real-Time AIS Spatial Congestion Map & Telemetry Matrix")
+
+        ais_gis_matrix = [
+            {"Vector": "Panama Canal Locks", "Telemetry Source": "Satellite AIS Fleet Tracking", "Reading / Queue": "34 Vessels Waiting", "Spatial Impact": "+4.5d Lead-Time Drag", "Status": "🔴 CRITICAL"},
+            {"Vector": "Red Sea / Suez Corridor", "Telemetry Source": "AIS Transponder Signal Analysis", "Reading / Queue": "+12.4% Cape Reroute Dist", "Spatial Impact": "+6.8d Transit Drag", "Status": "🔴 CRITICAL"},
+            {"Vector": "US Gulf Coast Radar", "Telemetry Source": "GIS NOAA Atmospheric Layer", "Reading / Queue": "+1.28 σ Storm Footprint", "Spatial Impact": "+2.4d Loading Delay", "Status": "🟡 ELEVATED"},
+            {"Vector": "Singapore Anchorage", "Telemetry Source": "AIS Vessel Anchor Density", "Reading / Queue": "91% Terminal Utilization", "Spatial Impact": "+1.2d Bunkering Shift", "Status": "🟡 ELEVATED"}
+        ]
+        st.dataframe(pd.DataFrame(ais_gis_matrix), width='stretch')
+
+        st.markdown("---")
+
+        st.subheader("🚢 Real-Time Downstream Telemetry Incident Stream")
 
         c_filter, c_action = st.columns([3, 1])
         with c_filter:
             incident_type = st.multiselect(
-                "Filter Active Black Swan Risk Vectors:",
+                "Filter Active AIS/GIS Risk Vectors:",
                 ["Panama Canal Drought & Slot Caps", "Red Sea Tanker Rerouting", "NOAA Atlantic Hurricane Watch", "Singapore Storage Port Congestion"],
                 default=["Panama Canal Drought & Slot Caps", "Red Sea Tanker Rerouting"]
             )
         with c_action:
             st.write("")
             st.write("")
-            if st.button("📡 Refresh Live Telemetry Feeds", width='stretch'):
-                st.toast("Updated NOAA API & Freightos spot indices...", icon="🔄")
+            if st.button("📡 Refresh Live AIS / GIS Feeds", width='stretch'):
+                st.toast("Updating Satellite AIS feed & NOAA radar layers...", icon="🔄")
 
         st.markdown("")
 
@@ -383,30 +418,37 @@ def render_nlp_commercial_sensing(persona="Commercial Commodities & Trading Ente
         with col_a:
             st.markdown("""
             <div style="padding:15px; border-radius:8px; border:1px solid #333; background-color:#1e1e1e; margin-bottom:15px;">
-                <p style="color:#888; font-size:12px; margin:0;">The Guardian | Tue, 20 Oct 2026</p>
-                <h4 style="margin:5px 0 10px 0;">'For Panama, it is life or death': how drought is choking the canal that feeds a nation</h4>
-                <p style="color:#aaa; font-size:13px; margin-bottom:8px;"><b>Transit Impact:</b> <span style="color:#ff4b4b;">+4.5 Days Lead-Time Drag</span></p>
+                <p style="color:#888; font-size:12px; margin:0;">The Guardian | AIS Satellite Telemetry</p>
+                <h4 style="margin:5px 0 10px 0;">'For Panama, it is life or death': drought choking canal transits</h4>
+                <p style="color:#aaa; font-size:13px; margin-bottom:8px;"><b>AIS Vector:</b> <span style="color:#ff4b4b;">+4.5 Days Transit Drag</span></p>
                 <p style="color:#aaa; font-size:13px;">Daily vessel transits restricted to 24 ships/day. Draft limits reduced to 44 feet.</p>
             </div>
             """, unsafe_allow_html=True)
-            if st.button("⚡ Ingest Panama Canal Signal", key="btn_ingest_panama", width='stretch'):
+            if st.button("⚡ Ingest Panama AIS Signal", key="btn_ingest_panama", width='stretch'):
                 st.session_state["platform_leadtime_impact"] = 4.5
-                st.session_state["platform_active_signal"] = "Panama Canal Transit Cap (+4.5d)"
-                st.toast("⚡ Ingested Panama Canal Transit Delay into S&OP Engine!", icon="🚀")
+                st.session_state["platform_active_signal"] = "Panama Canal AIS Transit Cap (+4.5d)"
+                st.toast("⚡ Ingested Panama Canal AIS Transit Delay into S&OP Engine!", icon="🚀")
 
         with col_b:
             st.markdown("""
             <div style="padding:15px; border-radius:8px; border:1px solid #333; background-color:#1e1e1e; margin-bottom:15px;">
-                <p style="color:#888; font-size:12px; margin:0;">DW.com | Fri, 21 Aug 2026</p>
-                <h4 style="margin:5px 0 10px 0;">Panama Canal to cap ship transits due to El Niño drought - DW.com</h4>
-                <p style="color:#aaa; font-size:13px; margin-bottom:8px;"><b>Transit Impact:</b> <span style="color:#ff4b4b;">+6.8 Days Rerouting Drag</span></p>
-                <p style="color:#aaa; font-size:13px;">Gatun Lake water levels touch multi-year lows, forcing Cape Horn rerouting for bulk carriers.</p>
+                <p style="color:#888; font-size:12px; margin:0;">DW.com | NOAA GIS Climate Layer</p>
+                <h4 style="margin:5px 0 10px 0;">El Niño Drought: Canal vessel draft limits restricted</h4>
+                <p style="color:#aaa; font-size:13px; margin-bottom:8px;"><b>GIS Radar Vector:</b> <span style="color:#ff4b4b;">+6.8 Days Cape Reroute</span></p>
+                <p style="color:#aaa; font-size:13px;">Gatun Lake water levels touch multi-year lows, forcing Cape Horn rerouting.</p>
             </div>
             """, unsafe_allow_html=True)
-            if st.button("⚡ Ingest El Niño Climate Signal", key="btn_ingest_elnino", width='stretch'):
+            if st.button("⚡ Ingest El Niño GIS Signal", key="btn_ingest_elnino", width='stretch'):
                 st.session_state["platform_leadtime_impact"] = 6.8
-                st.session_state["platform_active_signal"] = "El Niño Severe Drought Anomaly (+6.8d)"
-                st.toast("⚡ Ingested NOAA El Niño Anomaly into CTRM & S&OP Engine!", icon="🚀")
+                st.session_state["platform_active_signal"] = "El Niño NOAA GIS Anomaly (+6.8d)"
+                st.toast("⚡ Ingested NOAA El Niño GIS Radar Anomaly into S&OP Engine!", icon="🚀")
+
+        st.markdown("---")
+        if st.button("🚀 Propagate Live AIS & GIS Spatial Vectors to Downstream Control Tower Desks", width='stretch'):
+            st.session_state["platform_ais_gis_impact"] = 2.4
+            st.session_state["platform_leadtime_impact"] = 6.8
+            st.session_state["platform_active_signal"] = f"AIS/GIS Spatial Vector: +2.4d Spatial Drag ({ais_telemetry.get('panama_queue_count', '34 In Queue')})"
+            st.success("✅ Propagated Live AIS/GIS Telemetry Vectors directly to S&OP, CTRM, and Simulator Desks!")
 
 def render_demand_supply_match(persona="Commercial Commodities & Trading Enterprise", term_unit="Units"):
     st.title("⚙️ Machine Learning Supply/Demand Projections")
