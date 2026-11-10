@@ -524,5 +524,80 @@
     "port_impact_zone": "Gulf & Caribbean Hubs",
     "refinery_radar_status": "94% Operational Capacity",
     "gis_leadtime_modifier": "+2.4 Days Spatial Drag"
-  }
+  },
+  "macro_telemetry": {
+    "us_cpi": "3.1%",
+    "cpi_delta": "-0.2% MoM",
+    "world_bank_freight": "142.5 pts",
+    "freight_delta": "+3.8% MoM",
+    "dxy_index": "104.20",
+    "dxy_delta": "+0.45%",
+    "acsi_score": "76.8 / 100",
+    "acsi_delta": "+1.2 pts"
+  },
+  "weather_telemetry": {
+    "noaa_anomaly": "+1.28 \u03c3 Anomaly",
+    "noaa_status": "Moderate Threat",
+    "bdi_index": "5,484 pts",
+    "bdi_delta": "-1.8% WoW",
+    "fbx_index": "$3,420 / FEU",
+    "fbx_delta": "+4.2% MoM",
+    "chokepoint_risk": "ELEVATED",
+    "chokepoint_delay": "+6.8 Days Delay"
+  },
+  "cftc_positioning": {
+    "HO=F": {
+      "managed_money_net": "+14,250 contracts",
+      "hedgers_net": "-18,100 contracts",
+      "bias": "Bullish Squeeze Risk",
+      "squeeze_score": 0.72
+    },
+    "CL=F": {
+      "managed_money_net": "-28,400 contracts",
+      "hedgers_net": "+31,200 contracts",
+      "bias": "Short Covering Potential",
+      "squeeze_score": 0.65
+    },
+    "HG=F": {
+      "managed_money_net": "+42,100 contracts",
+      "hedgers_net": "-39,800 contracts",
+      "bias": "Strong Institutional Long",
+      "squeeze_score": 0.81
+    },
+    "NG=F": {
+      "managed_money_net": "-55,300 contracts",
+      "hedgers_net": "+48,900 contracts",
+      "bias": "Bearish Oversold",
+      "squeeze_score": 0.34
+    },
+    "LIT": {
+      "managed_money_net": "+8,900 contracts",
+      "hedgers_net": "-7,400 contracts",
+      "bias": "Accumulation Phase",
+      "squeeze_score": 0.58
+    }
+  },
+  "gdelt_scuttlebutt": [
+    {
+      "source": "GDELT NLP Stream",
+      "headline": "Refinery Outage Risk & Storage Draw Reported in US Gulf Coast",
+      "tone_score": -3.85,
+      "goldstein_scale": -4.2,
+      "region": "US Gulf Coast"
+    },
+    {
+      "source": "GDELT Event Matrix",
+      "headline": "Strait of Hormuz Naval Patrol Transits Heighten Tanker Escort Activity",
+      "tone_score": -6.12,
+      "goldstein_scale": -7.1,
+      "region": "Middle East"
+    },
+    {
+      "source": "GDELT Logistics Monitor",
+      "headline": "Panama Gatun Lake Draft Restrictions Extended into Q4",
+      "tone_score": -4.5,
+      "goldstein_scale": -5.5,
+      "region": "Latin America"
+    }
+  ]
 }

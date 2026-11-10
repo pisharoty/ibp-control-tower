@@ -192,14 +192,8 @@ def render_executive_sop(persona=None):
     col_pnl3.metric("Net Adjusted EBITDA", f"${net_ebitda:.2f}M")
 
 
-def render_nlp_commercial_sensing(persona="Commercial Commodities & Trading Enterprise"):
-    st.title("🧠 Alternative Data & Sentiment Vector Matrix")
-    st.caption("A data-driven commodity intelligence and machine-learning forecasting platform providing real-time cargo tracking, supply/demand projections, and backtested analytics across 50+ commodities.")
-    
-    if "selected_sector" not in st.session_state:
-        st.session_state["selected_sector"] = "Metals & Mining"
-
-    # Load live multi-channel telemetry vectors from robot_signals.json
+def render_nlp_commercial_sensing(persona):
+    # Comprehensive multi-stream telemetry scope loader
     try:
         with open("robot_signals.json", "r", encoding="utf-8") as f:
             robot_data = json.load(f)
@@ -208,8 +202,10 @@ def render_nlp_commercial_sensing(persona="Commercial Commodities & Trading Ente
         weather_telemetry = robot_data.get("weather_telemetry", {})
         ais_telemetry = robot_data.get("ais_cargo_telemetry", {})
         gis_telemetry = robot_data.get("gis_spatial_telemetry", {})
+        cftc_telemetry = robot_data.get("cftc_positioning", {})
+        gdelt_telemetry = robot_data.get("gdelt_scuttlebutt", [])
     except Exception:
-        live_ticks, macro_telemetry, weather_telemetry, ais_telemetry, gis_telemetry = {}, {}, {}, {}, {}
+        live_ticks, macro_telemetry, weather_telemetry, ais_telemetry, gis_telemetry, cftc_telemetry, gdelt_telemetry = {}, {}, {}, {}, {}, {}, []
 
     tab1, tab2, tab3 = st.tabs([
         "📡 Live Web, Macro & Social Signals", 
