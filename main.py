@@ -78,6 +78,44 @@ def _get_full_36_catalog():
         {"name": "Global Freight Logistics", "ticker": "EXPD", "sector": "Fertilizers & Freight", "unit": "$ / Index"},
     ]
 
+
+def _get_sectors_36():
+    return [
+        "All Sectors (36)",
+        "Rare Earths & Critical",
+        "Grains & Softs",
+        "Livestock & Meats",
+        "Base & Battery Metals",
+        "Energy",
+        "Fertilizers & Freight",
+    ]
+
+def _get_filtered_sota_names(sector="All Sectors (36)"):
+    cat = _get_full_36_catalog()
+    if sector and sector != "All Sectors (36)":
+        filtered = [c["name"] for c in cat if c.get("sector") == sector]
+        if filtered:
+            return filtered
+    return [c["name"] for c in cat]
+
+def _get_filtered_scraper_options(sector="All Sectors (36)"):
+    cat = _get_full_36_catalog()
+    if sector and sector != "All Sectors (36)":
+        filtered = [f"{c['ticker']} ({c['name']})" for c in cat if c.get("sector") == sector]
+        if filtered:
+            return filtered
+    return [f"{c['ticker']} ({c['name']})" for c in cat]
+
+def _get_live_tick_for_commodity(comm_or_ticker):
+    sig = _load_fresh_signals()
+    ticks = sig.get("live_ticks", {})
+    key = comm_or_ticker.split("(")[0].strip() if "(" in comm_or_ticker else comm_or_ticker.strip()
+    if key in ticks and isinstance(ticks[key], dict):
+        return ticks[key]
+    if comm_or_ticker in ticks and isinstance(ticks[comm_or_ticker], dict):
+        return ticks[comm_or_ticker]
+    return {}
+
 def _get_sota_names_36():
     return [c["name"] for c in _get_full_36_catalog()]
 
@@ -335,7 +373,12 @@ def render_nlp_commercial_sensing(persona):
 
         c_sym, c_depth, c_btn = st.columns([2, 2, 2])
         with c_sym:
-            target_symbol = st.selectbox("Target Commodity / Asset Stream (36 Live Streams Across 6 Sectors):", _get_scraper_options_36(), key="scraper_selected_stream_widget")
+            _scr_sec = st.selectbox("Filter Scraper Sector:", _get_sectors_36(), key="scraper_sector_filter_box")
+            target_symbol = st.selectbox("Target Commodity / Asset Stream (36 Live Streams Across 6 Sectors):", _get_filtered_scraper_options(_scr_sec), key="scraper_selected_stream_widget")
+            st.session_state["scraper_selected_stream"] = target_symbol
+            _parsed_comm_name = target_symbol.split("(", 1)[1].rstrip(")") if "(" in target_symbol else target_symbol
+            st.session_state["sota_selected_commodity"] = _parsed_comm_name
+            _scr_live_tick = _get_live_tick_for_commodity(target_symbol), key="scraper_selected_stream_widget")
             st.session_state["scraper_selected_stream"] = target_symbol
             _parsed_comm_name = target_symbol.split("(", 1)[1].rstrip(")") if "(" in target_symbol else target_symbol
             st.session_state["sota_selected_commodity"] = _parsed_comm_name
