@@ -193,6 +193,114 @@ modules = [
 nav_choice = selected_module = st.sidebar.radio("Navigation Modules:", modules, key="sidebar_module_radio")
 
 # MODULE 1: EXECUTIVE S&OP CONTROL TOWER
+
+_STARTER_SPOTS = {
+    "HG=F": 9650.0, "ALI=F": 2620.0, "ZN=F": 2980.0, "GC=F": 2740.0, "SI=F": 32.5, "LIT": 44.0,
+    "REMX": 46.5, "MP": 19.8, "LYSDY": 5.1, "BATT": 11.4,
+    "CL=F": 71.5, "BZ=F": 75.2, "NG=F": 2.85, "RB=F": 2.12, "HO=F": 2.28,
+    "ZW=F": 5.75, "ZC=F": 4.35, "ZS=F": 10.25, "ZM=F": 310.0, "ZL=F": 0.45,
+    "ZR=F": 15.1, "ZO=F": 3.65, "KC=F": 2.55, "CC=F": 7450.0, "SB=F": 0.22, "CT=F": 0.71, "OJ=F": 4.85,
+    "LE=F": 1.88, "GF=F": 2.48, "HE=F": 0.84,
+    "NTR": 49.5, "CF": 86.0, "MOS": 27.5, "BDRY": 11.2, "ZIM": 23.4, "EXPD": 118.0,
+}
+
+def _get_ctrm_portfolio_rollup(hedges=None):
+    import streamlit as _st
+    hedges = hedges if hedges is not None else _st.session_state.get("executed_hedges", [])
+    base_dir = os.path.dirname(os.path.abspath(__file__))
+    twin_path = os.path.join(base_dir, "ctrm_digital_twins.json")
+    store = {}
+    try:
+        if os.path.exists(twin_path):
+            store = json.load(open(twin_path, encoding="utf-8"))
+    except Exception:
+        store = {}
+
+    cat_map = {c["name"]: c for c in _get_full_36_catalog()}
+    starter_specs = [
+        ("LME Copper Cathode", 12500.0, 40.0, 45, 0.94),
+        ("Rare Earth & Strategic Metals Basket", 180000.0, 25.0, 60, 0.88),
+        ("WTI Crude Oil", 85000.0, 50.0, 30, 0.96),
+        ("CBOT Milling Wheat", 320000.0, 35.0, 45, 0.91),
+        ("CME Live Cattle", 1200000.0, 30.0, 35, 0.89),
+        ("Potassium Chloride & MOP", 15000.0, 20.0, 50, 0.87),
+    ]
+    dirty = False
+    for cname, vol_d, cov_d, ld_d, rho_d in starter_specs:
+        if cname not in store:
+            meta = cat_map.get(cname, {})
+            tk = meta.get("ticker", "HG=F")
+            tick = _get_live_tick_for_commodity(cname) or _get_live_tick_for_commodity(tk) or {}
+            sp = float(tick.get("price") or _STARTER_SPOTS.get(tk, 100.0))
+            store[cname] = {
+                "volume": vol_d, "hedged_pct": cov_d,
+                "budget_price": round(sp * 0.985, 2),
+                "lead_days": ld_d, "basis_rho": rho_d
+            }
+            dirty = True
+    if dirty:
+        try:
+            json.dump(store, open(twin_path, "w", encoding="utf-8"), indent=2)
+        except Exception:
+            pass
+    exec_by_key = {}
+    exec_benefit_usd = 0.0
+    for h in hedges:
+        if isinstance(h, dict):
+            exec_benefit_usd += float(h.get("Hedge Benefit ($)", 0.0) or 0.0)
+            strat = str(h.get("Strategy", ""))
+            vol_s = str(h.get("Volume", "0")).split()[0].replace(",", "")
+            try:
+                v_num = float(vol_s)
+            except Exception:
+                v_num = 0.0
+            for cname, meta in cat_map.items():
+                if meta["ticker"] in strat or cname in strat:
+                    exec_by_key[cname] = exec_by_key.get(cname, 0.0) + v_num
+        elif isinstance(h, str):
+            exec_benefit_usd += 1150000.0
+
+    rows = []
+    tot_gross, tot_hedged_usd, tot_open_usd, tot_cfar, base_prot_usd = 0.0, 0.0, 0.0, 0.0, 0.0
+    for cname, tw in store.items():
+        meta = cat_map.get(cname, {"ticker": "HG=F", "sector": "Base & Battery Metals", "unit": "$ / MT"})
+        tk = meta["ticker"]
+        unit = meta["unit"].lstrip("$").strip()
+        tick = _get_live_tick_for_commodity(cname) or _get_live_tick_for_commodity(tk) or {}
+        sp = float(tick.get("price") or _STARTER_SPOTS.get(tk, 100.0))
+        vol = float(tw.get("volume", 10000.0))
+        cov_pct = float(tw.get("hedged_pct", 35.0))
+        bud = float(tw.get("budget_price", round(sp * 0.985, 2)))
+        ld = int(tw.get("lead_days", 45))
+        extra_v = exec_by_key.get(cname, 0.0)
+        eff_hedged_vol = min(vol, vol * (cov_pct / 100.0) + extra_v)
+        open_vol = max(0.0, vol - eff_hedged_vol)
+        gross_usd = vol * sp
+        open_usd = open_vol * sp
+        hedged_usd = eff_hedged_vol * sp
+        vol_ann = 0.34 if tk in ["NG=F", "CC=F", "KC=F", "ZIM", "BDRY"] else (0.16 if tk in ["GC=F", "EXPD"] else 0.24)
+        vol_h = vol_ann * math.sqrt(max(15, min(90, ld + 15)) / 252.0)
+        cfar_usd = open_usd * (math.exp(1.645 * vol_h) - 1.0)
+        base_prot_usd += (vol * (cov_pct / 100.0) * sp) * (math.exp(1.645 * vol_h) - 1.0) * 0.35
+        tot_gross += gross_usd
+        tot_hedged_usd += hedged_usd
+        tot_open_usd += open_usd
+        tot_cfar += cfar_usd
+        rows.append({
+            "Commodity": cname, "Ticker": tk, "Sector": meta["sector"],
+            "Quarterly Vol": f"{vol:,.0f} {unit}", "Eff. Hedged %": round((eff_hedged_vol / max(vol, 1.0)) * 100.0, 1),
+            "Live Spot ($)": round(sp, 2), "IBP Budget ($)": round(bud, 2),
+            "Open Unhedged ($)": round(open_usd, 0), "95% CFaR ($)": round(cfar_usd, 0),
+            "_raw_open_vol": open_vol, "_raw_spot": sp, "_raw_vol_ann": vol_ann, "_unit": unit
+        })
+    eff_cov_pct = (tot_hedged_usd / max(tot_gross, 1.0)) * 100.0
+    total_benefit_m = (base_prot_usd + exec_benefit_usd) / 1_000_000.0
+    return {
+        "df": pd.DataFrame(rows), "gross_m": tot_gross / 1e6, "open_m": tot_open_usd / 1e6,
+        "cfar_m": tot_cfar / 1e6, "cov_pct": eff_cov_pct, "benefit_m": total_benefit_m,
+        "exec_usd": exec_benefit_usd, "count": len(rows)
+    }
+
 def render_executive_sop(persona=None):
     st.header("📊 Global Trade Flows & S&OP Engine")
     st.caption("Integrated Business Planning, P&L EBITDA Margin Waterfall, and Live Desk Signal Synchronization.")
@@ -215,7 +323,8 @@ def render_executive_sop(persona=None):
             total_transit_drag += c_cost + d_cost
 
     drag_m = total_transit_drag / 1000000.0
-    hedge_benefit = 3.25 + len(hedges) * 2.15
+    port = _get_ctrm_portfolio_rollup(hedges)
+    hedge_benefit = round(port["benefit_m"], 2)
     base_aop = 120.0
     cogs = -70.0
     surge_rev = 10.0
@@ -223,9 +332,9 @@ def render_executive_sop(persona=None):
 
     col_m1, col_m2, col_m3, col_m4 = st.columns(4)
     col_m1.metric("Annual Operating Plan (AOP)", f"${base_aop:.1f}M", "+4.2% YoY")
-    col_m2.metric("Unconstrained Demand", "$125.94M", "+23,750 Units")
-    col_m3.metric("CTRM Hedge Benefit", f"+${hedge_benefit:.2f}M", f"{len(hedges)} Digital Twin Hedges Locked")
-    col_m4.metric("Available Treasury Cash", f"${15.29 + (1.14 - drag_m) - mc_loss:.2f}M", f"-${drag_m + mc_loss:.2f}M Total Drag")
+    col_m2.metric("Physical Book Exposure", f"${port['gross_m']:.2f}M", f"{port['cov_pct']:.1f}% Hedged ({port['count']} Twins)")
+    col_m3.metric("CTRM Hedge Benefit", f"+${hedge_benefit:.2f}M", f"{len(hedges)} Trades | ${port['exec_usd']/1e6:.2f}M Locked")
+    col_m4.metric("Open Unhedged / 95% CFaR", f"${port['open_m']:.2f}M", f"95% CFaR: -${port['cfar_m']:.2f}M", delta_color="inverse")
 
     col_w1, col_w2 = st.columns([2, 1])
 
@@ -842,9 +951,21 @@ def render_ctrm_desk(persona="Commercial Commodities & Trading Enterprise", term
     st.caption("Event-driven financial hedging, Black76 multi-option pricing, strategy payoff modeling, FIX 4.4 gateway, and derivatives register.")
     
     st.info(f"📡 **Active Ingested Risk Signal**: {st.session_state.get('platform_active_signal', 'Baseline Operations Target')}")
-    
-    surge_vol = st.session_state.get("platform_demand_impact", st.session_state.get("extracted_demand_surge", 65000))
-    spot_f = 14669.54
+    port_ctrm = _get_ctrm_portfolio_rollup(st.session_state.get("executed_hedges", []))
+    st.markdown("##### 🏭 Commodity Digital Twin Starting Position & Exposure Roll-Up")
+    pk1, pk2, pk3, pk4 = st.columns(4)
+    pk1.metric("Gross Quarterly Book", f"${port_ctrm['gross_m']:.2f}M", f"{port_ctrm['count']} Active Commodities")
+    pk2.metric("Net Open Unhedged", f"${port_ctrm['open_m']:.2f}M", f"{port_ctrm['cov_pct']:.1f}% Book Covered")
+    pk3.metric("Portfolio 95% CFaR", f"${port_ctrm['cfar_m']:.2f}M", "Lead-Time Adjusted", delta_color="inverse")
+    pk4.metric("Cumulative CTRM Benefit", f"+${port_ctrm['benefit_m']:.2f}M", f"${port_ctrm['exec_usd']:,.0f} Newly Locked")
+    with st.expander("📋 View Active Digital Twin Position Book & Load into Strategy Builder", expanded=False):
+        pdf = port_ctrm["df"]
+        disp_cols = [c for c in pdf.columns if not c.startswith("_")]
+        st.dataframe(pdf[disp_cols], width='stretch', hide_index=True)
+        sel_book_comm = st.selectbox("Load Open Digital Twin Position into Strategy Builder:", pdf["Commodity"].tolist(), key="ctrm_twin_loader")
+        _brow = pdf[pdf["Commodity"] == sel_book_comm].iloc[0]
+    surge_vol = max(1, int(_brow["_raw_open_vol"]))
+    spot_f = float(_brow["_raw_spot"])
     
     st.subheader("⚙️ Multi-Option Derivatives Strategy Builder")
     col_s1, col_s2 = st.columns(2)
@@ -862,11 +983,11 @@ def render_ctrm_desk(persona="Commercial Commodities & Trading Enterprise", term
             ],
             key="ctrm_strat_select"
         )
-        vol_input = st.number_input(f"Hedging Contract Volume ({term_unit}):", value=int(surge_vol), step=1000, key="ctrm_vol_in")
+        vol_input = st.number_input(f"Hedging Contract Volume ({_brow['_unit']}):", value=int(surge_vol), step=max(1, int(surge_vol // 10)), key=f"ctrm_vol_{sel_book_comm}")
 
     with col_s2:
-        k1_strike = st.number_input("Primary Strike ($K_1$ Call/Forward USD):", value=15000.0, step=100.0, key="ctrm_k1_in")
-        k2_strike = st.number_input("Secondary Strike ($K_2$ Floor/Put USD):", value=14000.0, step=100.0, key="ctrm_k2_in")
+        k1_strike = st.number_input("Primary Strike ($K_1$ Call/Forward USD):", value=round(spot_f * 1.03, 2), step=max(0.1, round(spot_f * 0.005, 2)), key=f"ctrm_k1_{sel_book_comm}")
+        k2_strike = st.number_input("Secondary Strike ($K_2$ Floor/Put USD):", value=round(spot_f * 0.96, 2), step=max(0.1, round(spot_f * 0.005, 2)), key=f"ctrm_k2_{sel_book_comm}")
         expiry_days = st.slider("Time to Expiration (Days):", 15, 180, 60, key="ctrm_expiry_in")
         implied_vol = st.slider("Implied Volatility (σ %):", 10, 100, 28, key="ctrm_iv_in") / 100.0
 
@@ -902,7 +1023,7 @@ def render_ctrm_desk(persona="Commercial Commodities & Trading Enterprise", term
             benefit = abs(greeks['total_premium']) if greeks['total_premium'] != 0 else 3250000.0
             new_trade = {
                 "Trade ID": f"TRD-2026-X{trade_count:03d}",
-                "Strategy": strategy_type,
+                "Strategy": f"{_brow['Ticker']} {strategy_type}",
                 "Volume": f"{vol_input:,} {term_unit}",
                 "Strikes": f"K1: ${k1_strike:,.2f} / K2: ${k2_strike:,.2f}",
                 "Net Premium": f"${greeks['total_premium']:,.2f}",
@@ -921,7 +1042,7 @@ def render_ctrm_desk(persona="Commercial Commodities & Trading Enterprise", term
     if not hedges:
         st.info("No derivative trades executed yet. Configure parameters above and click 'Execute Derivative Order'.")
     else:
-        st.dataframe(pd.DataFrame(hedges), width='stretch', hide_index=True)
+        st.dataframe(pd.DataFrame([h if isinstance(h, dict) else {"Trade ID": "FIX-4.4", "Strategy": h, "Volume": "Portfolio", "Strikes": "Market", "Net Premium": "$0.00", "Hedge Benefit ($)": 1150000.0, "Status": "Locked"} for h in hedges]), width='stretch', hide_index=True)
 
 # MODULE 7: GLOBAL LOGISTICS GIS (EXPANDED WITH RICH MAP & TELEMETRY REGISTERS)
 
