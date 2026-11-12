@@ -689,24 +689,31 @@ def create_gis_map_figure(nodes_df):
 
 
 def render_predictive_commodity_engine(*args, **kwargs):
-    with st.expander("📈 SOTA Predictive Commodity Engine (Top 50 Global Inputs & Forecasts)", expanded=True):
+    with st.expander("📈 SOTA Predictive Commodity Engine (36 Live Inputs Across 6 Sectors)", expanded=True):
         st.caption("Fuses econometric regression matrix, cross-sentiment vectors, and live micro-structural shock inputs to forecast liquid raw material benchmarks.")
 
         data = get_live_signals()
         signals = data.get("signals", [])
-        comm_names = [s.get("commodity") for s in signals if s.get("commodity")] or ["Special High Grade Zinc", "LME Copper Cathode", "Primary Aluminum Ingot"]
+        cat36 = data.get("commodity_catalog") or [{"name": x.get("commodity"), "sector": x.get("sector", "Base & Battery Metals")} for x in signals if x.get("commodity")]
+        secs36 = ["All Sectors (36)"] + sorted({x.get("sector", "Global") for x in cat36 if x.get("sector")})
+        sota_sec = st.selectbox("Filter SOTA Sector:", secs36, key="sota_sector_filter_box")
+        comm_names = [x["name"] for x in cat36 if sota_sec == "All Sectors (36)" or x.get("sector") == sota_sec] or [x["name"] for x in cat36]
 
-        target_comm = st.selectbox("Select Target Commodity (50 Dynamic Inputs Available):", comm_names, index=0, key="sota_comm_select_v34")
+        target_comm = st.selectbox("Select Target Commodity (36 Live Inputs Across 6 Sectors):", comm_names, index=0, key="sota_comm_select_v36")
+        _item = next((x for x in cat36 if x.get("name") == target_comm), {})
+        _ticks = data.get("live_ticks", {})
+        _tk = _ticks.get(target_comm) or _ticks.get(_item.get("ticker", "")) or {}
         
         genspark_sig = get_genspark_signal_for_commodity(target_comm)
         genspark_si = float(genspark_sig.get("si_composite", genspark_sig.get("sentiment_score", 0.40)))
 
-        spot_price = fetch_live_yfinance_spot(target_comm)
+        spot_price = float(_tk["price"]) if isinstance(_tk, dict) and _tk.get("price") else fetch_live_yfinance_spot(target_comm)
+        _unit = ((_tk.get("unit") if isinstance(_tk, dict) else None) or _item.get("unit") or "$ / MT").lstrip("$").strip()
         forecast_60d = spot_price * (1.0 + (0.05 * genspark_si))
         d60 = ((forecast_60d - spot_price) / spot_price) * 100
 
         mcols = st.columns(4)
-        mcols[0].metric("Spot Baseline", f"${spot_price:,.2f} / MT")
+        mcols[0].metric("Spot Baseline", f"${spot_price:,.2f} {_unit}")
         mcols[1].metric("Live Sentiment ($S_i$)", f"{genspark_si:+.2f}")
         mcols[2].metric("60 Day Forecast", f"${forecast_60d:,.2f}")
         mcols[3].metric("Projected Variance", f"{d60:+.2f}%")
