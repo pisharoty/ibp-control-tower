@@ -335,33 +335,10 @@ def render_nlp_commercial_sensing(persona):
 
         c_sym, c_depth, c_btn = st.columns([2, 2, 2])
         with c_sym:
-            target_symbol = st.selectbox(
-                "Target Commodity / Asset Stream:",
-                [
-                    "HO=F (ULSD Heating Oil / Distillates)",
-                    "CL=F (WTI Crude Oil)",
-                    "BZ=F (Brent Crude Oil)",
-                    "NG=F (Henry Hub Natural Gas)",
-                    "RB=F (RBOB Gasoline)",
-                    "HG=F (LME Copper Cathode)",
-                    "ALI=F (Primary Aluminum Ingot)",
-                    "ZN=F (Special High Grade Zinc)",
-                    "GC=F (Gold Spot / Futures)",
-                    "SI=F (Silver Spot / Futures)",
-                    "LIT (Battery Grade Lithium)",
-                    "KC=F (Arabica Coffee & Softs)",
-                    "ZW=F (CBOT Milling Wheat)",
-                    "ZC=F (CBOT Yellow Corn)",
-                    "ZS=F (CBOT Soybeans)",
-                    "SB=F (ICE Raw Sugar)",
-                    "NTR (Potassium Chloride & MOP)",
-                    "CF (Ammonia & Nitrogen Feedstock)",
-                    "MOS (Phosphates & Acid Benchmark)",
-                    "BDRY (Baltic Dry Shipping Index)",
-                    "ZIM (Ocean Container Transport)",
-                    "EXPD (Global Freight Logistics)"
-                ]
-            )
+            target_symbol = st.selectbox("Target Commodity / Asset Stream (36 Live Streams Across 6 Sectors):", _get_scraper_options_36(), key="scraper_selected_stream_widget")
+            st.session_state["scraper_selected_stream"] = target_symbol
+            _parsed_comm_name = target_symbol.split("(", 1)[1].rstrip(")") if "(" in target_symbol else target_symbol
+            st.session_state["sota_selected_commodity"] = _parsed_comm_name
         with c_depth:
             feed_mode = st.select_slider("Scraper Feed Depth Mode:", options=["Standard Feeds", "Deep Multi-Channel Scraper"], value="Deep Multi-Channel Scraper")
         with c_btn:
