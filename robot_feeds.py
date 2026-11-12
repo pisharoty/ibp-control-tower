@@ -2,10 +2,10 @@ import ast as _a36
 _SECS_36 = ["All Sectors (36)", "Rare Earths & Critical", "Grains & Softs", "Livestock & Meats", "Base & Battery Metals", "Energy", "Fertilizers & Freight"]
 def _c36():
     try:
-        t = _a36.parse(open("main.py", encoding="utf-8").read())
+        t = _a36.parse(open(__import__("os").path.join(__import__("os").path.dirname(__import__("os").path.abspath(__file__)), "main.py"), encoding="utf-8").read())
         for n in _a36.walk(t):
             if isinstance(n, _a36.FunctionDef) and n.name == "_get_full_36_catalog":
-                return _a36.literal_eval(n.body[0].value)
+                return next((_a36.literal_eval(b.value) for b in n.body if isinstance(b, _a36.Return)), [])
     except Exception: pass
     return []
 # --- AUTOMATED 5-MINUTE BACKGROUND PRICE SYNCHRONIZER ---
@@ -706,9 +706,9 @@ def render_predictive_commodity_engine(*args, **kwargs):
         signals = data.get("signals", [])
         cat36 = _c36() or data.get("commodity_catalog", [])
         sota_sec = st.selectbox("Filter SOTA Sector:", _SECS_36, key="sota_sec_box")
-        s_opts = [f"{x['ticker']} ({x['name']})" for x in cat36 if sota_sec == "All Sectors (36)" or x["sector"] == sota_sec]
+        s_opts = [f"{x['ticker']} ({x['name']})" for x in cat36 if sota_sec == "All Sectors (36)" or x.get("sector") == sota_sec] or ["HG=F (LME Copper Cathode)"]
         _ss = st.selectbox("Target Commodity / Input Stream (36 Live Inputs Across 6 Sectors):", s_opts, index=0, key="sota_comm_v36")
-        target_comm = _ss.split("(", 1)[1].rstrip(")") if "(" in _ss else _ss
+        _ss = _ss or "HG=F (LME Copper Cathode)"; target_comm = _ss.split("(", 1)[1].rstrip(")") if "(" in _ss else _ss
         _item = next((x for x in cat36 if x.get("name") == target_comm), {})
         _ticks = data.get("live_ticks", {})
         _tk = _ticks.get(target_comm) or _ticks.get(_item.get("ticker", "")) or {}
