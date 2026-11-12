@@ -205,7 +205,7 @@ _STARTER_SPOTS = {
 }
 
 def _get_ctrm_portfolio_rollup(hedges=None):
-    import streamlit as _st
+    import json, math, os, streamlit as _st
     hedges = hedges if hedges is not None else _st.session_state.get("executed_hedges", [])
     base_dir = os.path.dirname(os.path.abspath(__file__))
     twin_path = os.path.join(base_dir, "ctrm_digital_twins.json")
