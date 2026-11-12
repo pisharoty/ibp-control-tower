@@ -1,3 +1,13 @@
+import ast as _a36
+_SECS_36 = ["All Sectors (36)", "Rare Earths & Critical", "Grains & Softs", "Livestock & Meats", "Base & Battery Metals", "Energy", "Fertilizers & Freight"]
+def _c36():
+    try:
+        t = _a36.parse(open("main.py", encoding="utf-8").read())
+        for n in _a36.walk(t):
+            if isinstance(n, _a36.FunctionDef) and n.name == "_get_full_36_catalog":
+                return _a36.literal_eval(n.body[0].value)
+    except Exception: pass
+    return []
 # --- AUTOMATED 5-MINUTE BACKGROUND PRICE SYNCHRONIZER ---
 import threading
 import time
@@ -694,12 +704,11 @@ def render_predictive_commodity_engine(*args, **kwargs):
 
         data = get_live_signals()
         signals = data.get("signals", [])
-        cat36 = data.get("commodity_catalog") or [{"name": x.get("commodity"), "sector": x.get("sector", "Base & Battery Metals")} for x in signals if x.get("commodity")]
-        secs36 = ["All Sectors (36)"] + sorted({x.get("sector", "Global") for x in cat36 if x.get("sector")})
-        sota_sec = st.selectbox("Filter SOTA Sector:", secs36, key="sota_sector_filter_box")
-        comm_names = [x["name"] for x in cat36 if sota_sec == "All Sectors (36)" or x.get("sector") == sota_sec] or [x["name"] for x in cat36]
-
-        target_comm = st.selectbox("Select Target Commodity (36 Live Inputs Across 6 Sectors):", comm_names, index=0, key="sota_comm_select_v36")
+        cat36 = _c36() or data.get("commodity_catalog", [])
+        sota_sec = st.selectbox("Filter SOTA Sector:", _SECS_36, key="sota_sec_box")
+        s_opts = [f"{x['ticker']} ({x['name']})" for x in cat36 if sota_sec == "All Sectors (36)" or x["sector"] == sota_sec]
+        _ss = st.selectbox("Target Commodity / Input Stream (36 Live Inputs Across 6 Sectors):", s_opts, index=0, key="sota_comm_v36")
+        target_comm = _ss.split("(", 1)[1].rstrip(")") if "(" in _ss else _ss
         _item = next((x for x in cat36 if x.get("name") == target_comm), {})
         _ticks = data.get("live_ticks", {})
         _tk = _ticks.get(target_comm) or _ticks.get(_item.get("ticker", "")) or {}
@@ -1071,31 +1080,25 @@ def render_genspark_overlay():
         st.info("No active market signals available.")
         return
 
-    if "selected_sector" not in st.session_state:
-        st.session_state["selected_sector"] = "Metals & Mining"
-
-    sectors = [
-        "Metals & Mining",
-        "Energy & Petrochemicals",
-        "Agriculture & Biofuels",
-        "Fertilizers & Industrial Chemicals",
-        "Global Freight & Maritime Logistics"
-    ]
-    
-    current_idx = sectors.index(st.session_state["selected_sector"]) if st.session_state["selected_sector"] in sectors else 0
-    
-    selected_sector = st.selectbox(
-        "⚡ Filter Tactical Signals by Sector Focus:",
-        sectors,
-        index=current_idx,
-        key="genspark_overlay_sector_select"
-    )
+    sectors = _SECS_36
+    if st.session_state.get("selected_sector") not in sectors: st.session_state["selected_sector"] = "All Sectors (36)"
+    selected_sector = st.selectbox("⚡ Filter Tactical Signals by Sector Focus:", sectors, index=sectors.index(st.session_state["selected_sector"]), key="genspark_overlay_sector_select")
     st.session_state["selected_sector"] = selected_sector
-
-    matching_signals = [s for s in signals if categorize_commodity_sector(s.get("commodity", s.get("metal", ""))) == selected_sector]
-    if not matching_signals:
-        matching_signals = signals[:4]
-
+    tks = data.get("live_ticks", {})
+    sm = {(x.get("commodity") or x.get("metal") or "").strip().lower(): x for x in signals}
+    a36 = []
+    for it in (_c36() or data.get("commodity_catalog", [])):
+        nm, ts, sec = it["name"], it["ticker"], it["sector"]
+        tk = tks.get(nm) or tks.get(ts) or {}
+        chg = float(tk.get("change_pct", 0.0) or 0.0) if isinstance(tk, dict) else 0.0
+        px = tk.get("price") if isinstance(tk, dict) else None
+        b = dict(sm.get(nm.lower(), {}))
+        si = float(b.get("sentiment_score", b.get("si_composite", round(max(-0.85, min(0.85, chg * 0.12)), 2))))
+        b.update({"commodity": f"{ts} ({nm})", "metal": f"{ts} ({nm})", "sector": sec, "sentiment_score": si, "si_composite": si})
+        if not b.get("title") and not b.get("headline_summary"):
+            b["title"] = f"{sec}: {ts}" + (f" @ ${float(px):,.2f}" if px else "") + f" ({chg:+.2f}% 24h) live telemetry & supply vector."
+        a36.append(b)
+    matching_signals = [x for x in a36 if selected_sector == "All Sectors (36)" or x["sector"] == selected_sector] or a36[:4]
     hero_signals = matching_signals[:4]
     cols = st.columns(4)
     for idx, sig in enumerate(hero_signals):
