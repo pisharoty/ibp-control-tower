@@ -33,6 +33,57 @@ except Exception:
     _run_live_intel_sync = None
     _COMMODITY_CATALOG = []
 
+
+def _get_full_36_catalog():
+    sig = _load_fresh_signals()
+    cat = sig.get("commodity_catalog", [])
+    if cat:
+        return cat
+    return [
+        {"name": "LME Copper Cathode", "ticker": "HG=F", "sector": "Base & Battery Metals", "unit": "$ / MT"},
+        {"name": "Primary Aluminum Ingot", "ticker": "ALI=F", "sector": "Base & Battery Metals", "unit": "$ / MT"},
+        {"name": "Special High Grade Zinc", "ticker": "ZN=F", "sector": "Base & Battery Metals", "unit": "$ / MT"},
+        {"name": "Gold Spot / Futures", "ticker": "GC=F", "sector": "Base & Battery Metals", "unit": "$ / oz"},
+        {"name": "Silver Spot / Futures", "ticker": "SI=F", "sector": "Base & Battery Metals", "unit": "$ / oz"},
+        {"name": "Battery Grade Lithium", "ticker": "LIT", "sector": "Base & Battery Metals", "unit": "$ / Index"},
+        {"name": "Rare Earth & Strategic Metals Basket", "ticker": "REMX", "sector": "Rare Earths & Critical", "unit": "$ / Index"},
+        {"name": "NdPr Magnet Oxide Benchmark (MP)", "ticker": "MP", "sector": "Rare Earths & Critical", "unit": "$ / Index"},
+        {"name": "Heavy/Light Rare Earths Ex-China (Lynas)", "ticker": "LYSDY", "sector": "Rare Earths & Critical", "unit": "$ / Index"},
+        {"name": "Cobalt & Strategic Cathode Basket", "ticker": "BATT", "sector": "Rare Earths & Critical", "unit": "$ / Index"},
+        {"name": "WTI Crude Oil", "ticker": "CL=F", "sector": "Energy", "unit": "$ / bbl"},
+        {"name": "Brent Crude Oil", "ticker": "BZ=F", "sector": "Energy", "unit": "$ / bbl"},
+        {"name": "Henry Hub Natural Gas", "ticker": "NG=F", "sector": "Energy", "unit": "$ / MMBtu"},
+        {"name": "RBOB Gasoline", "ticker": "RB=F", "sector": "Energy", "unit": "$ / gal"},
+        {"name": "ULSD Heating Oil", "ticker": "HO=F", "sector": "Energy", "unit": "$ / gal"},
+        {"name": "CBOT Milling Wheat", "ticker": "ZW=F", "sector": "Grains & Softs", "unit": "$ / bu"},
+        {"name": "CBOT Yellow Corn", "ticker": "ZC=F", "sector": "Grains & Softs", "unit": "$ / bu"},
+        {"name": "CBOT Soybeans", "ticker": "ZS=F", "sector": "Grains & Softs", "unit": "$ / bu"},
+        {"name": "CBOT Soybean Meal", "ticker": "ZM=F", "sector": "Grains & Softs", "unit": "$ / ton"},
+        {"name": "CBOT Soybean Oil", "ticker": "ZL=F", "sector": "Grains & Softs", "unit": "$ / lb"},
+        {"name": "CBOT Rough Rice", "ticker": "ZR=F", "sector": "Grains & Softs", "unit": "$ / cwt"},
+        {"name": "CBOT Oats", "ticker": "ZO=F", "sector": "Grains & Softs", "unit": "$ / bu"},
+        {"name": "Arabica Coffee & Softs", "ticker": "KC=F", "sector": "Grains & Softs", "unit": "$ / lb"},
+        {"name": "ICE Cocoa", "ticker": "CC=F", "sector": "Grains & Softs", "unit": "$ / MT"},
+        {"name": "ICE Raw Sugar #11", "ticker": "SB=F", "sector": "Grains & Softs", "unit": "$ / lb"},
+        {"name": "ICE Cotton #2", "ticker": "CT=F", "sector": "Grains & Softs", "unit": "$ / lb"},
+        {"name": "ICE Frozen Orange Juice", "ticker": "OJ=F", "sector": "Grains & Softs", "unit": "$ / lb"},
+        {"name": "CME Live Cattle", "ticker": "LE=F", "sector": "Livestock & Meats", "unit": "$ / lb"},
+        {"name": "CME Feeder Cattle", "ticker": "GF=F", "sector": "Livestock & Meats", "unit": "$ / lb"},
+        {"name": "CME Lean Hogs", "ticker": "HE=F", "sector": "Livestock & Meats", "unit": "$ / lb"},
+        {"name": "Potassium Chloride & MOP", "ticker": "NTR", "sector": "Fertilizers & Freight", "unit": "$ / MT"},
+        {"name": "Ammonia & Nitrogen Feedstock", "ticker": "CF", "sector": "Fertilizers & Freight", "unit": "$ / MT"},
+        {"name": "Phosphates & Acid Benchmark", "ticker": "MOS", "sector": "Fertilizers & Freight", "unit": "$ / MT"},
+        {"name": "Baltic Dry Shipping Index", "ticker": "BDRY", "sector": "Fertilizers & Freight", "unit": "$ / Index"},
+        {"name": "Ocean Container Transport", "ticker": "ZIM", "sector": "Fertilizers & Freight", "unit": "$ / Index"},
+        {"name": "Global Freight Logistics", "ticker": "EXPD", "sector": "Fertilizers & Freight", "unit": "$ / Index"},
+    ]
+
+def _get_sota_names_36():
+    return [c["name"] for c in _get_full_36_catalog()]
+
+def _get_scraper_options_36():
+    return [f"{c['ticker']} ({c['name']})" for c in _get_full_36_catalog()]
+
 def _load_fresh_signals():
     if os.path.exists('robot_signals.json'):
         try:
@@ -231,6 +282,26 @@ def render_nlp_commercial_sensing(persona):
     
     with tab1:
         st.subheader("📡 Live Genspark Tactical Market Signals")
+        _sig_36 = _load_fresh_signals()
+        _ticks_36 = _sig_36.get("live_ticks", {})
+        _cat_36 = _get_full_36_catalog()
+        if _ticks_36:
+            _sectors_36 = ["All Sectors (36)"] + sorted(list({c["sector"] for c in _cat_36}))
+            _sec_choice = st.selectbox("Filter Tactical Market Signals by Sector:", _sectors_36, key="tactical_sector_filter")
+            _filtered_cat = [c for c in _cat_36 if _sec_choice == "All Sectors (36)" or c["sector"] == _sec_choice]
+            _tcols = st.columns(4)
+            for _idx, _item in enumerate(_filtered_cat[:8]):
+                _tk = _item["ticker"]
+                _td = _ticks_36.get(_tk, {})
+                _px = _td.get("price", "N/A")
+                _chg = _td.get("change_pct", 0.0)
+                with _tcols[_idx % 4]:
+                    st.metric(
+                        label=f"{_tk} • {_item['name'][:22]}",
+                        value=f"${_px:,.2f}" if isinstance(_px, (int, float)) else str(_px),
+                        delta=f"{_chg:+.2f}% ({_item['sector']})"
+                    )
+
         rf.render_genspark_overlay()
 
         rf.render_predictive_commodity_engine()

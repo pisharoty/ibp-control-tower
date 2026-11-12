@@ -5,125 +5,125 @@
       "sector": "Metals & Mining",
       "commodity": "LME Copper Cathode",
       "metal": "LME Copper Cathode",
-      "spot_price": 6.18,
-      "sentiment_score": -0.31,
-      "si_composite": -0.31,
-      "sentiment_label": "\ud83d\udd34 Bearish Drag",
-      "title": "Live Market: LME Copper Cathode trading at $6.18 (-0.94% 24h change).",
-      "headline_summary": "Live Market: LME Copper Cathode trading at $6.18 (-0.94% 24h change).",
-      "impact_demand": 16874,
-      "impact_leadtime": 2.5
+      "spot_price": 100.0,
+      "sentiment_score": 0.0,
+      "si_composite": 0.0,
+      "sentiment_label": "\ud83d\udfe1 Neutral / Mixed",
+      "title": "Targeted Signal: LME Copper Cathode benchmark telemetry active.",
+      "headline_summary": "Targeted Signal: LME Copper Cathode benchmark telemetry active.",
+      "impact_demand": 15000,
+      "impact_leadtime": 2.0
     },
     {
       "id": "sig_ali_f",
       "sector": "Metals & Mining",
       "commodity": "Primary Aluminum Ingot",
       "metal": "Primary Aluminum Ingot",
-      "spot_price": 3135.5,
-      "sentiment_score": -0.42,
-      "si_composite": -0.42,
-      "sentiment_label": "\ud83d\udd34 Bearish Drag",
-      "title": "Live Market: Primary Aluminum Ingot trading at $3,135.50 (-1.27% 24h change).",
-      "headline_summary": "Live Market: Primary Aluminum Ingot trading at $3,135.50 (-1.27% 24h change).",
-      "impact_demand": 17534,
-      "impact_leadtime": 2.6
+      "spot_price": 100.0,
+      "sentiment_score": 0.0,
+      "si_composite": 0.0,
+      "sentiment_label": "\ud83d\udfe1 Neutral / Mixed",
+      "title": "Targeted Signal: Primary Aluminum Ingot benchmark telemetry active.",
+      "headline_summary": "Targeted Signal: Primary Aluminum Ingot benchmark telemetry active.",
+      "impact_demand": 15000,
+      "impact_leadtime": 2.0
     },
     {
       "id": "sig_zn_f",
       "sector": "Metals & Mining",
       "commodity": "Special High Grade Zinc",
       "metal": "Special High Grade Zinc",
-      "spot_price": 105.62,
-      "sentiment_score": -0.17,
-      "si_composite": -0.17,
-      "sentiment_label": "\ud83d\udd34 Bearish Drag",
-      "title": "Live Market: Special High Grade Zinc trading at $105.62 (-0.52% 24h change).",
-      "headline_summary": "Live Market: Special High Grade Zinc trading at $105.62 (-0.52% 24h change).",
-      "impact_demand": 16030,
-      "impact_leadtime": 2.3
+      "spot_price": 100.0,
+      "sentiment_score": 0.0,
+      "si_composite": 0.0,
+      "sentiment_label": "\ud83d\udfe1 Neutral / Mixed",
+      "title": "Targeted Signal: Special High Grade Zinc benchmark telemetry active.",
+      "headline_summary": "Targeted Signal: Special High Grade Zinc benchmark telemetry active.",
+      "impact_demand": 15000,
+      "impact_leadtime": 2.0
     },
     {
       "id": "sig_gc_f",
       "sector": "Metals & Mining",
       "commodity": "Gold Spot / Futures",
       "metal": "Gold Spot / Futures",
-      "spot_price": 3873.1,
-      "sentiment_score": -0.9,
-      "si_composite": -0.9,
-      "sentiment_label": "\ud83d\udd34 Bearish Drag",
-      "title": "Live Market: Gold Spot / Futures trading at $3,873.10 (-2.70% 24h change).",
-      "headline_summary": "Live Market: Gold Spot / Futures trading at $3,873.10 (-2.70% 24h change).",
-      "impact_demand": 20396,
-      "impact_leadtime": 3.4
+      "spot_price": 100.0,
+      "sentiment_score": 0.0,
+      "si_composite": 0.0,
+      "sentiment_label": "\ud83d\udfe1 Neutral / Mixed",
+      "title": "Targeted Signal: Gold Spot / Futures benchmark telemetry active.",
+      "headline_summary": "Targeted Signal: Gold Spot / Futures benchmark telemetry active.",
+      "impact_demand": 15000,
+      "impact_leadtime": 2.0
     },
     {
       "id": "sig_si_f",
       "sector": "Metals & Mining",
       "commodity": "Silver Spot / Futures",
       "metal": "Silver Spot / Futures",
-      "spot_price": 50.01,
-      "sentiment_score": -0.92,
-      "si_composite": -0.92,
-      "sentiment_label": "\ud83d\udd34 Bearish Drag",
-      "title": "Live Market: Silver Spot / Futures trading at $50.01 (-2.76% 24h change).",
-      "headline_summary": "Live Market: Silver Spot / Futures trading at $50.01 (-2.76% 24h change).",
-      "impact_demand": 20522,
-      "impact_leadtime": 3.4
+      "spot_price": 100.0,
+      "sentiment_score": 0.0,
+      "si_composite": 0.0,
+      "sentiment_label": "\ud83d\udfe1 Neutral / Mixed",
+      "title": "Targeted Signal: Silver Spot / Futures benchmark telemetry active.",
+      "headline_summary": "Targeted Signal: Silver Spot / Futures benchmark telemetry active.",
+      "impact_demand": 15000,
+      "impact_leadtime": 2.0
     },
     {
       "id": "sig_lit",
       "sector": "Metals & Mining",
       "commodity": "Battery Grade Lithium",
       "metal": "Battery Grade Lithium",
-      "spot_price": 59.87,
-      "sentiment_score": -0.65,
-      "si_composite": -0.65,
-      "sentiment_label": "\ud83d\udd34 Bearish Drag",
-      "title": "Live Market: Battery Grade Lithium trading at $59.87 (-1.96% 24h change).",
-      "headline_summary": "Live Market: Battery Grade Lithium trading at $59.87 (-1.96% 24h change).",
-      "impact_demand": 18929,
-      "impact_leadtime": 3.0
+      "spot_price": 100.0,
+      "sentiment_score": 0.0,
+      "si_composite": 0.0,
+      "sentiment_label": "\ud83d\udfe1 Neutral / Mixed",
+      "title": "Targeted Signal: Battery Grade Lithium benchmark telemetry active.",
+      "headline_summary": "Targeted Signal: Battery Grade Lithium benchmark telemetry active.",
+      "impact_demand": 15000,
+      "impact_leadtime": 2.0
     },
     {
       "id": "sig_cl_f",
       "sector": "Energy & Petrochemicals",
       "commodity": "WTI Crude Oil",
       "metal": "WTI Crude Oil",
-      "spot_price": 86.62,
-      "sentiment_score": 0.53,
-      "si_composite": 0.53,
-      "sentiment_label": "\ud83d\udfe2 Bullish Surge",
-      "title": "Live Market: WTI Crude Oil trading at $86.62 (+1.58% 24h change).",
-      "headline_summary": "Live Market: WTI Crude Oil trading at $86.62 (+1.58% 24h change).",
-      "impact_demand": 18166,
-      "impact_leadtime": 2.8
+      "spot_price": 100.0,
+      "sentiment_score": 0.0,
+      "si_composite": 0.0,
+      "sentiment_label": "\ud83d\udfe1 Neutral / Mixed",
+      "title": "Targeted Signal: WTI Crude Oil benchmark telemetry active.",
+      "headline_summary": "Targeted Signal: WTI Crude Oil benchmark telemetry active.",
+      "impact_demand": 15000,
+      "impact_leadtime": 2.0
     },
     {
       "id": "sig_bz_f",
       "sector": "Energy & Petrochemicals",
       "commodity": "Brent Crude Oil",
       "metal": "Brent Crude Oil",
-      "spot_price": 93.47,
-      "sentiment_score": 0.8,
-      "si_composite": 0.8,
-      "sentiment_label": "\ud83d\udfe2 Bullish Surge",
-      "title": "Live Market: Brent Crude Oil trading at $93.47 (+2.39% 24h change).",
-      "headline_summary": "Live Market: Brent Crude Oil trading at $93.47 (+2.39% 24h change).",
-      "impact_demand": 19775,
-      "impact_leadtime": 3.2
+      "spot_price": 100.0,
+      "sentiment_score": 0.0,
+      "si_composite": 0.0,
+      "sentiment_label": "\ud83d\udfe1 Neutral / Mixed",
+      "title": "Targeted Signal: Brent Crude Oil benchmark telemetry active.",
+      "headline_summary": "Targeted Signal: Brent Crude Oil benchmark telemetry active.",
+      "impact_demand": 15000,
+      "impact_leadtime": 2.0
     },
     {
       "id": "sig_ng_f",
       "sector": "Energy & Petrochemicals",
       "commodity": "Henry Hub Natural Gas",
       "metal": "Henry Hub Natural Gas",
-      "spot_price": 3.27,
-      "sentiment_score": 0.01,
-      "si_composite": 0.01,
+      "spot_price": 100.0,
+      "sentiment_score": 0.0,
+      "si_composite": 0.0,
       "sentiment_label": "\ud83d\udfe1 Neutral / Mixed",
-      "title": "Live Market: Henry Hub Natural Gas trading at $3.27 (+0.03% 24h change).",
-      "headline_summary": "Live Market: Henry Hub Natural Gas trading at $3.27 (+0.03% 24h change).",
-      "impact_demand": 15061,
+      "title": "Targeted Signal: Henry Hub Natural Gas benchmark telemetry active.",
+      "headline_summary": "Targeted Signal: Henry Hub Natural Gas benchmark telemetry active.",
+      "impact_demand": 15000,
       "impact_leadtime": 2.0
     },
     {
@@ -131,181 +131,181 @@
       "sector": "Energy & Petrochemicals",
       "commodity": "RBOB Gasoline",
       "metal": "RBOB Gasoline",
-      "spot_price": 2.58,
-      "sentiment_score": 0.55,
-      "si_composite": 0.55,
-      "sentiment_label": "\ud83d\udfe2 Bullish Surge",
-      "title": "Live Market: RBOB Gasoline trading at $2.58 (+1.65% 24h change).",
-      "headline_summary": "Live Market: RBOB Gasoline trading at $2.58 (+1.65% 24h change).",
-      "impact_demand": 18297,
-      "impact_leadtime": 2.8
+      "spot_price": 100.0,
+      "sentiment_score": 0.0,
+      "si_composite": 0.0,
+      "sentiment_label": "\ud83d\udfe1 Neutral / Mixed",
+      "title": "Targeted Signal: RBOB Gasoline benchmark telemetry active.",
+      "headline_summary": "Targeted Signal: RBOB Gasoline benchmark telemetry active.",
+      "impact_demand": 15000,
+      "impact_leadtime": 2.0
     },
     {
       "id": "sig_ho_f",
       "sector": "Energy & Petrochemicals",
       "commodity": "ULSD Heating Oil",
       "metal": "ULSD Heating Oil",
-      "spot_price": 4.2,
-      "sentiment_score": 0.28,
-      "si_composite": 0.28,
-      "sentiment_label": "\ud83d\udfe2 Bullish Surge",
-      "title": "Live Market: ULSD Heating Oil trading at $4.20 (+0.83% 24h change).",
-      "headline_summary": "Live Market: ULSD Heating Oil trading at $4.20 (+0.83% 24h change).",
-      "impact_demand": 16667,
-      "impact_leadtime": 2.4
+      "spot_price": 100.0,
+      "sentiment_score": 0.0,
+      "si_composite": 0.0,
+      "sentiment_label": "\ud83d\udfe1 Neutral / Mixed",
+      "title": "Targeted Signal: ULSD Heating Oil benchmark telemetry active.",
+      "headline_summary": "Targeted Signal: ULSD Heating Oil benchmark telemetry active.",
+      "impact_demand": 15000,
+      "impact_leadtime": 2.0
     },
     {
       "id": "sig_kc_f",
       "sector": "Agriculture & Biofuels",
       "commodity": "Arabica Coffee & Softs",
       "metal": "Arabica Coffee & Softs",
-      "spot_price": 277.45,
-      "sentiment_score": 1.0,
-      "si_composite": 1.0,
-      "sentiment_label": "\ud83d\udfe2 Bullish Surge",
-      "title": "Live Market: Arabica Coffee & Softs trading at $277.45 (+4.52% 24h change).",
-      "headline_summary": "Live Market: Arabica Coffee & Softs trading at $277.45 (+4.52% 24h change).",
-      "impact_demand": 24041,
-      "impact_leadtime": 3.5
+      "spot_price": 100.0,
+      "sentiment_score": 0.0,
+      "si_composite": 0.0,
+      "sentiment_label": "\ud83d\udfe1 Neutral / Mixed",
+      "title": "Targeted Signal: Arabica Coffee & Softs benchmark telemetry active.",
+      "headline_summary": "Targeted Signal: Arabica Coffee & Softs benchmark telemetry active.",
+      "impact_demand": 15000,
+      "impact_leadtime": 2.0
     },
     {
       "id": "sig_zw_f",
       "sector": "Agriculture & Biofuels",
       "commodity": "CBOT Milling Wheat",
       "metal": "CBOT Milling Wheat",
-      "spot_price": 591.5,
-      "sentiment_score": -0.55,
-      "si_composite": -0.55,
-      "sentiment_label": "\ud83d\udd34 Bearish Drag",
-      "title": "Live Market: CBOT Milling Wheat trading at $591.50 (-1.66% 24h change).",
-      "headline_summary": "Live Market: CBOT Milling Wheat trading at $591.50 (-1.66% 24h change).",
-      "impact_demand": 18325,
-      "impact_leadtime": 2.8
+      "spot_price": 100.0,
+      "sentiment_score": 0.0,
+      "si_composite": 0.0,
+      "sentiment_label": "\ud83d\udfe1 Neutral / Mixed",
+      "title": "Targeted Signal: CBOT Milling Wheat benchmark telemetry active.",
+      "headline_summary": "Targeted Signal: CBOT Milling Wheat benchmark telemetry active.",
+      "impact_demand": 15000,
+      "impact_leadtime": 2.0
     },
     {
       "id": "sig_zc_f",
       "sector": "Agriculture & Biofuels",
       "commodity": "CBOT Yellow Corn",
       "metal": "CBOT Yellow Corn",
-      "spot_price": 445.75,
-      "sentiment_score": -0.15,
-      "si_composite": -0.15,
+      "spot_price": 100.0,
+      "sentiment_score": 0.0,
+      "si_composite": 0.0,
       "sentiment_label": "\ud83d\udfe1 Neutral / Mixed",
-      "title": "Live Market: CBOT Yellow Corn trading at $445.75 (-0.45% 24h change).",
-      "headline_summary": "Live Market: CBOT Yellow Corn trading at $445.75 (-0.45% 24h change).",
-      "impact_demand": 15893,
-      "impact_leadtime": 2.2
+      "title": "Targeted Signal: CBOT Yellow Corn benchmark telemetry active.",
+      "headline_summary": "Targeted Signal: CBOT Yellow Corn benchmark telemetry active.",
+      "impact_demand": 15000,
+      "impact_leadtime": 2.0
     },
     {
       "id": "sig_zs_f",
       "sector": "Agriculture & Biofuels",
       "commodity": "CBOT Soybeans",
       "metal": "CBOT Soybeans",
-      "spot_price": 1220.75,
-      "sentiment_score": -0.19,
-      "si_composite": -0.19,
-      "sentiment_label": "\ud83d\udd34 Bearish Drag",
-      "title": "Live Market: CBOT Soybeans trading at $1,220.75 (-0.57% 24h change).",
-      "headline_summary": "Live Market: CBOT Soybeans trading at $1,220.75 (-0.57% 24h change).",
-      "impact_demand": 16140,
-      "impact_leadtime": 2.3
+      "spot_price": 100.0,
+      "sentiment_score": 0.0,
+      "si_composite": 0.0,
+      "sentiment_label": "\ud83d\udfe1 Neutral / Mixed",
+      "title": "Targeted Signal: CBOT Soybeans benchmark telemetry active.",
+      "headline_summary": "Targeted Signal: CBOT Soybeans benchmark telemetry active.",
+      "impact_demand": 15000,
+      "impact_leadtime": 2.0
     },
     {
       "id": "sig_sb_f",
       "sector": "Agriculture & Biofuels",
       "commodity": "ICE Raw Sugar",
       "metal": "ICE Raw Sugar",
-      "spot_price": 18.12,
-      "sentiment_score": -0.63,
-      "si_composite": -0.63,
-      "sentiment_label": "\ud83d\udd34 Bearish Drag",
-      "title": "Live Market: ICE Raw Sugar trading at $18.12 (-1.89% 24h change).",
-      "headline_summary": "Live Market: ICE Raw Sugar trading at $18.12 (-1.89% 24h change).",
-      "impact_demand": 18789,
-      "impact_leadtime": 2.9
+      "spot_price": 100.0,
+      "sentiment_score": 0.0,
+      "si_composite": 0.0,
+      "sentiment_label": "\ud83d\udfe1 Neutral / Mixed",
+      "title": "Targeted Signal: ICE Raw Sugar benchmark telemetry active.",
+      "headline_summary": "Targeted Signal: ICE Raw Sugar benchmark telemetry active.",
+      "impact_demand": 15000,
+      "impact_leadtime": 2.0
     },
     {
       "id": "sig_ntr",
       "sector": "Fertilizers & Industrial Chemicals",
       "commodity": "Potassium Chloride & MOP",
       "metal": "Potassium Chloride & MOP",
-      "spot_price": 71.01,
-      "sentiment_score": -0.31,
-      "si_composite": -0.31,
-      "sentiment_label": "\ud83d\udd34 Bearish Drag",
-      "title": "Live Market: Potassium Chloride & MOP trading at $71.01 (-0.92% 24h change).",
-      "headline_summary": "Live Market: Potassium Chloride & MOP trading at $71.01 (-0.92% 24h change).",
-      "impact_demand": 16847,
-      "impact_leadtime": 2.5
+      "spot_price": 100.0,
+      "sentiment_score": 0.0,
+      "si_composite": 0.0,
+      "sentiment_label": "\ud83d\udfe1 Neutral / Mixed",
+      "title": "Targeted Signal: Potassium Chloride & MOP benchmark telemetry active.",
+      "headline_summary": "Targeted Signal: Potassium Chloride & MOP benchmark telemetry active.",
+      "impact_demand": 15000,
+      "impact_leadtime": 2.0
     },
     {
       "id": "sig_cf",
       "sector": "Fertilizers & Industrial Chemicals",
       "commodity": "Ammonia & Nitrogen Feedstock",
       "metal": "Ammonia & Nitrogen Feedstock",
-      "spot_price": 122.83,
-      "sentiment_score": -0.11,
-      "si_composite": -0.11,
+      "spot_price": 100.0,
+      "sentiment_score": 0.0,
+      "si_composite": 0.0,
       "sentiment_label": "\ud83d\udfe1 Neutral / Mixed",
-      "title": "Live Market: Ammonia & Nitrogen Feedstock trading at $122.83 (-0.33% 24h change).",
-      "headline_summary": "Live Market: Ammonia & Nitrogen Feedstock trading at $122.83 (-0.33% 24h change).",
-      "impact_demand": 15665,
-      "impact_leadtime": 2.2
+      "title": "Targeted Signal: Ammonia & Nitrogen Feedstock benchmark telemetry active.",
+      "headline_summary": "Targeted Signal: Ammonia & Nitrogen Feedstock benchmark telemetry active.",
+      "impact_demand": 15000,
+      "impact_leadtime": 2.0
     },
     {
       "id": "sig_mos",
       "sector": "Fertilizers & Industrial Chemicals",
       "commodity": "Phosphates & Acid Benchmark",
       "metal": "Phosphates & Acid Benchmark",
-      "spot_price": 21.86,
-      "sentiment_score": -1.0,
-      "si_composite": -1.0,
-      "sentiment_label": "\ud83d\udd34 Bearish Drag",
-      "title": "Live Market: Phosphates & Acid Benchmark trading at $21.86 (-3.55% 24h change).",
-      "headline_summary": "Live Market: Phosphates & Acid Benchmark trading at $21.86 (-3.55% 24h change).",
-      "impact_demand": 22101,
-      "impact_leadtime": 3.5
+      "spot_price": 100.0,
+      "sentiment_score": 0.0,
+      "si_composite": 0.0,
+      "sentiment_label": "\ud83d\udfe1 Neutral / Mixed",
+      "title": "Targeted Signal: Phosphates & Acid Benchmark benchmark telemetry active.",
+      "headline_summary": "Targeted Signal: Phosphates & Acid Benchmark benchmark telemetry active.",
+      "impact_demand": 15000,
+      "impact_leadtime": 2.0
     },
     {
       "id": "sig_bdry",
       "sector": "Global Freight & Maritime Logistics",
       "commodity": "Baltic Dry Shipping Index",
       "metal": "Baltic Dry Shipping Index",
-      "spot_price": 13.35,
-      "sentiment_score": -0.83,
-      "si_composite": -0.83,
-      "sentiment_label": "\ud83d\udd34 Bearish Drag",
-      "title": "Live Market: Baltic Dry Shipping Index trading at $13.35 (-2.48% 24h change).",
-      "headline_summary": "Live Market: Baltic Dry Shipping Index trading at $13.35 (-2.48% 24h change).",
-      "impact_demand": 19955,
-      "impact_leadtime": 3.2
+      "spot_price": 100.0,
+      "sentiment_score": 0.0,
+      "si_composite": 0.0,
+      "sentiment_label": "\ud83d\udfe1 Neutral / Mixed",
+      "title": "Targeted Signal: Baltic Dry Shipping Index benchmark telemetry active.",
+      "headline_summary": "Targeted Signal: Baltic Dry Shipping Index benchmark telemetry active.",
+      "impact_demand": 15000,
+      "impact_leadtime": 2.0
     },
     {
       "id": "sig_zim",
       "sector": "Global Freight & Maritime Logistics",
       "commodity": "Ocean Container Transport",
       "metal": "Ocean Container Transport",
-      "spot_price": 29.0,
-      "sentiment_score": -0.06,
-      "si_composite": -0.06,
+      "spot_price": 100.0,
+      "sentiment_score": 0.0,
+      "si_composite": 0.0,
       "sentiment_label": "\ud83d\udfe1 Neutral / Mixed",
-      "title": "Live Market: Ocean Container Transport trading at $29.00 (-0.17% 24h change).",
-      "headline_summary": "Live Market: Ocean Container Transport trading at $29.00 (-0.17% 24h change).",
-      "impact_demand": 15344,
-      "impact_leadtime": 2.1
+      "title": "Targeted Signal: Ocean Container Transport benchmark telemetry active.",
+      "headline_summary": "Targeted Signal: Ocean Container Transport benchmark telemetry active.",
+      "impact_demand": 15000,
+      "impact_leadtime": 2.0
     },
     {
       "id": "sig_expd",
       "sector": "Global Freight & Maritime Logistics",
       "commodity": "Global Freight Logistics",
       "metal": "Global Freight Logistics",
-      "spot_price": 194.54,
-      "sentiment_score": -0.01,
-      "si_composite": -0.01,
+      "spot_price": 100.0,
+      "sentiment_score": 0.0,
+      "si_composite": 0.0,
       "sentiment_label": "\ud83d\udfe1 Neutral / Mixed",
-      "title": "Live Market: Global Freight Logistics trading at $194.54 (-0.03% 24h change).",
-      "headline_summary": "Live Market: Global Freight Logistics trading at $194.54 (-0.03% 24h change).",
-      "impact_demand": 15051,
+      "title": "Targeted Signal: Global Freight Logistics benchmark telemetry active.",
+      "headline_summary": "Targeted Signal: Global Freight Logistics benchmark telemetry active.",
+      "impact_demand": 15000,
       "impact_leadtime": 2.0
     }
   ],
@@ -517,302 +517,332 @@
     "HG=F": {
       "ticker": "HG=F",
       "name": "LME Copper Cathode",
-      "raw_price": 6.1965,
-      "price": 13660.93,
+      "raw_price": 6.1955,
+      "price": 13658.72,
       "unit": "$ / MT",
-      "change_pct": -1.24,
+      "change_pct": -1.26,
       "sector": "Base & Battery Metals",
-      "updated_utc": "2026-11-12 16:17 UTC"
+      "source": "LIVE_YFINANCE",
+      "updated_utc": "2026-11-12 17:56 UTC"
     },
     "LME Copper Cathode": {
       "ticker": "HG=F",
       "name": "LME Copper Cathode",
-      "raw_price": 6.1965,
-      "price": 13660.93,
+      "raw_price": 6.1955,
+      "price": 13658.72,
       "unit": "$ / MT",
-      "change_pct": -1.24,
+      "change_pct": -1.26,
       "sector": "Base & Battery Metals",
-      "updated_utc": "2026-11-12 16:17 UTC"
+      "source": "LIVE_YFINANCE",
+      "updated_utc": "2026-11-12 17:56 UTC"
     },
     "ALI=F": {
       "ticker": "ALI=F",
       "name": "Primary Aluminum Ingot",
-      "raw_price": 3135.5,
-      "price": 3135.5,
+      "raw_price": 3145.5,
+      "price": 3145.5,
       "unit": "$ / MT",
-      "change_pct": -2.87,
+      "change_pct": -2.56,
       "sector": "Base & Battery Metals",
-      "updated_utc": "2026-11-12 16:17 UTC"
+      "source": "LIVE_YFINANCE",
+      "updated_utc": "2026-11-12 17:56 UTC"
     },
     "Primary Aluminum Ingot": {
       "ticker": "ALI=F",
       "name": "Primary Aluminum Ingot",
-      "raw_price": 3135.5,
-      "price": 3135.5,
+      "raw_price": 3145.5,
+      "price": 3145.5,
       "unit": "$ / MT",
-      "change_pct": -2.87,
+      "change_pct": -2.56,
       "sector": "Base & Battery Metals",
-      "updated_utc": "2026-11-12 16:17 UTC"
+      "source": "LIVE_YFINANCE",
+      "updated_utc": "2026-11-12 17:56 UTC"
     },
     "ZN=F": {
       "ticker": "ZN=F",
       "name": "Special High Grade Zinc",
-      "raw_price": 105.6406,
-      "price": 105.64,
+      "raw_price": 105.4062,
+      "price": 105.41,
       "unit": "$ / MT",
-      "change_pct": -0.37,
+      "change_pct": -0.59,
       "sector": "Base & Battery Metals",
-      "updated_utc": "2026-11-12 16:17 UTC"
+      "source": "LIVE_YFINANCE",
+      "updated_utc": "2026-11-12 17:56 UTC"
     },
     "Special High Grade Zinc": {
       "ticker": "ZN=F",
       "name": "Special High Grade Zinc",
-      "raw_price": 105.6406,
-      "price": 105.64,
+      "raw_price": 105.4062,
+      "price": 105.41,
       "unit": "$ / MT",
-      "change_pct": -0.37,
+      "change_pct": -0.59,
       "sector": "Base & Battery Metals",
-      "updated_utc": "2026-11-12 16:17 UTC"
+      "source": "LIVE_YFINANCE",
+      "updated_utc": "2026-11-12 17:56 UTC"
     },
     "GC=F": {
       "ticker": "GC=F",
       "name": "Gold Spot / Futures",
-      "raw_price": 3880.8999,
-      "price": 3880.9,
+      "raw_price": 3876.8999,
+      "price": 3876.9,
       "unit": "$ / oz",
-      "change_pct": -2.99,
+      "change_pct": -3.09,
       "sector": "Base & Battery Metals",
-      "updated_utc": "2026-11-12 16:17 UTC"
+      "source": "LIVE_YFINANCE",
+      "updated_utc": "2026-11-12 17:56 UTC"
     },
     "Gold Spot / Futures": {
       "ticker": "GC=F",
       "name": "Gold Spot / Futures",
-      "raw_price": 3880.8999,
-      "price": 3880.9,
+      "raw_price": 3876.8999,
+      "price": 3876.9,
       "unit": "$ / oz",
-      "change_pct": -2.99,
+      "change_pct": -3.09,
       "sector": "Base & Battery Metals",
-      "updated_utc": "2026-11-12 16:17 UTC"
+      "source": "LIVE_YFINANCE",
+      "updated_utc": "2026-11-12 17:56 UTC"
     },
     "SI=F": {
       "ticker": "SI=F",
       "name": "Silver Spot / Futures",
-      "raw_price": 50.245,
-      "price": 50.24,
+      "raw_price": 49.91,
+      "price": 49.91,
       "unit": "$ / oz",
-      "change_pct": -3.15,
+      "change_pct": -3.8,
       "sector": "Base & Battery Metals",
-      "updated_utc": "2026-11-12 16:17 UTC"
+      "source": "LIVE_YFINANCE",
+      "updated_utc": "2026-11-12 17:56 UTC"
     },
     "Silver Spot / Futures": {
       "ticker": "SI=F",
       "name": "Silver Spot / Futures",
-      "raw_price": 50.245,
-      "price": 50.24,
+      "raw_price": 49.91,
+      "price": 49.91,
       "unit": "$ / oz",
-      "change_pct": -3.15,
+      "change_pct": -3.8,
       "sector": "Base & Battery Metals",
-      "updated_utc": "2026-11-12 16:17 UTC"
+      "source": "LIVE_YFINANCE",
+      "updated_utc": "2026-11-12 17:56 UTC"
     },
     "LIT": {
       "ticker": "LIT",
       "name": "Battery Grade Lithium",
-      "raw_price": 59.9,
-      "price": 59.9,
+      "raw_price": 59.64,
+      "price": 59.64,
       "unit": "$ / Index",
-      "change_pct": -1.92,
+      "change_pct": -2.34,
       "sector": "Base & Battery Metals",
-      "updated_utc": "2026-11-12 16:17 UTC"
+      "source": "LIVE_YFINANCE",
+      "updated_utc": "2026-11-12 17:56 UTC"
     },
     "Battery Grade Lithium": {
       "ticker": "LIT",
       "name": "Battery Grade Lithium",
-      "raw_price": 59.9,
-      "price": 59.9,
+      "raw_price": 59.64,
+      "price": 59.64,
       "unit": "$ / Index",
-      "change_pct": -1.92,
+      "change_pct": -2.34,
       "sector": "Base & Battery Metals",
-      "updated_utc": "2026-11-12 16:17 UTC"
+      "source": "LIVE_YFINANCE",
+      "updated_utc": "2026-11-12 17:56 UTC"
     },
     "REMX": {
       "ticker": "REMX",
       "name": "Rare Earth & Strategic Metals Basket",
-      "raw_price": 51.295,
-      "price": 51.29,
+      "raw_price": 51.155,
+      "price": 51.15,
       "unit": "$ / Index",
-      "change_pct": -3.45,
+      "change_pct": -3.72,
       "sector": "Rare Earths & Critical",
-      "updated_utc": "2026-11-12 16:17 UTC"
+      "source": "LIVE_YFINANCE",
+      "updated_utc": "2026-11-12 17:56 UTC"
     },
     "Rare Earth & Strategic Metals Basket": {
       "ticker": "REMX",
       "name": "Rare Earth & Strategic Metals Basket",
-      "raw_price": 51.295,
-      "price": 51.29,
+      "raw_price": 51.155,
+      "price": 51.15,
       "unit": "$ / Index",
-      "change_pct": -3.45,
+      "change_pct": -3.72,
       "sector": "Rare Earths & Critical",
-      "updated_utc": "2026-11-12 16:17 UTC"
+      "source": "LIVE_YFINANCE",
+      "updated_utc": "2026-11-12 17:56 UTC"
     },
     "MP": {
       "ticker": "MP",
       "name": "NdPr Magnet Oxide Benchmark (MP)",
-      "raw_price": 38.435,
-      "price": 38.44,
+      "raw_price": 38.21,
+      "price": 38.21,
       "unit": "$ / Index",
-      "change_pct": 4.64,
+      "change_pct": 4.03,
       "sector": "Rare Earths & Critical",
-      "updated_utc": "2026-11-12 16:17 UTC"
+      "source": "LIVE_YFINANCE",
+      "updated_utc": "2026-11-12 17:56 UTC"
     },
     "NdPr Magnet Oxide Benchmark (MP)": {
       "ticker": "MP",
       "name": "NdPr Magnet Oxide Benchmark (MP)",
-      "raw_price": 38.435,
-      "price": 38.44,
+      "raw_price": 38.21,
+      "price": 38.21,
       "unit": "$ / Index",
-      "change_pct": 4.64,
+      "change_pct": 4.03,
       "sector": "Rare Earths & Critical",
-      "updated_utc": "2026-11-12 16:17 UTC"
+      "source": "LIVE_YFINANCE",
+      "updated_utc": "2026-11-12 17:56 UTC"
     },
     "LYSDY": {
       "ticker": "LYSDY",
       "name": "Heavy/Light Rare Earths Ex-China (Lynas)",
-      "raw_price": 9.02,
-      "price": 9.02,
+      "raw_price": 9.03,
+      "price": 9.03,
       "unit": "$ / Index",
-      "change_pct": -4.45,
+      "change_pct": -4.34,
       "sector": "Rare Earths & Critical",
-      "updated_utc": "2026-11-12 16:17 UTC"
+      "source": "LIVE_YFINANCE",
+      "updated_utc": "2026-11-12 17:56 UTC"
     },
     "Heavy/Light Rare Earths Ex-China (Lynas)": {
       "ticker": "LYSDY",
       "name": "Heavy/Light Rare Earths Ex-China (Lynas)",
-      "raw_price": 9.02,
-      "price": 9.02,
+      "raw_price": 9.03,
+      "price": 9.03,
       "unit": "$ / Index",
-      "change_pct": -4.45,
+      "change_pct": -4.34,
       "sector": "Rare Earths & Critical",
-      "updated_utc": "2026-11-12 16:17 UTC"
+      "source": "LIVE_YFINANCE",
+      "updated_utc": "2026-11-12 17:56 UTC"
     },
     "BATT": {
       "ticker": "BATT",
       "name": "Cobalt & Strategic Cathode Basket",
-      "raw_price": 12.61,
-      "price": 12.61,
+      "raw_price": 12.575,
+      "price": 12.57,
       "unit": "$ / Index",
-      "change_pct": -1.87,
+      "change_pct": -2.14,
       "sector": "Rare Earths & Critical",
-      "updated_utc": "2026-11-12 16:17 UTC"
+      "source": "LIVE_YFINANCE",
+      "updated_utc": "2026-11-12 17:56 UTC"
     },
     "Cobalt & Strategic Cathode Basket": {
       "ticker": "BATT",
       "name": "Cobalt & Strategic Cathode Basket",
-      "raw_price": 12.61,
-      "price": 12.61,
+      "raw_price": 12.575,
+      "price": 12.57,
       "unit": "$ / Index",
-      "change_pct": -1.87,
+      "change_pct": -2.14,
       "sector": "Rare Earths & Critical",
-      "updated_utc": "2026-11-12 16:17 UTC"
+      "source": "LIVE_YFINANCE",
+      "updated_utc": "2026-11-12 17:56 UTC"
     },
     "CL=F": {
       "ticker": "CL=F",
       "name": "WTI Crude Oil",
-      "raw_price": 86.79,
-      "price": 86.79,
+      "raw_price": 87.63,
+      "price": 87.63,
       "unit": "$ / bbl",
-      "change_pct": 0.3,
+      "change_pct": 1.27,
       "sector": "Energy",
-      "updated_utc": "2026-11-12 16:17 UTC"
+      "source": "LIVE_YFINANCE",
+      "updated_utc": "2026-11-12 17:56 UTC"
     },
     "WTI Crude Oil": {
       "ticker": "CL=F",
       "name": "WTI Crude Oil",
-      "raw_price": 86.79,
-      "price": 86.79,
+      "raw_price": 87.63,
+      "price": 87.63,
       "unit": "$ / bbl",
-      "change_pct": 0.3,
+      "change_pct": 1.27,
       "sector": "Energy",
-      "updated_utc": "2026-11-12 16:17 UTC"
+      "source": "LIVE_YFINANCE",
+      "updated_utc": "2026-11-12 17:56 UTC"
     },
     "BZ=F": {
       "ticker": "BZ=F",
       "name": "Brent Crude Oil",
-      "raw_price": 93.67,
-      "price": 93.67,
+      "raw_price": 94.52,
+      "price": 94.52,
       "unit": "$ / bbl",
-      "change_pct": 0.98,
+      "change_pct": 1.9,
       "sector": "Energy",
-      "updated_utc": "2026-11-12 16:17 UTC"
+      "source": "LIVE_YFINANCE",
+      "updated_utc": "2026-11-12 17:56 UTC"
     },
     "Brent Crude Oil": {
       "ticker": "BZ=F",
       "name": "Brent Crude Oil",
-      "raw_price": 93.67,
-      "price": 93.67,
+      "raw_price": 94.52,
+      "price": 94.52,
       "unit": "$ / bbl",
-      "change_pct": 0.98,
+      "change_pct": 1.9,
       "sector": "Energy",
-      "updated_utc": "2026-11-12 16:17 UTC"
+      "source": "LIVE_YFINANCE",
+      "updated_utc": "2026-11-12 17:56 UTC"
     },
     "NG=F": {
       "ticker": "NG=F",
       "name": "Henry Hub Natural Gas",
-      "raw_price": 3.272,
-      "price": 3.27,
+      "raw_price": 3.339,
+      "price": 3.34,
       "unit": "$ / MMBtu",
-      "change_pct": 1.77,
+      "change_pct": 3.86,
       "sector": "Energy",
-      "updated_utc": "2026-11-12 16:17 UTC"
+      "source": "LIVE_YFINANCE",
+      "updated_utc": "2026-11-12 17:56 UTC"
     },
     "Henry Hub Natural Gas": {
       "ticker": "NG=F",
       "name": "Henry Hub Natural Gas",
-      "raw_price": 3.272,
-      "price": 3.27,
+      "raw_price": 3.339,
+      "price": 3.34,
       "unit": "$ / MMBtu",
-      "change_pct": 1.77,
+      "change_pct": 3.86,
       "sector": "Energy",
-      "updated_utc": "2026-11-12 16:17 UTC"
+      "source": "LIVE_YFINANCE",
+      "updated_utc": "2026-11-12 17:56 UTC"
     },
     "RB=F": {
       "ticker": "RB=F",
       "name": "RBOB Gasoline",
-      "raw_price": 2.5869,
-      "price": 2.59,
+      "raw_price": 2.6098,
+      "price": 2.61,
       "unit": "$ / gal",
-      "change_pct": -0.79,
+      "change_pct": 0.09,
       "sector": "Energy",
-      "updated_utc": "2026-11-12 16:17 UTC"
+      "source": "LIVE_YFINANCE",
+      "updated_utc": "2026-11-12 17:56 UTC"
     },
     "RBOB Gasoline": {
       "ticker": "RB=F",
       "name": "RBOB Gasoline",
-      "raw_price": 2.5869,
-      "price": 2.59,
+      "raw_price": 2.6098,
+      "price": 2.61,
       "unit": "$ / gal",
-      "change_pct": -0.79,
+      "change_pct": 0.09,
       "sector": "Energy",
-      "updated_utc": "2026-11-12 16:17 UTC"
+      "source": "LIVE_YFINANCE",
+      "updated_utc": "2026-11-12 17:56 UTC"
     },
     "HO=F": {
       "ticker": "HO=F",
       "name": "ULSD Heating Oil",
-      "raw_price": 4.1934,
-      "price": 4.19,
+      "raw_price": 4.2118,
+      "price": 4.21,
       "unit": "$ / gal",
-      "change_pct": -0.43,
+      "change_pct": 0.01,
       "sector": "Energy",
-      "updated_utc": "2026-11-12 16:17 UTC"
+      "source": "LIVE_YFINANCE",
+      "updated_utc": "2026-11-12 17:56 UTC"
     },
     "ULSD Heating Oil": {
       "ticker": "HO=F",
       "name": "ULSD Heating Oil",
-      "raw_price": 4.1934,
-      "price": 4.19,
+      "raw_price": 4.2118,
+      "price": 4.21,
       "unit": "$ / gal",
-      "change_pct": -0.43,
+      "change_pct": 0.01,
       "sector": "Energy",
-      "updated_utc": "2026-11-12 16:17 UTC"
+      "source": "LIVE_YFINANCE",
+      "updated_utc": "2026-11-12 17:56 UTC"
     },
     "ZW=F": {
       "ticker": "ZW=F",
@@ -822,7 +852,8 @@
       "unit": "$ / bu",
       "change_pct": -1.42,
       "sector": "Grains & Softs",
-      "updated_utc": "2026-11-12 16:17 UTC"
+      "source": "LIVE_YFINANCE",
+      "updated_utc": "2026-11-12 17:56 UTC"
     },
     "CBOT Milling Wheat": {
       "ticker": "ZW=F",
@@ -832,27 +863,30 @@
       "unit": "$ / bu",
       "change_pct": -1.42,
       "sector": "Grains & Softs",
-      "updated_utc": "2026-11-12 16:17 UTC"
+      "source": "LIVE_YFINANCE",
+      "updated_utc": "2026-11-12 17:56 UTC"
     },
     "ZC=F": {
       "ticker": "ZC=F",
       "name": "CBOT Yellow Corn",
-      "raw_price": 445.25,
-      "price": 4.4525,
+      "raw_price": 443.5,
+      "price": 4.435,
       "unit": "$ / bu",
-      "change_pct": -0.61,
+      "change_pct": -1.0,
       "sector": "Grains & Softs",
-      "updated_utc": "2026-11-12 16:17 UTC"
+      "source": "LIVE_YFINANCE",
+      "updated_utc": "2026-11-12 17:56 UTC"
     },
     "CBOT Yellow Corn": {
       "ticker": "ZC=F",
       "name": "CBOT Yellow Corn",
-      "raw_price": 445.25,
-      "price": 4.4525,
+      "raw_price": 443.5,
+      "price": 4.435,
       "unit": "$ / bu",
-      "change_pct": -0.61,
+      "change_pct": -1.0,
       "sector": "Grains & Softs",
-      "updated_utc": "2026-11-12 16:17 UTC"
+      "source": "LIVE_YFINANCE",
+      "updated_utc": "2026-11-12 17:56 UTC"
     },
     "ZS=F": {
       "ticker": "ZS=F",
@@ -862,7 +896,8 @@
       "unit": "$ / bu",
       "change_pct": -0.73,
       "sector": "Grains & Softs",
-      "updated_utc": "2026-11-12 16:17 UTC"
+      "source": "LIVE_YFINANCE",
+      "updated_utc": "2026-11-12 17:56 UTC"
     },
     "CBOT Soybeans": {
       "ticker": "ZS=F",
@@ -872,367 +907,404 @@
       "unit": "$ / bu",
       "change_pct": -0.73,
       "sector": "Grains & Softs",
-      "updated_utc": "2026-11-12 16:17 UTC"
+      "source": "LIVE_YFINANCE",
+      "updated_utc": "2026-11-12 17:56 UTC"
     },
     "ZM=F": {
       "ticker": "ZM=F",
       "name": "CBOT Soybean Meal",
-      "raw_price": 327.3,
-      "price": 327.3,
+      "raw_price": 324.0,
+      "price": 324.0,
       "unit": "$ / ton",
-      "change_pct": -0.73,
+      "change_pct": -1.73,
       "sector": "Grains & Softs",
-      "updated_utc": "2026-11-12 16:17 UTC"
+      "source": "LIVE_YFINANCE",
+      "updated_utc": "2026-11-12 17:56 UTC"
     },
     "CBOT Soybean Meal": {
       "ticker": "ZM=F",
       "name": "CBOT Soybean Meal",
-      "raw_price": 327.3,
-      "price": 327.3,
+      "raw_price": 324.0,
+      "price": 324.0,
       "unit": "$ / ton",
-      "change_pct": -0.73,
+      "change_pct": -1.73,
       "sector": "Grains & Softs",
-      "updated_utc": "2026-11-12 16:17 UTC"
+      "source": "LIVE_YFINANCE",
+      "updated_utc": "2026-11-12 17:56 UTC"
     },
     "ZL=F": {
       "ticker": "ZL=F",
       "name": "CBOT Soybean Oil",
-      "raw_price": 63.18,
-      "price": 0.6318,
+      "raw_price": 63.35,
+      "price": 0.6335,
       "unit": "$ / lb",
-      "change_pct": -1.1,
+      "change_pct": -0.83,
       "sector": "Grains & Softs",
-      "updated_utc": "2026-11-12 16:17 UTC"
+      "source": "LIVE_YFINANCE",
+      "updated_utc": "2026-11-12 17:56 UTC"
     },
     "CBOT Soybean Oil": {
       "ticker": "ZL=F",
       "name": "CBOT Soybean Oil",
-      "raw_price": 63.18,
-      "price": 0.6318,
+      "raw_price": 63.35,
+      "price": 0.6335,
       "unit": "$ / lb",
-      "change_pct": -1.1,
+      "change_pct": -0.83,
       "sector": "Grains & Softs",
-      "updated_utc": "2026-11-12 16:17 UTC"
+      "source": "LIVE_YFINANCE",
+      "updated_utc": "2026-11-12 17:56 UTC"
     },
     "ZR=F": {
       "ticker": "ZR=F",
       "name": "CBOT Rough Rice",
-      "raw_price": 18.465,
-      "price": 18.47,
+      "raw_price": 18.53,
+      "price": 18.53,
       "unit": "$ / cwt",
-      "change_pct": 2.84,
+      "change_pct": 3.2,
       "sector": "Grains & Softs",
-      "updated_utc": "2026-11-12 16:17 UTC"
+      "source": "LIVE_YFINANCE",
+      "updated_utc": "2026-11-12 17:56 UTC"
     },
     "CBOT Rough Rice": {
       "ticker": "ZR=F",
       "name": "CBOT Rough Rice",
-      "raw_price": 18.465,
-      "price": 18.47,
+      "raw_price": 18.53,
+      "price": 18.53,
       "unit": "$ / cwt",
-      "change_pct": 2.84,
+      "change_pct": 3.2,
       "sector": "Grains & Softs",
-      "updated_utc": "2026-11-12 16:17 UTC"
+      "source": "LIVE_YFINANCE",
+      "updated_utc": "2026-11-12 17:56 UTC"
     },
     "ZO=F": {
       "ticker": "ZO=F",
       "name": "CBOT Oats",
-      "raw_price": 345.5,
-      "price": 3.455,
+      "raw_price": 349.0,
+      "price": 3.49,
       "unit": "$ / bu",
-      "change_pct": -1.5,
+      "change_pct": -0.5,
       "sector": "Grains & Softs",
-      "updated_utc": "2026-11-12 16:17 UTC"
+      "source": "LIVE_YFINANCE",
+      "updated_utc": "2026-11-12 17:56 UTC"
     },
     "CBOT Oats": {
       "ticker": "ZO=F",
       "name": "CBOT Oats",
-      "raw_price": 345.5,
-      "price": 3.455,
+      "raw_price": 349.0,
+      "price": 3.49,
       "unit": "$ / bu",
-      "change_pct": -1.5,
+      "change_pct": -0.5,
       "sector": "Grains & Softs",
-      "updated_utc": "2026-11-12 16:17 UTC"
+      "source": "LIVE_YFINANCE",
+      "updated_utc": "2026-11-12 17:56 UTC"
     },
     "KC=F": {
       "ticker": "KC=F",
       "name": "Arabica Coffee & Softs",
-      "raw_price": 278.55,
-      "price": 2.7855,
+      "raw_price": 274.4,
+      "price": 2.744,
       "unit": "$ / lb",
-      "change_pct": 3.55,
+      "change_pct": 2.01,
       "sector": "Grains & Softs",
-      "updated_utc": "2026-11-12 16:17 UTC"
+      "source": "LIVE_YFINANCE",
+      "updated_utc": "2026-11-12 17:56 UTC"
     },
     "Arabica Coffee & Softs": {
       "ticker": "KC=F",
       "name": "Arabica Coffee & Softs",
-      "raw_price": 278.55,
-      "price": 2.7855,
+      "raw_price": 274.4,
+      "price": 2.744,
       "unit": "$ / lb",
-      "change_pct": 3.55,
+      "change_pct": 2.01,
       "sector": "Grains & Softs",
-      "updated_utc": "2026-11-12 16:17 UTC"
+      "source": "LIVE_YFINANCE",
+      "updated_utc": "2026-11-12 17:56 UTC"
     },
     "CC=F": {
       "ticker": "CC=F",
       "name": "ICE Cocoa",
-      "raw_price": 5154.0,
-      "price": 5154.0,
+      "raw_price": 5183.0,
+      "price": 5183.0,
       "unit": "$ / MT",
-      "change_pct": 5.03,
+      "change_pct": 5.62,
       "sector": "Grains & Softs",
-      "updated_utc": "2026-11-12 16:17 UTC"
+      "source": "LIVE_YFINANCE",
+      "updated_utc": "2026-11-12 17:56 UTC"
     },
     "ICE Cocoa": {
       "ticker": "CC=F",
       "name": "ICE Cocoa",
-      "raw_price": 5154.0,
-      "price": 5154.0,
+      "raw_price": 5183.0,
+      "price": 5183.0,
       "unit": "$ / MT",
-      "change_pct": 5.03,
+      "change_pct": 5.62,
       "sector": "Grains & Softs",
-      "updated_utc": "2026-11-12 16:17 UTC"
+      "source": "LIVE_YFINANCE",
+      "updated_utc": "2026-11-12 17:56 UTC"
     },
     "SB=F": {
       "ticker": "SB=F",
       "name": "ICE Raw Sugar #11",
-      "raw_price": 18.12,
-      "price": 0.1812,
+      "raw_price": 18.26,
+      "price": 0.1826,
       "unit": "$ / lb",
-      "change_pct": -1.95,
+      "change_pct": -1.19,
       "sector": "Grains & Softs",
-      "updated_utc": "2026-11-12 16:17 UTC"
+      "source": "LIVE_YFINANCE",
+      "updated_utc": "2026-11-12 17:56 UTC"
     },
     "ICE Raw Sugar #11": {
       "ticker": "SB=F",
       "name": "ICE Raw Sugar #11",
-      "raw_price": 18.12,
-      "price": 0.1812,
+      "raw_price": 18.26,
+      "price": 0.1826,
       "unit": "$ / lb",
-      "change_pct": -1.95,
+      "change_pct": -1.19,
       "sector": "Grains & Softs",
-      "updated_utc": "2026-11-12 16:17 UTC"
+      "source": "LIVE_YFINANCE",
+      "updated_utc": "2026-11-12 17:56 UTC"
     },
     "CT=F": {
       "ticker": "CT=F",
       "name": "ICE Cotton #2",
-      "raw_price": 78.54,
-      "price": 0.7854,
+      "raw_price": 78.56,
+      "price": 0.7856,
       "unit": "$ / lb",
-      "change_pct": 0.03,
+      "change_pct": 0.05,
       "sector": "Grains & Softs",
-      "updated_utc": "2026-11-12 16:17 UTC"
+      "source": "LIVE_YFINANCE",
+      "updated_utc": "2026-11-12 17:56 UTC"
     },
     "ICE Cotton #2": {
       "ticker": "CT=F",
       "name": "ICE Cotton #2",
-      "raw_price": 78.54,
-      "price": 0.7854,
+      "raw_price": 78.56,
+      "price": 0.7856,
       "unit": "$ / lb",
-      "change_pct": 0.03,
+      "change_pct": 0.05,
       "sector": "Grains & Softs",
-      "updated_utc": "2026-11-12 16:17 UTC"
+      "source": "LIVE_YFINANCE",
+      "updated_utc": "2026-11-12 17:56 UTC"
     },
     "OJ=F": {
       "ticker": "OJ=F",
       "name": "ICE Frozen Orange Juice",
-      "raw_price": 142.1,
-      "price": 1.421,
+      "raw_price": 141.4,
+      "price": 1.414,
       "unit": "$ / lb",
-      "change_pct": 0.0,
+      "change_pct": -2.98,
       "sector": "Grains & Softs",
-      "updated_utc": "2026-11-12 16:17 UTC"
+      "source": "LIVE_YFINANCE",
+      "updated_utc": "2026-11-12 17:56 UTC"
     },
     "ICE Frozen Orange Juice": {
       "ticker": "OJ=F",
       "name": "ICE Frozen Orange Juice",
-      "raw_price": 142.1,
-      "price": 1.421,
+      "raw_price": 141.4,
+      "price": 1.414,
       "unit": "$ / lb",
-      "change_pct": 0.0,
+      "change_pct": -2.98,
       "sector": "Grains & Softs",
-      "updated_utc": "2026-11-12 16:17 UTC"
+      "source": "LIVE_YFINANCE",
+      "updated_utc": "2026-11-12 17:56 UTC"
     },
     "LE=F": {
       "ticker": "LE=F",
       "name": "CME Live Cattle",
-      "raw_price": 220.15,
-      "price": 2.2015,
+      "raw_price": 222.775,
+      "price": 2.2277,
       "unit": "$ / lb",
-      "change_pct": 0.54,
+      "change_pct": 1.74,
       "sector": "Livestock & Meats",
-      "updated_utc": "2026-11-12 16:17 UTC"
+      "source": "LIVE_YFINANCE",
+      "updated_utc": "2026-11-12 17:56 UTC"
     },
     "CME Live Cattle": {
       "ticker": "LE=F",
       "name": "CME Live Cattle",
-      "raw_price": 220.15,
-      "price": 2.2015,
+      "raw_price": 222.775,
+      "price": 2.2277,
       "unit": "$ / lb",
-      "change_pct": 0.54,
+      "change_pct": 1.74,
       "sector": "Livestock & Meats",
-      "updated_utc": "2026-11-12 16:17 UTC"
+      "source": "LIVE_YFINANCE",
+      "updated_utc": "2026-11-12 17:56 UTC"
     },
     "GF=F": {
       "ticker": "GF=F",
       "name": "CME Feeder Cattle",
-      "raw_price": 336.575,
-      "price": 3.3658,
+      "raw_price": 331.25,
+      "price": 3.3125,
       "unit": "$ / lb",
-      "change_pct": 1.19,
+      "change_pct": -0.41,
       "sector": "Livestock & Meats",
-      "updated_utc": "2026-11-12 16:17 UTC"
+      "source": "LIVE_YFINANCE",
+      "updated_utc": "2026-11-12 17:56 UTC"
     },
     "CME Feeder Cattle": {
       "ticker": "GF=F",
       "name": "CME Feeder Cattle",
-      "raw_price": 336.575,
-      "price": 3.3658,
+      "raw_price": 331.25,
+      "price": 3.3125,
       "unit": "$ / lb",
-      "change_pct": 1.19,
+      "change_pct": -0.41,
       "sector": "Livestock & Meats",
-      "updated_utc": "2026-11-12 16:17 UTC"
+      "source": "LIVE_YFINANCE",
+      "updated_utc": "2026-11-12 17:56 UTC"
     },
     "HE=F": {
       "ticker": "HE=F",
       "name": "CME Lean Hogs",
-      "raw_price": 55.175,
-      "price": 0.5517,
+      "raw_price": 55.25,
+      "price": 0.5525,
       "unit": "$ / lb",
-      "change_pct": -1.52,
+      "change_pct": -1.38,
       "sector": "Livestock & Meats",
-      "updated_utc": "2026-11-12 16:17 UTC"
+      "source": "LIVE_YFINANCE",
+      "updated_utc": "2026-11-12 17:56 UTC"
     },
     "CME Lean Hogs": {
       "ticker": "HE=F",
       "name": "CME Lean Hogs",
-      "raw_price": 55.175,
-      "price": 0.5517,
+      "raw_price": 55.25,
+      "price": 0.5525,
       "unit": "$ / lb",
-      "change_pct": -1.52,
+      "change_pct": -1.38,
       "sector": "Livestock & Meats",
-      "updated_utc": "2026-11-12 16:17 UTC"
+      "source": "LIVE_YFINANCE",
+      "updated_utc": "2026-11-12 17:56 UTC"
     },
     "NTR": {
       "ticker": "NTR",
       "name": "Potassium Chloride & MOP",
-      "raw_price": 70.94,
-      "price": 70.94,
+      "raw_price": 71.53,
+      "price": 71.53,
       "unit": "$ / MT",
-      "change_pct": -0.99,
+      "change_pct": -0.17,
       "sector": "Fertilizers & Freight",
-      "updated_utc": "2026-11-12 16:17 UTC"
+      "source": "LIVE_YFINANCE",
+      "updated_utc": "2026-11-12 17:56 UTC"
     },
     "Potassium Chloride & MOP": {
       "ticker": "NTR",
       "name": "Potassium Chloride & MOP",
-      "raw_price": 70.94,
-      "price": 70.94,
+      "raw_price": 71.53,
+      "price": 71.53,
       "unit": "$ / MT",
-      "change_pct": -0.99,
+      "change_pct": -0.17,
       "sector": "Fertilizers & Freight",
-      "updated_utc": "2026-11-12 16:17 UTC"
+      "source": "LIVE_YFINANCE",
+      "updated_utc": "2026-11-12 17:56 UTC"
     },
     "CF": {
       "ticker": "CF",
       "name": "Ammonia & Nitrogen Feedstock",
-      "raw_price": 122.78,
-      "price": 122.78,
+      "raw_price": 124.35,
+      "price": 124.35,
       "unit": "$ / MT",
-      "change_pct": -0.37,
+      "change_pct": 0.9,
       "sector": "Fertilizers & Freight",
-      "updated_utc": "2026-11-12 16:17 UTC"
+      "source": "LIVE_YFINANCE",
+      "updated_utc": "2026-11-12 17:56 UTC"
     },
     "Ammonia & Nitrogen Feedstock": {
       "ticker": "CF",
       "name": "Ammonia & Nitrogen Feedstock",
-      "raw_price": 122.78,
-      "price": 122.78,
+      "raw_price": 124.35,
+      "price": 124.35,
       "unit": "$ / MT",
-      "change_pct": -0.37,
+      "change_pct": 0.9,
       "sector": "Fertilizers & Freight",
-      "updated_utc": "2026-11-12 16:17 UTC"
+      "source": "LIVE_YFINANCE",
+      "updated_utc": "2026-11-12 17:56 UTC"
     },
     "MOS": {
       "ticker": "MOS",
       "name": "Phosphates & Acid Benchmark",
-      "raw_price": 21.84,
-      "price": 21.84,
+      "raw_price": 22.095,
+      "price": 22.09,
       "unit": "$ / MT",
-      "change_pct": -4.21,
+      "change_pct": -3.09,
       "sector": "Fertilizers & Freight",
-      "updated_utc": "2026-11-12 16:17 UTC"
+      "source": "LIVE_YFINANCE",
+      "updated_utc": "2026-11-12 17:56 UTC"
     },
     "Phosphates & Acid Benchmark": {
       "ticker": "MOS",
       "name": "Phosphates & Acid Benchmark",
-      "raw_price": 21.84,
-      "price": 21.84,
+      "raw_price": 22.095,
+      "price": 22.09,
       "unit": "$ / MT",
-      "change_pct": -4.21,
+      "change_pct": -3.09,
       "sector": "Fertilizers & Freight",
-      "updated_utc": "2026-11-12 16:17 UTC"
+      "source": "LIVE_YFINANCE",
+      "updated_utc": "2026-11-12 17:56 UTC"
     },
     "BDRY": {
       "ticker": "BDRY",
       "name": "Baltic Dry Shipping Index",
-      "raw_price": 13.35,
-      "price": 13.35,
+      "raw_price": 13.3,
+      "price": 13.3,
       "unit": "$ / Index",
-      "change_pct": -1.98,
+      "change_pct": -2.35,
       "sector": "Fertilizers & Freight",
-      "updated_utc": "2026-11-12 16:17 UTC"
+      "source": "LIVE_YFINANCE",
+      "updated_utc": "2026-11-12 17:56 UTC"
     },
     "Baltic Dry Shipping Index": {
       "ticker": "BDRY",
       "name": "Baltic Dry Shipping Index",
-      "raw_price": 13.35,
-      "price": 13.35,
+      "raw_price": 13.3,
+      "price": 13.3,
       "unit": "$ / Index",
-      "change_pct": -1.98,
+      "change_pct": -2.35,
       "sector": "Fertilizers & Freight",
-      "updated_utc": "2026-11-12 16:17 UTC"
+      "source": "LIVE_YFINANCE",
+      "updated_utc": "2026-11-12 17:56 UTC"
     },
     "ZIM": {
       "ticker": "ZIM",
       "name": "Ocean Container Transport",
-      "raw_price": 29.07,
-      "price": 29.07,
+      "raw_price": 29.29,
+      "price": 29.29,
       "unit": "$ / Index",
-      "change_pct": 0.21,
+      "change_pct": 0.97,
       "sector": "Fertilizers & Freight",
-      "updated_utc": "2026-11-12 16:17 UTC"
+      "source": "LIVE_YFINANCE",
+      "updated_utc": "2026-11-12 17:56 UTC"
     },
     "Ocean Container Transport": {
       "ticker": "ZIM",
       "name": "Ocean Container Transport",
-      "raw_price": 29.07,
-      "price": 29.07,
+      "raw_price": 29.29,
+      "price": 29.29,
       "unit": "$ / Index",
-      "change_pct": 0.21,
+      "change_pct": 0.97,
       "sector": "Fertilizers & Freight",
-      "updated_utc": "2026-11-12 16:17 UTC"
+      "source": "LIVE_YFINANCE",
+      "updated_utc": "2026-11-12 17:56 UTC"
     },
     "EXPD": {
       "ticker": "EXPD",
       "name": "Global Freight Logistics",
-      "raw_price": 194.9,
-      "price": 194.9,
+      "raw_price": 195.215,
+      "price": 195.21,
       "unit": "$ / Index",
-      "change_pct": 0.16,
+      "change_pct": 0.32,
       "sector": "Fertilizers & Freight",
-      "updated_utc": "2026-11-12 16:17 UTC"
+      "source": "LIVE_YFINANCE",
+      "updated_utc": "2026-11-12 17:56 UTC"
     },
     "Global Freight Logistics": {
       "ticker": "EXPD",
       "name": "Global Freight Logistics",
-      "raw_price": 194.9,
-      "price": 194.9,
+      "raw_price": 195.215,
+      "price": 195.21,
       "unit": "$ / Index",
-      "change_pct": 0.16,
+      "change_pct": 0.32,
       "sector": "Fertilizers & Freight",
-      "updated_utc": "2026-11-12 16:17 UTC"
+      "source": "LIVE_YFINANCE",
+      "updated_utc": "2026-11-12 17:56 UTC"
     }
   },
   "cftc_positioning": {
@@ -1453,21 +1525,21 @@
       "report_date": "2026-11-03"
     },
     "NG=F": {
-      "managed_money_net": "+15,694 cts",
-      "hedgers_net": "-18,851 cts",
-      "mm_net_raw": 15694,
-      "hedger_net_raw": -18851,
+      "managed_money_net": "+20,292 cts",
+      "hedgers_net": "-22,927 cts",
+      "mm_net_raw": 20292,
+      "hedger_net_raw": -22927,
       "bias": "Bullish Short-Squeeze Risk",
-      "squeeze_score": 0.7,
+      "squeeze_score": 0.75,
       "report_date": "2026-11-12"
     },
     "Henry Hub Natural Gas": {
-      "managed_money_net": "+15,694 cts",
-      "hedgers_net": "-18,851 cts",
-      "mm_net_raw": 15694,
-      "hedger_net_raw": -18851,
+      "managed_money_net": "+20,292 cts",
+      "hedgers_net": "-22,927 cts",
+      "mm_net_raw": 20292,
+      "hedger_net_raw": -22927,
       "bias": "Bullish Short-Squeeze Risk",
-      "squeeze_score": 0.7,
+      "squeeze_score": 0.75,
       "report_date": "2026-11-12"
     },
     "RB=F": {
@@ -1615,21 +1687,21 @@
       "report_date": "2026-11-03"
     },
     "ZO=F": {
-      "managed_money_net": "+8,500 cts",
-      "hedgers_net": "-12,475 cts",
-      "mm_net_raw": 8500,
-      "hedger_net_raw": -12475,
+      "managed_money_net": "+10,700 cts",
+      "hedgers_net": "-14,425 cts",
+      "mm_net_raw": 10700,
+      "hedger_net_raw": -14425,
       "bias": "Balanced Institutional Flow",
-      "squeeze_score": 0.61,
+      "squeeze_score": 0.63,
       "report_date": "2026-11-12"
     },
     "CBOT Oats": {
-      "managed_money_net": "+8,500 cts",
-      "hedgers_net": "-12,475 cts",
-      "mm_net_raw": 8500,
-      "hedger_net_raw": -12475,
+      "managed_money_net": "+10,700 cts",
+      "hedgers_net": "-14,425 cts",
+      "mm_net_raw": 10700,
+      "hedger_net_raw": -14425,
       "bias": "Balanced Institutional Flow",
-      "squeeze_score": 0.61,
+      "squeeze_score": 0.63,
       "report_date": "2026-11-12"
     },
     "KC=F": {
@@ -1795,21 +1867,21 @@
       "report_date": "2026-11-03"
     },
     "CF": {
-      "managed_money_net": "+10,986 cts",
-      "hedgers_net": "-14,678 cts",
-      "mm_net_raw": 10986,
-      "hedger_net_raw": -14678,
+      "managed_money_net": "+13,780 cts",
+      "hedgers_net": "-17,155 cts",
+      "mm_net_raw": 13780,
+      "hedger_net_raw": -17155,
       "bias": "Balanced Institutional Flow",
-      "squeeze_score": 0.64,
+      "squeeze_score": 0.67,
       "report_date": "2026-11-12"
     },
     "Ammonia & Nitrogen Feedstock": {
-      "managed_money_net": "+10,986 cts",
-      "hedgers_net": "-14,678 cts",
-      "mm_net_raw": 10986,
-      "hedger_net_raw": -14678,
+      "managed_money_net": "+13,780 cts",
+      "hedgers_net": "-17,155 cts",
+      "mm_net_raw": 13780,
+      "hedger_net_raw": -17155,
       "bias": "Balanced Institutional Flow",
-      "squeeze_score": 0.64,
+      "squeeze_score": 0.67,
       "report_date": "2026-11-12"
     },
     "MOS": {
@@ -1891,14 +1963,14 @@
       "headline": "Heavy rare earth (Dy/Tb) & NdPr magnet export quota monitoring elevated across Baotou refining corridor",
       "tone_score": -3.1,
       "goldstein_scale": -4.6,
-      "timestamp": "16:17 UTC"
+      "timestamp": "17:56 UTC"
     },
     {
       "region": "West Africa / Brazil",
       "headline": "Cocoa pod disease & South American soy/corn logistics weather vectors tightening forward Q1 basis",
       "tone_score": -2.7,
       "goldstein_scale": -3.9,
-      "timestamp": "16:17 UTC"
+      "timestamp": "17:56 UTC"
     }
   ],
   "commodity_catalog": [
@@ -1908,7 +1980,8 @@
       "cftc_code": "085692",
       "sector": "Base & Battery Metals",
       "unit": "$ / MT",
-      "mult": 2204.62
+      "mult": 2204.62,
+      "fallback": 9450.0
     },
     {
       "name": "Primary Aluminum Ingot",
@@ -1916,7 +1989,8 @@
       "cftc_code": "191693",
       "sector": "Base & Battery Metals",
       "unit": "$ / MT",
-      "mult": 1.0
+      "mult": 1.0,
+      "fallback": 2610.0
     },
     {
       "name": "Special High Grade Zinc",
@@ -1924,7 +1998,8 @@
       "cftc_code": "191693",
       "sector": "Base & Battery Metals",
       "unit": "$ / MT",
-      "mult": 1.0
+      "mult": 1.0,
+      "fallback": 2980.0
     },
     {
       "name": "Gold Spot / Futures",
@@ -1932,7 +2007,8 @@
       "cftc_code": "088691",
       "sector": "Base & Battery Metals",
       "unit": "$ / oz",
-      "mult": 1.0
+      "mult": 1.0,
+      "fallback": 2685.0
     },
     {
       "name": "Silver Spot / Futures",
@@ -1940,7 +2016,8 @@
       "cftc_code": "084691",
       "sector": "Base & Battery Metals",
       "unit": "$ / oz",
-      "mult": 1.0
+      "mult": 1.0,
+      "fallback": 31.4
     },
     {
       "name": "Battery Grade Lithium",
@@ -1948,7 +2025,8 @@
       "cftc_code": "085692",
       "sector": "Base & Battery Metals",
       "unit": "$ / Index",
-      "mult": 1.0
+      "mult": 1.0,
+      "fallback": 42.5
     },
     {
       "name": "Rare Earth & Strategic Metals Basket",
@@ -1956,7 +2034,8 @@
       "cftc_code": "085692",
       "sector": "Rare Earths & Critical",
       "unit": "$ / Index",
-      "mult": 1.0
+      "mult": 1.0,
+      "fallback": 46.8
     },
     {
       "name": "NdPr Magnet Oxide Benchmark (MP)",
@@ -1964,7 +2043,8 @@
       "cftc_code": "085692",
       "sector": "Rare Earths & Critical",
       "unit": "$ / Index",
-      "mult": 1.0
+      "mult": 1.0,
+      "fallback": 19.4
     },
     {
       "name": "Heavy/Light Rare Earths Ex-China (Lynas)",
@@ -1972,7 +2052,8 @@
       "cftc_code": "085692",
       "sector": "Rare Earths & Critical",
       "unit": "$ / Index",
-      "mult": 1.0
+      "mult": 1.0,
+      "fallback": 4.85
     },
     {
       "name": "Cobalt & Strategic Cathode Basket",
@@ -1980,7 +2061,8 @@
       "cftc_code": "085692",
       "sector": "Rare Earths & Critical",
       "unit": "$ / Index",
-      "mult": 1.0
+      "mult": 1.0,
+      "fallback": 11.2
     },
     {
       "name": "WTI Crude Oil",
@@ -1988,7 +2070,8 @@
       "cftc_code": "067651",
       "sector": "Energy",
       "unit": "$ / bbl",
-      "mult": 1.0
+      "mult": 1.0,
+      "fallback": 71.2
     },
     {
       "name": "Brent Crude Oil",
@@ -1996,7 +2079,8 @@
       "cftc_code": "06765T",
       "sector": "Energy",
       "unit": "$ / bbl",
-      "mult": 1.0
+      "mult": 1.0,
+      "fallback": 75.1
     },
     {
       "name": "Henry Hub Natural Gas",
@@ -2004,7 +2088,8 @@
       "cftc_code": "023651",
       "sector": "Energy",
       "unit": "$ / MMBtu",
-      "mult": 1.0
+      "mult": 1.0,
+      "fallback": 2.85
     },
     {
       "name": "RBOB Gasoline",
@@ -2012,7 +2097,8 @@
       "cftc_code": "111659",
       "sector": "Energy",
       "unit": "$ / gal",
-      "mult": 1.0
+      "mult": 1.0,
+      "fallback": 2.08
     },
     {
       "name": "ULSD Heating Oil",
@@ -2020,7 +2106,8 @@
       "cftc_code": "022651",
       "sector": "Energy",
       "unit": "$ / gal",
-      "mult": 1.0
+      "mult": 1.0,
+      "fallback": 2.26
     },
     {
       "name": "CBOT Milling Wheat",
@@ -2028,7 +2115,8 @@
       "cftc_code": "001602",
       "sector": "Grains & Softs",
       "unit": "$ / bu",
-      "mult": 0.01
+      "mult": 0.01,
+      "fallback": 5.72
     },
     {
       "name": "CBOT Yellow Corn",
@@ -2036,7 +2124,8 @@
       "cftc_code": "002602",
       "sector": "Grains & Softs",
       "unit": "$ / bu",
-      "mult": 0.01
+      "mult": 0.01,
+      "fallback": 4.28
     },
     {
       "name": "CBOT Soybeans",
@@ -2044,7 +2133,8 @@
       "cftc_code": "005602",
       "sector": "Grains & Softs",
       "unit": "$ / bu",
-      "mult": 0.01
+      "mult": 0.01,
+      "fallback": 10.15
     },
     {
       "name": "CBOT Soybean Meal",
@@ -2052,7 +2142,8 @@
       "cftc_code": "026603",
       "sector": "Grains & Softs",
       "unit": "$ / ton",
-      "mult": 1.0
+      "mult": 1.0,
+      "fallback": 312.4
     },
     {
       "name": "CBOT Soybean Oil",
@@ -2060,7 +2151,8 @@
       "cftc_code": "007601",
       "sector": "Grains & Softs",
       "unit": "$ / lb",
-      "mult": 0.01
+      "mult": 0.01,
+      "fallback": 0.44
     },
     {
       "name": "CBOT Rough Rice",
@@ -2068,7 +2160,8 @@
       "cftc_code": "039601",
       "sector": "Grains & Softs",
       "unit": "$ / cwt",
-      "mult": 1.0
+      "mult": 1.0,
+      "fallback": 15.1
     },
     {
       "name": "CBOT Oats",
@@ -2076,7 +2169,8 @@
       "cftc_code": "004603",
       "sector": "Grains & Softs",
       "unit": "$ / bu",
-      "mult": 0.01
+      "mult": 0.01,
+      "fallback": 3.65
     },
     {
       "name": "Arabica Coffee & Softs",
@@ -2084,7 +2178,8 @@
       "cftc_code": "083731",
       "sector": "Grains & Softs",
       "unit": "$ / lb",
-      "mult": 0.01
+      "mult": 0.01,
+      "fallback": 2.58
     },
     {
       "name": "ICE Cocoa",
@@ -2092,7 +2187,8 @@
       "cftc_code": "073732",
       "sector": "Grains & Softs",
       "unit": "$ / MT",
-      "mult": 1.0
+      "mult": 1.0,
+      "fallback": 7850.0
     },
     {
       "name": "ICE Raw Sugar #11",
@@ -2100,7 +2196,8 @@
       "cftc_code": "080732",
       "sector": "Grains & Softs",
       "unit": "$ / lb",
-      "mult": 0.01
+      "mult": 0.01,
+      "fallback": 0.22
     },
     {
       "name": "ICE Cotton #2",
@@ -2108,7 +2205,8 @@
       "cftc_code": "033661",
       "sector": "Grains & Softs",
       "unit": "$ / lb",
-      "mult": 0.01
+      "mult": 0.01,
+      "fallback": 0.71
     },
     {
       "name": "ICE Frozen Orange Juice",
@@ -2116,7 +2214,8 @@
       "cftc_code": "040701",
       "sector": "Grains & Softs",
       "unit": "$ / lb",
-      "mult": 0.01
+      "mult": 0.01,
+      "fallback": 4.85
     },
     {
       "name": "CME Live Cattle",
@@ -2124,7 +2223,8 @@
       "cftc_code": "057642",
       "sector": "Livestock & Meats",
       "unit": "$ / lb",
-      "mult": 0.01
+      "mult": 0.01,
+      "fallback": 1.88
     },
     {
       "name": "CME Feeder Cattle",
@@ -2132,7 +2232,8 @@
       "cftc_code": "061641",
       "sector": "Livestock & Meats",
       "unit": "$ / lb",
-      "mult": 0.01
+      "mult": 0.01,
+      "fallback": 2.49
     },
     {
       "name": "CME Lean Hogs",
@@ -2140,7 +2241,8 @@
       "cftc_code": "054642",
       "sector": "Livestock & Meats",
       "unit": "$ / lb",
-      "mult": 0.01
+      "mult": 0.01,
+      "fallback": 0.84
     },
     {
       "name": "Potassium Chloride & MOP",
@@ -2148,7 +2250,8 @@
       "cftc_code": "002602",
       "sector": "Fertilizers & Freight",
       "unit": "$ / MT",
-      "mult": 1.0
+      "mult": 1.0,
+      "fallback": 48.9
     },
     {
       "name": "Ammonia & Nitrogen Feedstock",
@@ -2156,7 +2259,8 @@
       "cftc_code": "023651",
       "sector": "Fertilizers & Freight",
       "unit": "$ / MT",
-      "mult": 1.0
+      "mult": 1.0,
+      "fallback": 84.2
     },
     {
       "name": "Phosphates & Acid Benchmark",
@@ -2164,7 +2268,8 @@
       "cftc_code": "005602",
       "sector": "Fertilizers & Freight",
       "unit": "$ / MT",
-      "mult": 1.0
+      "mult": 1.0,
+      "fallback": 27.4
     },
     {
       "name": "Baltic Dry Shipping Index",
@@ -2172,7 +2277,8 @@
       "cftc_code": "067651",
       "sector": "Fertilizers & Freight",
       "unit": "$ / Index",
-      "mult": 1.0
+      "mult": 1.0,
+      "fallback": 11.8
     },
     {
       "name": "Ocean Container Transport",
@@ -2180,7 +2286,8 @@
       "cftc_code": "067651",
       "sector": "Fertilizers & Freight",
       "unit": "$ / Index",
-      "mult": 1.0
+      "mult": 1.0,
+      "fallback": 22.6
     },
     {
       "name": "Global Freight Logistics",
@@ -2188,8 +2295,9 @@
       "cftc_code": "067651",
       "sector": "Fertilizers & Freight",
       "unit": "$ / Index",
-      "mult": 1.0
+      "mult": 1.0,
+      "fallback": 119.5
     }
   ],
-  "last_intel_sync_utc": "2026-11-12 16:17:35 UTC"
+  "last_intel_sync_utc": "2026-11-12 17:56:58 UTC"
 }
