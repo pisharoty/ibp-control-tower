@@ -116,10 +116,10 @@ def _get_live_tick_for_commodity(comm_or_ticker):
         return ticks[comm_or_ticker]
     return {}
 
-def _get_filtered_sota_names(st.selectbox("Filter SOTA Sector:", _get_sectors_36(), key="sota_sec_f")):
+def _get_sota_names_36():
     return [c["name"] for c in _get_full_36_catalog()]
 
-def _get_filtered_scraper_options(st.selectbox("Filter Scraper Sector:", _get_sectors_36(), key="scr_sec_f")):
+def _get_scraper_options_36():
     return [f"{c['ticker']} ({c['name']})" for c in _get_full_36_catalog()]
 
 def _load_fresh_signals():
