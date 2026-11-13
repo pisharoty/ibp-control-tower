@@ -1121,59 +1121,138 @@ def render_ctrm_desk(persona="Commercial Commodities & Trading Enterprise", term
     mc_scenario_ctrm = st.session_state.get("active_mc_scenario", None)
     mc_loss_ctrm = st.session_state.get("mc_expected_loss", 0.0)
     if mc_scenario_ctrm:
-        st.error(f"🚨 **ENTERPRISE MACRO STRESS INJECTED**: **{mc_scenario_ctrm}** | Systemic VaR Baseline Elevated by **+${mc_loss_ctrm:.2f}M**")
-        
-        st.markdown("### ⚡ Scenario-Specific FIX 4.4 Financial Execution Desk")
-        
-        c_h1, c_h2 = st.columns([2, 1])
-        
-        if "Strait of Hormuz" in mc_scenario_ctrm:
-            hedge_label = "🛢️ Execute FIX 4.4 Brent Crude & LNG Asian Call Option ($140 Cap)"
-            hedge_key = "Brent/LNG Crude Call Spread (Hormuz Crisis)"
-            hedge_desc = "Locks in cap on crude price spikes above $140/bbl and offsets emergency LNG rerouting costs via CME/ICE broker gateway."
-        elif "Black Sea" in mc_scenario_ctrm:
-            hedge_label = "🌾 Execute FIX 4.4 Wheat Futures & TTF Gas Collar"
-            hedge_key = "Black Sea Ag & Gas Collar"
-            hedge_desc = "Protects grain delivery margins and hedges nitrogen fertilizer feedstock gas spikes via CME/EEX."
-        elif "Tariff" in mc_scenario_ctrm:
-            hedge_label = "🏭 Execute FIX 4.4 LME/COMEX Basis & Rare Earths Collar"
-            hedge_key = "Tariff Pass-Through & Strategic Metals Basis Collar"
-            hedge_desc = "Neutralizes NY Fed ~26% tariff pass-through divergence across LME/COMEX metals and Rare Earths export quotas."
-        elif "Brazilian Polar Frost" in mc_scenario_ctrm:
-            hedge_label = "☕ Execute FIX 4.4 Arabica Coffee Bullish Call Spread"
-            hedge_key = "Arabica Coffee Futures Spread (Brazil Frost)"
-            hedge_desc = "Protects against soft commodity spot inflation (+120%) and crop loss margin erosion via ICE."
-        elif "Super El Niño" in mc_scenario_ctrm:
-            hedge_label = "🌋 Execute FIX 4.4 Ag-Bulk & Panama FFA Freight Hedge"
-            hedge_key = "Panama FFA & Ag-Bulk Hedge"
-            hedge_desc = "Hedges against 40% daily Panama transit reductions and grain draft penalties via Baltic Exchange."
-        elif "Choke Point Blockade" in mc_scenario_ctrm:
-            hedge_label = "⚓ Execute FIX 4.4 Bunker Burn & Suez Freight Swap"
-            hedge_key = "Suez Freight Rate Swap & Cape Bunker Burn"
-            hedge_desc = "Locks in Cape of Good Hope rerouting bunker burn rates and floating demurrage exposure."
-        elif "Geopolitical Escalation" in mc_scenario_ctrm:
-            hedge_label = "🔥 Execute FIX 4.4 VLSFO Bunker Fuel Call Collar"
-            hedge_key = "VLSFO Bunker Fuel Call Option"
-            hedge_desc = "Protects against marine fuel spikes above $900/MT and shipping insurance surcharges."
-        elif "Marine Heatwave" in mc_scenario_ctrm:
-            hedge_label = "🌊 Execute FIX 4.4 Thermal Loss Derivative & Spoilage Insurance"
-            hedge_key = "Cargo Thermal Spoilage Insurance Derivative"
-            hedge_desc = "Offsets LNG boil-off losses and reefer container thermal loss claims."
+        st.error(f"🚨 **ENTERPRISE MACRO STRESS INJECTED**: **{mc_scenario_ctrm}** | Systemic VaR Baseline Elevated by **+\${mc_loss_ctrm:.2f}M**")
+        st.markdown("### ⚡ Multi-Commodity Scenario FIX 4.4 Hedge Basket (`35=E` NewOrderList)")
+
+        _pre_port = _get_ctrm_portfolio_rollup(st.session_state.get("executed_hedges", []))
+        _pre_df = _pre_port["df"]
+        _shocks_map = st.session_state.get("mc_twin_shocks") or {}
+
+        def _venue_for_twin(sec_name, ticker_sym):
+            if ticker_sym in ("HG=F", "ALI=F", "ZN=F"):
+                return "LME"
+            if ticker_sym in ("KC=F", "CC=F", "SB=F", "CT=F", "OJ=F"):
+                return "ICE"
+            if sec_name in ("Energy & Fuels", "Grains, Oilseeds & Softs", "Livestock & Proteins") or ticker_sym in ("GC=F", "SI=F"):
+                return "CME"
+            return "OTC_SWAP"
+
+        b_col1, b_col2 = st.columns([2, 1])
+        with b_col1:
+            basket_intensity = st.slider(
+                "Target Basket Hedge Intensity (% of Beta-Optimal Unhedged Exposure):",
+                min_value=25, max_value=100, value=100, step=5, key="ctrm_basket_intensity"
+            )
+        with b_col2:
+            basket_struct = st.selectbox(
+                "Basket Option Structure:",
+                ["Asian Call Option Collar (Bought Call / Sold Put)", "Zero-Cost Collar (Net Zero Outlay)", "Synthetic Floating-to-Fixed Commodity Swap"],
+                key="ctrm_basket_struct"
+            )
+
+        basket_legs = []
+        for _, _tr in _pre_df.iterrows():
+            _cname = _tr["Commodity"]
+            _tk = _tr["Ticker"]
+            _sec = _tr["Sector"]
+            _open_v = float(_tr["_raw_open_vol"])
+            _sp = float(_tr["_raw_spot"])
+            _v_ann = float(_tr["_raw_vol_ann"])
+            _unit_s = _tr["_unit"]
+            _sh = _shocks_map.get(_cname) or _shocks_map.get(_tk) or {}
+            _beta_mu = float(_sh.get("beta_mu", 0.06) if _shocks_map else 0.08)
+            _d_ld = float(_sh.get("delay_days", 5.0) if _shocks_map else 6.0)
+            if _open_v <= 0 or (_beta_mu <= 0 and _d_ld <= 0):
+                continue
+            _opt_ratio = min(0.90, max(0.35, 0.45 + 1.35 * max(0.0, _beta_mu) + 0.012 * max(0.0, _d_ld)))
+            _leg_vol = max(1, int(round(_open_v * _opt_ratio * (basket_intensity / 100.0))))
+            _venue = _venue_for_twin(_sec, _tk)
+            _k1 = round(_sp * 1.03, 2)
+            _k2 = round(_sp * 0.96, 2)
+            _g_leg = rf.compute_strategy_greeks(_sp, _k1, _k2, 60.0 / 365.0, 0.045, min(0.85, max(0.18, _v_ann)), basket_struct, volume=_leg_vol)
+            _outlay = float(_g_leg.get("total_premium", 0.0))
+            _cfar_red = round(float(_tr["95% CFaR ($)"]) * (_leg_vol / max(_open_v, 1.0)) * 0.80, 2)
+            _benefit_val = round(max(_cfar_red, abs(_outlay) * 1.25, _leg_vol * _sp * 0.025), 2)
+            basket_legs.append({
+                "Commodity": _cname,
+                "Ticker": _tk,
+                "Venue": _venue,
+                "Scenario β": f"{_beta_mu*100:+.1f}%",
+                "Delay Shock": f"+{_d_ld:.1f}d",
+                "Open Unhedged": f"{int(round(_open_v)):,} {_unit_s}",
+                "Basket Hedge Vol": f"{_leg_vol:,} {_unit_s}",
+                "Strikes (K1 / K2)": f"${_k1:,.2f} / ${_k2:,.2f}",
+                "Net Outlay ($)": round(_outlay, 2),
+                "CFaR Reduction ($)": _cfar_red,
+                "_raw_leg_vol": _leg_vol,
+                "_unit": _unit_s,
+                "_k1": _k1,
+                "_k2": _k2,
+                "_benefit": _benefit_val,
+            })
+
+        if basket_legs:
+            bdf = pd.DataFrame(basket_legs)
+            b_disp = [c for c in bdf.columns if not c.startswith("_")]
+            st.dataframe(bdf[b_disp], width='stretch', hide_index=True)
+
+            tot_outlay = sum(x["Net Outlay ($)"] for x in basket_legs)
+            tot_cfar_red = sum(x["CFaR Reduction ($)"] for x in basket_legs)
+            tot_benefit_b = sum(x["_benefit"] for x in basket_legs)
+
+            bm1, bm2, bm3, bm4 = st.columns(4)
+            bm1.metric("Affected Digital Twins", f"{len(basket_legs)} Commodities", "Multi-Venue Basket")
+            bm2.metric("Basket Net Premium", f"${tot_outlay:,.2f}", basket_struct.split("(")[0].strip())
+            bm3.metric("Projected 95% CFaR Cut", f"-${tot_cfar_red/1e6:.2f}M", "Tail Risk Offset", delta_color="normal")
+            bm4.metric("Total Hedge Protection", f"+${tot_benefit_b/1e6:.2f}M", "FIX 4.4 35=E List")
+
+            with st.expander("📡 Preview Outbound FIX 4.4 NewOrderList (`35=E`) Multi-Leg Payload", expanded=False):
+                _ts_fix = datetime.datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ")
+                _fix_lines = [
+                    f"8=FIX.4.4|35=E|49=IBP_CTRM_DESK|56=MULTI_VENUE_ROUTER|52={_ts_fix}|66=BASKET_{datetime.datetime.utcnow().strftime('%Y%m%d_%H%M')}|73={len(basket_legs)}|"
+                ]
+                for idx_l, lg in enumerate(basket_legs, 1):
+                    _fix_lines.append(
+                        f"  67={idx_l}|55={lg['Ticker']}|207={lg['Venue']}|54=1|38={lg['_raw_leg_vol']}|40=2|44={lg['_k1']:.2f}|99={lg['_k2']:.2f}|1000={basket_struct[:22]}|"
+                    )
+                st.code("\n".join(_fix_lines), language="text")
+
+            _scen_tag = f"[{mc_scenario_ctrm[:28]}]"
+            _existing_strats = {str(h.get("Strategy", "")) for h in st.session_state.get("executed_hedges", []) if isinstance(h, dict)}
+            _already_booked = all(any(lg["Ticker"] in s and _scen_tag in s for s in _existing_strats) for lg in basket_legs)
+
+            ex_c1, ex_c2 = st.columns([2, 1])
+            with ex_c1:
+                if _already_booked:
+                    st.success(f"✅ **Multi-Commodity Hedge Basket Active**: All {len(basket_legs)} scenario legs for **{mc_scenario_ctrm}** are booked in the CTRM Register.")
+                else:
+                    if st.button(f"⚡ Execute Full Multi-Commodity FIX 4.4 Hedge Basket ({len(basket_legs)} Legs)", type="primary", width='stretch', key="btn_exec_macro_hedge"):
+                        if "executed_hedges" not in st.session_state:
+                            st.session_state["executed_hedges"] = []
+                        base_idx = len(st.session_state["executed_hedges"])
+                        booked_now = 0
+                        for lg in basket_legs:
+                            strat_name = f"{lg['Ticker']} {basket_struct} {_scen_tag}"
+                            if strat_name in _existing_strats:
+                                continue
+                            booked_now += 1
+                            st.session_state["executed_hedges"].append({
+                                "Trade ID": f"TRD-2026-B{base_idx + booked_now:03d}",
+                                "Strategy": strat_name,
+                                "Volume": f"{lg['_raw_leg_vol']:,} {lg['_unit']}",
+                                "Strikes": f"K1: ${lg['_k1']:,.2f} / K2: ${lg['_k2']:,.2f}",
+                                "Net Premium": f"${lg['Net Outlay ($)']:,.2f}",
+                                "Hedge Benefit ($)": lg["_benefit"],
+                                "Status": f"🟢 Executed ({lg['Venue']})"
+                            })
+                        st.toast(f"⚡ Executed {booked_now}-Leg FIX 4.4 Scenario Basket! 95% CFaR reduced by ${tot_cfar_red/1e6:.2f}M!", icon="🛡️")
+                        st.rerun()
+            with ex_c2:
+                st.info(f"**Multi-Venue Clearing**: Segregates LME metals, CME energy/grains, ICE softs, and OTC swaps to eliminate cross-commodity basis risk ($1 - \\rho^2$).")
         else:
-            hedge_label = "🦢 Execute FIX 4.4 Systemic Cross-Asset Tail Risk Collar"
-            hedge_key = "Multi-Vector Systemic Risk Collar"
-            hedge_desc = "Deploys sovereign CDS and port TOS cyber outage financial protection hedges."
+            st.success("✅ All affected Digital Twins are already fully hedged against the active scenario.")
 
-        with c_h1:
-            if st.button(hedge_label, key="btn_exec_macro_hedge"):
-                if hedge_key not in st.session_state["executed_hedges"]:
-                    st.session_state["executed_hedges"].append(hedge_key)
-                st.success(f"✅ **FIX 4.4 Derivatives Hedge Dispatched**: {hedge_key} executed via LME/CME/ICE gateway!")
-
-        with c_h2:
-            st.info(f"**Strategy Context**: {hedge_desc}")
         st.markdown("---")
-        st.warning(f"🚨 **ENTERPRISE MACRO STRESS INJECTED**: **{mc_scenario_ctrm}** | Systemic VaR Baseline Elevated by **+${mc_loss_ctrm:.2f}M**. Recommended Action: Execute FIX 4.4 derivatives hedges to protect gross margin.")
     st.title("🛡️ Backtested Portfolio & CTRM Risk Desk")
     st.caption("Event-driven financial hedging, Black76 multi-option pricing, strategy payoff modeling, FIX 4.4 gateway, and derivatives register.")
     
@@ -1302,10 +1381,11 @@ def render_ctrm_desk(persona="Commercial Commodities & Trading Enterprise", term
 
         if total_drag > 300000:
             has_alerts = True
+            _v_rec_safe = str(v_rec).replace("$", "\\$")
             st.error(
                 f"**MARGIN EROSION ALERT (>50%)**: Vessel **{v_name}** ({v_comm}) "
-                f"accumulated **${total_drag:,.2f}** in transit drag (SOFR Capital Tie-up: ${v_c_cost:,.2f} | Demurrage: ${v_d_cost:,.2f}). "
-                f"**Recommendation**: {v_rec} (Saves ${v_sav:,.2f}) or execute prompt futures liquidation."
+                f"accumulated **\\${total_drag:,.2f}** in transit drag (SOFR Capital Tie-up: \\${v_c_cost:,.2f} | Demurrage: \\${v_d_cost:,.2f}). "
+                f"**Recommendation**: {_v_rec_safe} (Saves \\${v_sav:,.2f}) or execute prompt futures liquidation."
             )
             col_b1, col_b2 = st.columns(2)
             with col_b1:
