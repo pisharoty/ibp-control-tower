@@ -535,9 +535,11 @@ def render_nlp_commercial_sensing(persona):
                     tot += v
             return 0.0 if tot == 0.0 else round(max(-1.0, min(1.0, tot / math.sqrt(tot * tot + 15.0))), 4)
 
-        _now_utc = datetime.now(timezone.utc)
+        import math, re
+        from datetime import datetime as _dt, timezone as _tz, timedelta as _td
+        _now_utc = _dt.now(_tz.utc)
         _t_now_s = _now_utc.strftime("%a, %d %b %Y %H:%M UTC")
-        _t_prev_s = (_now_utc - timedelta(hours=3)).strftime("%a, %d %b %Y %H:%M UTC")
+        _t_prev_s = (_now_utc - _td(hours=3)).strftime("%a, %d %b %Y %H:%M UTC")
         _chg_24h = float((_scr_live_tick or {}).get("change_pct") or _ticks_36.get(selected_ticker, {}).get("change_pct") or 0.0)
         _mom_term = math.tanh(_chg_24h / 3.0)
 
@@ -648,7 +650,7 @@ def render_nlp_commercial_sensing(persona):
             "hedgers_net": f"{_hdg_net:+,d} cts",
             "bias": _bias_calc,
             "squeeze_score": _sq_calc,
-            "report_date": datetime.now(timezone.utc).strftime("%Y-%m-%d")
+            "report_date": _dt.now(_tz.utc).strftime("%Y-%m-%d")
         }
 
         with col_cftc:
