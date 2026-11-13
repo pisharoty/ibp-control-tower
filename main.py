@@ -433,9 +433,243 @@ def _get_ctrm_portfolio_rollup(hedges=None):
         "exec_usd": exec_benefit_usd, "count": len(rows)
     }
 
+
+def _build_minimal_xlsx_fallback(sheets_dict):
+    import io, zipfile
+    def _esc(val):
+        s = "" if val is None else str(val)
+        return s.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace('"', "&quot;")
+    def _col_letter(idx):
+        res = ""
+        idx += 1
+        while idx > 0:
+            idx, rem = divmod(idx - 1, 26)
+            res = chr(65 + rem) + res
+        return res
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
+        sheet_names = list(sheets_dict.keys())
+        ct_overrides = "\n".join(
+            f'  <Override PartName="/xl/worksheets/sheet{i+1}.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>'
+            for i in range(len(sheet_names))
+        )
+        zf.writestr("[Content_Types].xml", f'''<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+  <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+  <Default Extension="xml" ContentType="application/xml"/>
+  <Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>
+{ct_overrides}
+</Types>''')
+        zf.writestr("_rels/.rels", '''<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/>
+</Relationships>''')
+        wb_sheets = "\n".join(
+            f'    <sheet name="{_esc(name[:31])}" sheetId="{i+1}" r:id="rId{i+1}"/>'
+            for i, name in enumerate(sheet_names)
+        )
+        zf.writestr("xl/workbook.xml", f'''<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+  <sheets>
+{wb_sheets}
+  </sheets>
+</workbook>''')
+        wb_rels = "\n".join(
+            f'  <Relationship Id="rId{i+1}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet{i+1}.xml"/>'
+            for i in range(len(sheet_names))
+        )
+        zf.writestr("xl/_rels/workbook.xml.rels", f'''<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+{wb_rels}
+</Relationships>''')
+        for i, (name, df) in enumerate(sheets_dict.items()):
+            rows_xml = []
+            hdr_cells = [f'<c r="{_col_letter(c_idx)}1" t="inlineStr"><is><t>{_esc(col)}</t></is></c>' for c_idx, col in enumerate(df.columns)]
+            rows_xml.append(f'<row r="1">{"".join(hdr_cells)}</row>')
+            for r_idx, row in enumerate(df.itertuples(index=False), start=2):
+                c_xml = []
+                for c_idx, val in enumerate(row):
+                    ref = f"{_col_letter(c_idx)}{r_idx}"
+                    if isinstance(val, (int, float)) and not pd.isna(val):
+                        c_xml.append(f'<c r="{ref}"><v>{val}</v></c>')
+                    else:
+                        c_xml.append(f'<c r="{ref}" t="inlineStr"><is><t>{_esc(val)}</t></is></c>')
+                rows_xml.append(f'<row r="{r_idx}">{"".join(c_xml)}</row>')
+            zf.writestr(f"xl/worksheets/sheet{i+1}.xml", f'''<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">
+  <sheetData>
+    {"".join(rows_xml)}
+  </sheetData>
+</worksheet>''')
+    return buf.getvalue()
+
+def _build_executive_risk_export_package():
+    import io
+    from datetime import datetime as _dt, timezone as _tz
+    ts_utc = _dt.now(_tz.utc).strftime("%Y-%m-%d %H:%M UTC")
+    ts_file = _dt.now(_tz.utc).strftime("%Y%m%d_%H%M")
+
+    hedges_list = st.session_state.get("executed_hedges", [])
+    port_rollup = _get_ctrm_portfolio_rollup(hedges_list)
+    twin_vessels = get_digital_twin_telemetry_feed()
+    active_scen = st.session_state.get("active_mc_scenario")
+    mc_loss = float(st.session_state.get("mc_expected_loss", 0.0) or 0.0)
+    mc_delay = float(st.session_state.get("mc_transit_delay", 0.0) or 0.0)
+    twin_shocks = st.session_state.get("mc_twin_shocks") or {}
+    active_sig = st.session_state.get("platform_active_signal", "Baseline Operations Target")
+    inst_sig = st.session_state.get("ctrm_institutional_signal")
+    rerouted_list = st.session_state.get("rerouted_vessels", [])
+
+    exec_rows = [
+        {"Category": "Report Metadata", "Metric / Parameter": "Generated Timestamp (UTC)", "Value": ts_utc, "Notes": "IBP Control Tower & CTRM Risk Desk Snapshot"},
+        {"Category": "Report Metadata", "Metric / Parameter": "Active Macro / Climate Stress Scenario", "Value": active_scen or "Baseline (No Active Stress)", "Notes": f"Expected P&L Drag: -${mc_loss:.2f}M | Avg Delay: +{mc_delay:.1f}d"},
+        {"Category": "Report Metadata", "Metric / Parameter": "Active Commercial / S&OP Signal", "Value": str(active_sig), "Notes": "Synchronized across S&OP and CTRM engines"},
+        {"Category": "Institutional Telemetry", "Metric / Parameter": "CFTC + GDELT Institutional Vector", "Value": (f"{inst_sig.get('commodity', 'Portfolio')}: {inst_sig.get('cftc_bias', 'N/A')} ({inst_sig.get('recommended_hedge_delta_pct', 0.0):+.1f}%)" if isinstance(inst_sig, dict) else "Standard Baseline"), "Notes": "Institutional COT positioning & tone overlay"},
+        {"Category": "Portfolio Roll-Up", "Metric / Parameter": "Active Commodity Digital Twins", "Value": int(port_rollup.get("count", 0)), "Notes": "Tracked physical & derivatives exposure books"},
+        {"Category": "Portfolio Roll-Up", "Metric / Parameter": "Gross Quarterly Book ($M)", "Value": round(float(port_rollup.get("gross_m", 0.0)), 2), "Notes": "Mark-to-market at live/stressed spot"},
+        {"Category": "Portfolio Roll-Up", "Metric / Parameter": "Net Open Unhedged Exposure ($M)", "Value": round(float(port_rollup.get("open_m", 0.0)), 2), "Notes": f"Effective Book Coverage: {float(port_rollup.get('cov_pct', 0.0)):.1f}%"},
+        {"Category": "Portfolio Roll-Up", "Metric / Parameter": "Portfolio 95% CFaR ($M)", "Value": round(float(port_rollup.get("cfar_m", 0.0)), 2), "Notes": "Lead-time & scenario-volatility adjusted Cash-Flow-at-Risk"},
+        {"Category": "CTRM Hedging", "Metric / Parameter": "Executed Hedge Count", "Value": len(hedges_list), "Notes": "FIX 4.4 single-leg & multi-commodity 35=E basket trades"},
+        {"Category": "CTRM Hedging", "Metric / Parameter": "Cumulative CTRM Protection ($M)", "Value": round(float(port_rollup.get("benefit_m", 0.0)), 2), "Notes": f"Newly Locked Execution Benefit: ${float(port_rollup.get('exec_usd', 0.0)):,.2f}"},
+        {"Category": "Logistics & AIS", "Metric / Parameter": "Rerouted Vessels (Cape of Good Hope)", "Value": ", ".join(rerouted_list) if rerouted_list else "None", "Notes": f"Active AIS Digital Twin Voyages Monitored: {len(twin_vessels)}"},
+    ]
+    df_exec = pd.DataFrame(exec_rows)
+
+    raw_df = port_rollup.get("df", pd.DataFrame()).copy()
+    disp_cols = [c for c in raw_df.columns if not c.startswith("_")]
+    df_twins = raw_df[disp_cols].copy() if not raw_df.empty else pd.DataFrame()
+    if not df_twins.empty:
+        df_twins["Scenario Price Beta"] = df_twins["Commodity"].map(
+            lambda c: f"{float((twin_shocks.get(c) or {}).get('beta_mu', 0.0))*100:+.1f}%" if c in twin_shocks else "0.0%"
+        )
+        df_twins["Delay Shock (Days)"] = df_twins["Commodity"].map(
+            lambda c: round(float((twin_shocks.get(c) or {}).get("delay_days", 0.0)), 1) if c in twin_shocks else 0.0
+        )
+
+    blotter_rows = []
+    for idx_h, h in enumerate(hedges_list, 1):
+        if isinstance(h, dict):
+            venue = "CME_LME"
+            for v_tag in ("(LME)", "(CME)", "(ICE)", "(OTC_SWAP)"):
+                if v_tag in str(h.get("Status", "")):
+                    venue = v_tag.strip("()")
+            blotter_rows.append({
+                "Trade ID": h.get("Trade ID", f"TRD-2026-{idx_h:03d}"),
+                "Booking Timestamp (UTC)": ts_utc,
+                "Active Stress Regime": active_scen or "Baseline",
+                "Clearing Venue": venue,
+                "Strategy / Instrument": str(h.get("Strategy", "")),
+                "Contract Volume": h.get("Volume", ""),
+                "Strikes": h.get("Strikes", ""),
+                "Net Premium": h.get("Net Premium", "$0.00"),
+                "Hedge Benefit ($)": round(float(h.get("Hedge Benefit ($)", 0.0) or 0.0), 2),
+                "Execution Status": h.get("Status", "Executed"),
+            })
+        else:
+            blotter_rows.append({
+                "Trade ID": f"FIX-4.4-{idx_h:03d}",
+                "Booking Timestamp (UTC)": ts_utc,
+                "Active Stress Regime": active_scen or "Baseline",
+                "Clearing Venue": "CME_LME",
+                "Strategy / Instrument": str(h),
+                "Contract Volume": "Portfolio",
+                "Strikes": "Market",
+                "Net Premium": "$0.00",
+                "Hedge Benefit ($)": 1150000.00,
+                "Execution Status": "Locked",
+            })
+    if not blotter_rows:
+        blotter_rows.append({
+            "Trade ID": "NONE",
+            "Booking Timestamp (UTC)": ts_utc,
+            "Active Stress Regime": active_scen or "Baseline",
+            "Clearing Venue": "-",
+            "Strategy / Instrument": "No executed derivatives booked in current session",
+            "Contract Volume": "0",
+            "Strikes": "-",
+            "Net Premium": "$0.00",
+            "Hedge Benefit ($)": 0.0,
+            "Execution Status": "Pending Execution",
+        })
+    df_blotter = pd.DataFrame(blotter_rows)
+    df_vessels = pd.DataFrame(twin_vessels) if twin_vessels else pd.DataFrame([{"Status": "No active vessel telemetry"}])
+
+    sheets = {
+        "Executive_Summary": df_exec,
+        "Digital_Twin_CFaR_Book": df_twins,
+        "CTRM_Trade_Blotter": df_blotter,
+        "Vessel_Margin_Log": df_vessels,
+    }
+
+    xlsx_bytes = None
+    try:
+        import openpyxl  # noqa: F401
+        from openpyxl.styles import Font, PatternFill, Alignment
+        buf = io.BytesIO()
+        with pd.ExcelWriter(buf, engine="openpyxl") as writer:
+            for sname, sdf in sheets.items():
+                sdf.to_excel(writer, sheet_name=sname[:31], index=False)
+                ws = writer.sheets[sname[:31]]
+                hdr_fill = PatternFill(start_color="1B365D", end_color="1B365D", fill_type="solid")
+                hdr_font = Font(color="FFFFFF", bold=True)
+                for cell in ws[1]:
+                    cell.fill = hdr_fill
+                    cell.font = hdr_font
+                    cell.alignment = Alignment(horizontal="left", vertical="center")
+                for col_cells in ws.columns:
+                    max_len = max((len(str(c.value or "")) for c in col_cells), default=12)
+                    ws.column_dimensions[col_cells[0].column_letter].width = min(46, max(14, max_len + 3))
+        xlsx_bytes = buf.getvalue()
+    except Exception:
+        try:
+            buf = io.BytesIO()
+            with pd.ExcelWriter(buf, engine="xlsxwriter") as writer:
+                for sname, sdf in sheets.items():
+                    sdf.to_excel(writer, sheet_name=sname[:31], index=False)
+            xlsx_bytes = buf.getvalue()
+        except Exception:
+            xlsx_bytes = _build_minimal_xlsx_fallback(sheets)
+
+    csv_buf = io.StringIO()
+    csv_buf.write("# SECTION 1: EXECUTIVE RISK & S&OP SUMMARY\n")
+    df_exec.to_csv(csv_buf, index=False)
+    csv_buf.write("\n# SECTION 2: DIGITAL TWIN EXPOSURE & 95% CFAR BOOK\n")
+    df_twins.to_csv(csv_buf, index=False)
+    csv_buf.write("\n# SECTION 3: CTRM EXECUTED DERIVATIVES TRADE BLOTTER\n")
+    df_blotter.to_csv(csv_buf, index=False)
+
+    return xlsx_bytes, csv_buf.getvalue().encode("utf-8"), ts_file
+
+def render_executive_export_bar(key_prefix="ctrm"):
+    xlsx_data, csv_data, ts_tag = _build_executive_risk_export_package()
+    with st.container(border=True):
+        ex1, ex2, ex3 = st.columns([2.2, 1, 1])
+        with ex1:
+            st.markdown("**📤 Executive Risk Packet & CTRM Trade Blotter Export**")
+            st.caption("One-click snapshot of Executive S&OP Roll-Up, Digital Twin 95% CFaR Book, FIX 4.4 Trade Blotter, and AIS Vessel Margin Log.")
+        with ex2:
+            st.download_button(
+                label="📊 Download Excel Packet (.xlsx)",
+                data=xlsx_data,
+                file_name=f"IBP_Executive_Risk_Blotter_{ts_tag}.xlsx",
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                width="stretch",
+                key=f"dl_xlsx_{key_prefix}"
+            )
+        with ex3:
+            st.download_button(
+                label="📑 Download Audit Blotter (.csv)",
+                data=csv_data,
+                file_name=f"IBP_Executive_Risk_Blotter_{ts_tag}.csv",
+                mime="text/csv",
+                width="stretch",
+                key=f"dl_csv_{key_prefix}"
+            )
+
 def render_executive_sop(persona=None):
     st.header("📊 Global Trade Flows & S&OP Engine")
     st.caption("Integrated Business Planning, P&L EBITDA Margin Waterfall, and Live Desk Signal Synchronization.")
+    render_executive_export_bar(key_prefix="sop")
 
     rerouted = st.session_state.get("rerouted_vessels", [])
     hedges = st.session_state.get("executed_hedges", [])
@@ -1361,6 +1595,8 @@ def render_ctrm_desk(persona="Commercial Commodities & Trading Enterprise", term
         st.info("No derivative trades executed yet. Configure parameters above and click 'Execute Derivative Order'.")
     else:
         st.dataframe(pd.DataFrame([h if isinstance(h, dict) else {"Trade ID": "FIX-4.4", "Strategy": h, "Volume": "Portfolio", "Strikes": "Market", "Net Premium": "$0.00", "Hedge Benefit ($)": 1150000.0, "Status": "Locked"} for h in hedges]), width='stretch', hide_index=True)
+
+    render_executive_export_bar(key_prefix="ctrm")
 
 # MODULE 7: GLOBAL LOGISTICS GIS (EXPANDED WITH RICH MAP & TELEMETRY REGISTERS)
 
