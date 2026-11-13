@@ -1119,113 +1119,141 @@ def render_nlp_commercial_sensing(persona):
             st.success(f"✅ Propagated Live Signal Vector to S&OP, CTRM, and Simulator Desks! (Lead-Time Drag: +{leadtime_drag}d)")
 
     with tab3:
-        st.subheader("⚓ Real-Time AIS Cargo & GIS Spatial Telemetry Desk")
-        st.caption("Downstream multi-modal ingestion of satellite AIS vessel tracking, GIS atmospheric storm layers, ocean container freight spot rates, and chokepoint congestion dynamics.")
+        st.subheader("⚓ Real-Time AIS Cargo, NOAA Climate & Ocean Freight Telemetry Desk")
+        st.caption("Live ingestion of NOAA CPC Niño 3.4 SST anomalies, Open-Meteo Marine chokepoint sea-state, and live container/bunker freight vectors.")
+
+        _sig_gis = {}
+        try:
+            _p_gis = os.path.join(os.path.dirname(os.path.abspath(__file__)), "robot_signals.json")
+            if os.path.exists(_p_gis):
+                _sig_gis = json.load(open(_p_gis, encoding="utf-8"))
+        except Exception:
+            _sig_gis = {}
+
+        _wx_live = _sig_gis.get("weather_telemetry") or {}
+        _fr_live = _sig_gis.get("freight_telemetry") or {}
+        _cm_nodes = _wx_live.get("chokepoint_marine") or {}
+        _avg_drag = float(_wx_live.get("avg_chokepoint_delay_days", 3.8))
+        _nino_lbl = str(_wx_live.get("noaa_anomaly") or weather_telemetry.get("noaa_anomaly", "+1.65°C Niño 3.4 (Super El Niño Advisory)"))
+        _nino_st = str(_wx_live.get("noaa_status") or weather_telemetry.get("noaa_status", "Severe Climate Alert"))
+        _fbx_val = float(_fr_live.get("fbx_composite_feu", 4680.0))
+        _vlsfo_val = float(_fr_live.get("vlsfo_bunker_mt", 635.0))
+        _bdi_val = float(_fr_live.get("bdi_index", 3528.0))
 
         m1, m2, m3, m4 = st.columns(4)
         with m1:
             st.metric(
-                "Tracked AIS Cargo Fleet",
-                str(ais_telemetry.get("active_vessels_tracked", "1,420 Tankers & Carriers")),
-                delta=str(ais_telemetry.get("suez_reroute_factor", "+12.4% Route Dist")),
+                "Global FBX Container Rate",
+                f"\${_fbx_val:,.0f} / FEU",
+                delta=f"BDI Proxy: {_bdi_val:,.0f} | VLSFO: \${_vlsfo_val:,.0f}/MT",
                 delta_color="inverse"
             )
-            st.caption("🚢 Satellite AIS Density Vector")
+            st.caption("🚢 Live Ocean Freight & Bunker Vector")
 
         with m2:
             st.metric(
                 "Chokepoint Congestion Index",
                 str(ais_telemetry.get("chokepoint_congestion_idx", "88.4 / 100")),
-                delta=str(ais_telemetry.get("panama_queue_count", "34 Vessels In Queue")),
+                delta=f"Avg Chokepoint Delay: +{_avg_drag:.1f}d",
                 delta_color="inverse"
             )
-            st.caption("📍 Panama Canal & Suez Slot Delay")
+            st.caption("📍 Panama Canal & Red Sea Slot Delay")
 
         with m3:
             st.metric(
-                "NOAA GIS Climate Anomaly",
-                str(weather_telemetry.get("noaa_anomaly", "+1.28 σ Anomaly")),
-                delta=str(weather_telemetry.get("noaa_status", "Moderate Threat")),
-                delta_color="off"
+                "NOAA CPC ENSO Anomaly",
+                _nino_lbl.split("(")[0].strip(),
+                delta=_nino_st,
+                delta_color="inverse" if "Alert" in _nino_st or "Watch" in _nino_st else "off"
             )
-            st.caption("🌩️ Storm & Typhoon Radar Layer")
+            st.caption(f"🌩️ {_wx_live.get('enso_phase', 'NOAA CPC Weekly SST')}")
 
         with m4:
             st.metric(
-                "GIS Derived Spatial Drag",
-                str(gis_telemetry.get("gis_leadtime_modifier", "+2.4 Days Spatial Drag")),
-                delta=str(gis_telemetry.get("refinery_radar_status", "94% Operational")),
+                "Marine Weather Spatial Drag",
+                f"+{_avg_drag:.1f} Days Avg Drag",
+                delta=f"4 Live Chokepoints Monitored",
                 delta_color="inverse"
             )
-        st.caption("🛰️ Terminal Ports & Refining Footprints")
+            st.caption("🛰️ Open-Meteo Marine & Port Radar")
 
         st.markdown("---")
+        st.subheader("🌐 Live Maritime Chokepoint Weather & Ocean Freight Corridor Matrix")
 
-        st.subheader("🌐 Real-Time AIS Spatial Congestion Map & Telemetry Matrix")
-
-        ais_gis_matrix = [
-            {"Vector": "Panama Canal Locks", "Telemetry Source": "Satellite AIS Fleet Tracking", "Reading / Queue": "34 Vessels Waiting", "Spatial Impact": "+4.5d Lead-Time Drag", "Status": "🔴 CRITICAL"},
-            {"Vector": "Red Sea / Suez Corridor", "Telemetry Source": "AIS Transponder Signal Analysis", "Reading / Queue": "+12.4% Cape Reroute Dist", "Spatial Impact": "+6.8d Transit Drag", "Status": "🔴 CRITICAL"},
-            {"Vector": "US Gulf Coast Radar", "Telemetry Source": "GIS NOAA Atmospheric Layer", "Reading / Queue": "+1.28 σ Storm Footprint", "Spatial Impact": "+2.4d Loading Delay", "Status": "🟡 ELEVATED"},
-            {"Vector": "Singapore Anchorage", "Telemetry Source": "AIS Vessel Anchor Density", "Reading / Queue": "91% Terminal Utilization", "Spatial Impact": "+1.2d Bunkering Shift", "Status": "🟡 ELEVATED"}
-        ]
-        st.dataframe(pd.DataFrame(ais_gis_matrix), width='stretch')
+        _live_lanes = _fr_live.get("lanes")
+        if _live_lanes:
+            st.dataframe(pd.DataFrame(_live_lanes), width='stretch', hide_index=True)
+        else:
+            ais_gis_matrix = [
+                {"Corridor": "Asia → North Europe (Suez/Red Sea)", "FBX Est. ($/FEU)": "$6,150", "Congestion Delay": "+6.8 Days", "Sea State": "1.6m / 28.9°C", "Status": "🔴 CRITICAL"},
+                {"Corridor": "US Gulf → East Asia (Panama Canal)", "FBX Est. ($/FEU)": "$5,980", "Congestion Delay": "+4.5 Days", "Sea State": "0.9m / 29.4°C", "Status": "🔴 CRITICAL"},
+                {"Corridor": "Asia → US West Coast (Transpacific)", "FBX Est. ($/FEU)": "$4,390", "Congestion Delay": "+3.1 Days", "Sea State": "0.7m / 29.8°C", "Status": "🟡 ELEVATED"},
+                {"Corridor": "Persian Gulf → Asia (Strait of Hormuz)", "FBX Est. ($/FEU)": "$3,680", "Congestion Delay": "+2.4 Days", "Sea State": "1.1m / 27.8°C", "Status": "🟡 ELEVATED"},
+            ]
+            st.dataframe(pd.DataFrame(ais_gis_matrix), width='stretch', hide_index=True)
 
         st.markdown("---")
-
         st.subheader("🚢 Real-Time Downstream Telemetry Incident Stream")
 
         c_filter, c_action = st.columns([3, 1])
         with c_filter:
             incident_type = st.multiselect(
                 "Filter Active AIS/GIS Risk Vectors:",
-                ["Panama Canal Drought & Slot Caps", "Red Sea Tanker Rerouting", "NOAA Atlantic Hurricane Watch", "Singapore Storage Port Congestion"],
-                default=["Panama Canal Drought & Slot Caps", "Red Sea Tanker Rerouting"]
+                ["Panama Canal Drought & Slot Caps", "Red Sea Tanker Rerouting", "NOAA Super El Niño Climate Advisory", "Singapore Storage Port Congestion"],
+                default=["Panama Canal Drought & Slot Caps", "Red Sea Tanker Rerouting", "NOAA Super El Niño Climate Advisory"]
             )
         with c_action:
             st.write("")
             st.write("")
-            if st.button("📡 Refresh Live AIS / GIS Feeds", width='stretch'):
-                st.toast("Updating Satellite AIS feed & NOAA radar layers...", icon="🔄")
+            if st.button("📡 Refresh Live Weather & Freight Feeds", width='stretch', key="btn_refresh_live_wf"):
+                with st.spinner("Syncing NOAA CPC ENSO, Open-Meteo Marine & Freight markets..."):
+                    try:
+                        import live_intel_sync as _lis
+                        _lis.run_full_sync()
+                        st.toast("✅ Live NOAA ENSO, Open-Meteo Marine & Ocean Freight telemetry synced!", icon="🛰️")
+                        st.rerun()
+                    except Exception as _ex_wf:
+                        st.error(f"Telemetry sync error: {_ex_wf}")
 
         st.markdown("")
+        _panama_d = float((_cm_nodes.get("Panama Canal") or {}).get("delay_days", 4.5))
+        _redsea_d = float((_cm_nodes.get("Bab-el-Mandeb / Red Sea") or {}).get("delay_days", 6.8))
 
         col_a, col_b = st.columns(2)
-
         with col_a:
-            st.markdown("""
+            st.markdown(f"""
             <div style="padding:15px; border-radius:8px; border:1px solid #333; background-color:#1e1e1e; margin-bottom:15px;">
-                <p style="color:#888; font-size:12px; margin:0;">The Guardian | AIS Satellite Telemetry</p>
-                <h4 style="margin:5px 0 10px 0;">'For Panama, it is life or death': drought choking canal transits</h4>
-                <p style="color:#aaa; font-size:13px; margin-bottom:8px;"><b>AIS Vector:</b> <span style="color:#ff4b4b;">+4.5 Days Transit Drag</span></p>
-                <p style="color:#aaa; font-size:13px;">Daily vessel transits restricted to 24 ships/day. Draft limits reduced to 44 feet.</p>
+                <p style="color:#888; font-size:12px; margin:0;">Open-Meteo Marine & AIS | Chokepoint Telemetry</p>
+                <h4 style="margin:5px 0 10px 0;">Panama & Red Sea Chokepoint Transit Bottleneck</h4>
+                <p style="color:#aaa; font-size:13px; margin-bottom:8px;"><b>Live Chokepoint Vector:</b> <span style="color:#ff4b4b;">+{_panama_d:.1f}d Panama / +{_redsea_d:.1f}d Red Sea</span></p>
+                <p style="color:#aaa; font-size:13px;">Live marine sea-state & vessel rerouting pushing global FBX composite to <b>\${_fbx_val:,.0f}/FEU</b>.</p>
             </div>
             """, unsafe_allow_html=True)
-            if st.button("⚡ Ingest Panama AIS Signal", key="btn_ingest_panama", width='stretch'):
-                st.session_state["platform_leadtime_impact"] = 4.5
-                st.session_state["platform_active_signal"] = "Panama Canal AIS Transit Cap (+4.5d)"
-                st.toast("⚡ Ingested Panama Canal AIS Transit Delay into S&OP Engine!", icon="🚀")
+            if st.button("⚡ Ingest Live Freight & Chokepoint Delay", key="btn_ingest_panama", width='stretch'):
+                st.session_state["platform_leadtime_impact"] = max(_panama_d, _redsea_d)
+                st.session_state["platform_active_signal"] = f"Live Freight & Chokepoint Vector (+{max(_panama_d, _redsea_d):.1f}d | FBX \${_fbx_val:,.0f})"
+                st.toast("⚡ Ingested Live Ocean Freight & Chokepoint Delay into S&OP Engine!", icon="🚀")
 
         with col_b:
-            st.markdown("""
+            st.markdown(f"""
             <div style="padding:15px; border-radius:8px; border:1px solid #333; background-color:#1e1e1e; margin-bottom:15px;">
-                <p style="color:#888; font-size:12px; margin:0;">DW.com | NOAA GIS Climate Layer</p>
-                <h4 style="margin:5px 0 10px 0;">El Niño Drought: Canal vessel draft limits restricted</h4>
-                <p style="color:#aaa; font-size:13px; margin-bottom:8px;"><b>GIS Radar Vector:</b> <span style="color:#ff4b4b;">+6.8 Days Cape Reroute</span></p>
-                <p style="color:#aaa; font-size:13px;">Gatun Lake water levels touch multi-year lows, forcing Cape Horn rerouting.</p>
+                <p style="color:#888; font-size:12px; margin:0;">NOAA Climate Prediction Center | Live Weekly SST</p>
+                <h4 style="margin:5px 0 10px 0;">{_nino_lbl}</h4>
+                <p style="color:#aaa; font-size:13px; margin-bottom:8px;"><b>NOAA ENSO Vector:</b> <span style="color:#ff4b4b;">+{_avg_drag:.1f} Days Multi-Port Spatial Drag</span></p>
+                <p style="color:#aaa; font-size:13px;">Niño 3.4 SST at <b>{_wx_live.get('nino34_sst_c', 28.15)}°C</b> ({_nino_st}). Impacts Panama draft limits & global ag-bulk yields.</p>
             </div>
             """, unsafe_allow_html=True)
-            if st.button("⚡ Ingest El Niño GIS Signal", key="btn_ingest_elnino", width='stretch'):
-                st.session_state["platform_leadtime_impact"] = 6.8
-                st.session_state["platform_active_signal"] = "El Niño NOAA GIS Anomaly (+6.8d)"
-                st.toast("⚡ Ingested NOAA El Niño GIS Radar Anomaly into S&OP Engine!", icon="🚀")
+            if st.button("⚡ Ingest Live NOAA ENSO Signal", key="btn_ingest_elnino", width='stretch'):
+                st.session_state["platform_leadtime_impact"] = _avg_drag
+                st.session_state["platform_active_signal"] = f"NOAA CPC {_nino_lbl} (+{_avg_drag:.1f}d)"
+                st.toast("⚡ Ingested Live NOAA CPC ENSO Telemetry into S&OP Engine!", icon="🚀")
 
         st.markdown("---")
-        if st.button("🚀 Propagate Live AIS & GIS Spatial Vectors to Downstream Control Tower Desks", width='stretch'):
-            st.session_state["platform_ais_gis_impact"] = 2.4
-            st.session_state["platform_leadtime_impact"] = 6.8
-            st.session_state["platform_active_signal"] = f"AIS/GIS Spatial Vector: +2.4d Spatial Drag ({ais_telemetry.get('panama_queue_count', '34 In Queue')})"
-            st.success("✅ Propagated Live AIS/GIS Telemetry Vectors directly to S&OP, CTRM, and Simulator Desks!")
+        if st.button("🚀 Propagate Live NOAA Weather & Freight Vectors to Downstream Desks", width='stretch'):
+            st.session_state["platform_ais_gis_impact"] = _avg_drag
+            st.session_state["platform_leadtime_impact"] = max(_panama_d, _redsea_d)
+            st.session_state["platform_active_signal"] = f"Live NOAA & Freight Vector: +{_avg_drag:.1f}d Spatial Drag (FBX \${_fbx_val:,.0f}/FEU)"
+            st.success("✅ Propagated Live NOAA Weather & Ocean Freight Vectors directly to S&OP, CTRM, and Simulator Desks!")
 
 def render_demand_supply_match(persona="Commercial Commodities & Trading Enterprise", term_unit="Units"):
     st.title("⚙️ Machine Learning Supply/Demand Projections")

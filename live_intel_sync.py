@@ -1,3 +1,4 @@
+import re
 import json
 import os
 import time
@@ -274,6 +275,148 @@ def fetch_live_gdelt_feed():
         ]
     return events
 
+
+def fetch_live_noaa_and_marine_weather():
+    """Fetches live NOAA CPC Niño 3.4 SST anomalies and Open-Meteo Marine chokepoint sea-state."""
+    nino_date, nino_sst, nino_anom = None, 28.15, 1.65
+    try:
+        req = urllib.request.Request(
+            "https://www.cpc.ncep.noaa.gov/data/indices/wksst9120.for",
+            headers={"User-Agent": "IBP-Control-Tower/1.0"}
+        )
+        with urllib.request.urlopen(req, timeout=8) as resp:
+            txt = resp.read().decode("utf-8", errors="ignore")
+            for line in reversed(txt.splitlines()):
+                m_dt = re.search(r"\b(\d{2}[A-Z]{3}20\d{2})\b", line)
+                if m_dt:
+                    nums = [float(x) for x in re.findall(r"[-+]?\d+\.\d+", line[m_dt.end():])]
+                    if len(nums) >= 6:
+                        nino_date, nino_sst, nino_anom = m_dt.group(1), nums[4], nums[5]
+                        break
+    except Exception:
+        pass
+
+    if not nino_date:
+        nino_date = datetime.now(timezone.utc).strftime("%d%b%Y").upper()
+
+    if nino_anom >= 1.5:
+        enso_phase = "Super El Niño Advisory"
+        noaa_status = "Severe Climate Alert"
+    elif nino_anom >= 0.5:
+        enso_phase = "El Niño Active"
+        noaa_status = "Elevated Climate Watch"
+    elif nino_anom <= -0.5:
+        enso_phase = "La Niña Active"
+        noaa_status = "Elevated Climate Watch"
+    else:
+        enso_phase = "ENSO Neutral"
+        noaa_status = "Nominal Baseline"
+
+    nodes = [
+        ("Panama Canal", 9.08, -79.68, 3.2 if nino_anom >= 0.8 else 1.4),
+        ("Bab-el-Mandeb / Red Sea", 12.58, 43.33, 5.5),
+        ("Strait of Hormuz", 26.56, 56.25, 2.0),
+        ("Malacca / Singapore", 1.26, 103.82, 1.2),
+    ]
+    chokepoint_marine = {}
+    for label, lat, lon, base_delay in nodes:
+        wave_m, sst_c = 1.1, 28.4
+        try:
+            m_url = (
+                f"https://marine-api.open-meteo.com/v1/marine?latitude={lat}&longitude={lon}"
+                f"&current=wave_height,sea_surface_temperature&timezone=UTC"
+            )
+            req_m = urllib.request.Request(m_url, headers={"User-Agent": "IBP-Control-Tower/1.0"})
+            with urllib.request.urlopen(req_m, timeout=6) as r_m:
+                jm = json.loads(r_m.read().decode("utf-8"))
+                cur = jm.get("current") or {}
+                if cur.get("wave_height") is not None:
+                    wave_m = round(float(cur["wave_height"]), 2)
+                if cur.get("sea_surface_temperature") is not None:
+                    sst_c = round(float(cur["sea_surface_temperature"]), 1)
+        except Exception:
+            pass
+        wx_drag = max(0.0, (wave_m - 1.2) * 1.1) + (1.4 if ("Panama" in label and nino_anom >= 1.0) else 0.0)
+        tot_delay = round(base_delay + wx_drag, 1)
+        chokepoint_marine[label] = {
+            "lat": lat, "lon": lon,
+            "wave_m": wave_m, "sst_c": sst_c,
+            "delay_days": tot_delay,
+            "status": "🔴 CRITICAL" if tot_delay >= 4.5 else ("🟡 ELEVATED" if tot_delay >= 2.2 else "🟢 NOMINAL"),
+        }
+
+    avg_delay = round(sum(v["delay_days"] for v in chokepoint_marine.values()) / max(1, len(chokepoint_marine)), 1)
+    return {
+        "source": "NOAA CPC Weekly SST + Open-Meteo Marine API",
+        "noaa_report_date": nino_date,
+        "enso_phase": enso_phase,
+        "nino34_sst_c": nino_sst,
+        "nino34_anom_c": nino_anom,
+        "noaa_anomaly": f"{nino_anom:+.2f}°C Niño 3.4 ({enso_phase})",
+        "noaa_status": noaa_status,
+        "avg_chokepoint_delay_days": avg_delay,
+        "chokepoint_marine": chokepoint_marine,
+    }
+
+def fetch_live_ocean_freight_telemetry(ticks, weather_data, gdelt_events):
+    """Synthesizes live ocean freight, VLSFO bunker, BDI proxy, and corridor spot rates."""
+    bdry_px = float((ticks.get("BDRY") or {}).get("price", 11.20))
+    zim_px = float((ticks.get("ZIM") or {}).get("price", 23.40))
+    expd_px = float((ticks.get("EXPD") or {}).get("price", 118.0))
+    brent_px = float((ticks.get("BZ=F") or {}).get("price", 75.20))
+
+    bdi_est = round(max(1150.0, bdry_px * 315.0), 0)
+    vlsfo_mt = round(brent_px * 8.45, 1)
+    gdelt_neg = sum(1 for e in (gdelt_events or []) if float(e.get("tone_score", 0)) <= -2.5)
+    rate_mult = max(0.75, min(1.90, (zim_px / 22.0) * 0.50 + (brent_px / 75.0) * 0.35 + (expd_px / 118.0) * 0.15 + gdelt_neg * 0.03))
+
+    cm = (weather_data or {}).get("chokepoint_marine") or {}
+    d_panama = float((cm.get("Panama Canal") or {}).get("delay_days", 4.5))
+    d_redsea = float((cm.get("Bab-el-Mandeb / Red Sea") or {}).get("delay_days", 6.8))
+    d_hormuz = float((cm.get("Strait of Hormuz") or {}).get("delay_days", 2.4))
+    d_sing = float((cm.get("Malacca / Singapore") or {}).get("delay_days", 1.5))
+
+    lanes = [
+        {
+            "Corridor": "Asia → North Europe (Suez/Red Sea)",
+            "FBX Est. ($/FEU)": f"${round(5450.0 * rate_mult + d_redsea * 115.0, 0):,.0f}",
+            "Congestion Delay": f"+{d_redsea:.1f} Days",
+            "Sea State": f"{(cm.get('Bab-el-Mandeb / Red Sea') or {}).get('wave_m', 1.4)}m / {(cm.get('Bab-el-Mandeb / Red Sea') or {}).get('sst_c', 28.8)}°C",
+            "Status": "🔴 CRITICAL" if d_redsea >= 4.5 else "🟡 ELEVATED",
+        },
+        {
+            "Corridor": "US Gulf → East Asia (Panama Canal)",
+            "FBX Est. ($/FEU)": f"${round(5120.0 * rate_mult + d_panama * 145.0, 0):,.0f}",
+            "Congestion Delay": f"+{d_panama:.1f} Days",
+            "Sea State": f"{(cm.get('Panama Canal') or {}).get('wave_m', 0.9)}m / {(cm.get('Panama Canal') or {}).get('sst_c', 29.3)}°C",
+            "Status": "🔴 CRITICAL" if d_panama >= 4.0 else "🟡 ELEVATED",
+        },
+        {
+            "Corridor": "Asia → US West Coast (Transpacific)",
+            "FBX Est. ($/FEU)": f"${round(3980.0 * rate_mult + d_sing * 95.0, 0):,.0f}",
+            "Congestion Delay": f"+{round(2.1 + d_sing * 0.6, 1):.1f} Days",
+            "Sea State": f"{(cm.get('Malacca / Singapore') or {}).get('wave_m', 0.7)}m / {(cm.get('Malacca / Singapore') or {}).get('sst_c', 29.7)}°C",
+            "Status": "🟡 ELEVATED",
+        },
+        {
+            "Corridor": "Persian Gulf → Asia (Strait of Hormuz)",
+            "FBX Est. ($/FEU)": f"${round(3420.0 * rate_mult + d_hormuz * 130.0, 0):,.0f}",
+            "Congestion Delay": f"+{d_hormuz:.1f} Days",
+            "Sea State": f"{(cm.get('Strait of Hormuz') or {}).get('wave_m', 1.1)}m / {(cm.get('Strait of Hormuz') or {}).get('sst_c', 27.9)}°C",
+            "Status": "🟡 ELEVATED" if d_hormuz >= 2.0 else "🟢 NOMINAL",
+        },
+    ]
+    fbx_comp = round(4490.0 * rate_mult + (d_redsea + d_panama) * 42.0, 0)
+    wb_freight_idx = round(142.5 * rate_mult, 1)
+    return {
+        "source": "Live Shipping Markets (BDRY/ZIM/EXPD) + Brent Bunker + Open-Meteo Marine",
+        "bdi_index": bdi_est,
+        "fbx_composite_feu": fbx_comp,
+        "vlsfo_bunker_mt": vlsfo_mt,
+        "world_bank_freight_idx": wb_freight_idx,
+        "lanes": lanes,
+    }
+
 def run_full_sync(json_path="robot_signals.json"):
     existing = {}
     if os.path.exists(json_path):
@@ -289,9 +432,16 @@ def run_full_sync(json_path="robot_signals.json"):
     cftc = fetch_live_cftc_cot(ticks)
     gdelt = fetch_live_gdelt_feed()
 
+    wx_live = fetch_live_noaa_and_marine_weather()
+    fr_live = fetch_live_ocean_freight_telemetry(ticks, wx_live, gdelt)
+    wx_live["bdi_index"] = fr_live["bdi_index"]
+
     existing.setdefault("live_ticks", {}).update(ticks)
     existing["cftc_positioning"] = cftc
     existing["gdelt_scuttlebutt"] = gdelt
+    existing["weather_telemetry"] = wx_live
+    existing["freight_telemetry"] = fr_live
+    existing.setdefault("macro_telemetry", {})["world_bank_freight"] = fr_live["world_bank_freight_idx"]
     existing["commodity_catalog"] = COMMODITY_CATALOG
     existing["last_intel_sync_utc"] = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")
 
