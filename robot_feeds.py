@@ -862,26 +862,59 @@ def render_macro_telemetry_bar():
 def render_triangulated_sentiment_section():
     st.markdown("---")
     st.markdown("### 📐 Triangulated Composite Market Sentiment Index ($S_i$)")
-    st.caption("Fuses hard economic telemetry, climate anomalies, freight spot rates, and geopolitical risk vectors into a single operational drag index.")
-    
-    curr_si = st.session_state.get("platform_si_override", st.session_state.get("si_composite", -0.330))
-    
+    st.caption("Fuses live economic telemetry, climate anomalies, freight spot rates, and geopolitical risk vectors into a normalized operational drag index.")
+
+    _sig_tri = {}
+    try:
+        _p_tri = os.path.join(os.path.dirname(os.path.abspath(__file__)), "robot_signals.json")
+        if os.path.exists(_p_tri):
+            _sig_tri = json.load(open(_p_tri, encoding="utf-8"))
+    except Exception:
+        _sig_tri = {}
+
+    _macro_t = _sig_tri.get("macro_telemetry", {}) if isinstance(_sig_tri, dict) else {}
+    _weath_t = _sig_tri.get("weather_telemetry", {}) if isinstance(_sig_tri, dict) else {}
+    _gdelt_t = _sig_tri.get("gdelt_scuttlebutt", []) if isinstance(_sig_tri, dict) else []
+    _ticks_t = _sig_tri.get("live_ticks", {}) if isinstance(_sig_tri, dict) else {}
+
+    def _num_val(raw, default):
+        try:
+            m = re.search(r"-?\d+(?:\.\d+)?", str(raw).replace(",", ""))
+            return float(m.group(0)) if m else default
+        except Exception:
+            return default
+
+    _wb_fr = _num_val(_macro_t.get("world_bank_freight", 142.5), 142.5)
+    _bdi_v = _num_val(_weath_t.get("bdi_index", 5484.0), 5484.0)
+    _cpi_v = _num_val(_macro_t.get("us_cpi", 3.1), 3.1)
+    _acsi_v = _num_val(_macro_t.get("acsi_score", 76.8), 76.8)
+    _gdelt_tones = [float(x.get("tone_score", -2.0)) for x in _gdelt_t if isinstance(x, dict)]
+    _avg_gdelt = (sum(_gdelt_tones) / len(_gdelt_tones)) if _gdelt_tones else -2.0
+    _abs_moves = [abs(float(v.get("change_pct", 0.0))) for v in _ticks_t.values() if isinstance(v, dict)]
+    _avg_vol_move = (sum(_abs_moves) / len(_abs_moves)) if _abs_moves else 1.2
+
+    s_gscpi = -round(max(0.08, min(0.85, 0.32 + (_cpi_v - 3.1) * 0.06 - (_acsi_v - 76.8) * 0.012)), 3)
+    s_noaa = -round(max(0.08, min(0.85, 0.36 + max(0.0, (_bdi_v - 5484.0) / 5000.0) * 0.14)), 3)
+    s_freight = -round(max(0.08, min(0.85, 0.40 + ((_wb_fr - 142.5) / 100.0) * 0.45)), 3)
+    s_gep = -round(max(0.08, min(0.85, 0.20 + max(0.0, abs(_avg_gdelt) - 2.0) * 0.04 + max(0.0, _avg_vol_move - 1.2) * 0.03)), 3)
+
+    curr_si = st.session_state.get("platform_si_override", st.session_state.get("si_composite", -0.332))
+
     scols = st.columns(4)
     with scols[0]:
-        st.metric("Triangulated Composite $S_i$", f"{curr_si:+.3f}", delta="Elevated Supply Drag", delta_color="inverse")
+        st.metric("Triangulated Composite $S_i$", f"{curr_si:+.3f}", delta="Elevated Supply Drag" if curr_si < -0.15 else "Moderate Regime", delta_color="inverse" if curr_si < -0.15 else "normal")
     with scols[1]:
-        st.metric("Inferred Demand Surge", f"+{st.session_state.get('platform_demand_impact', 10883):,} Units", delta="Volume Offset")
+        st.metric("Inferred Demand Surge", f"+{st.session_state.get('platform_demand_impact', 10920):,} Units", delta="Safety Stock Offset")
     with scols[2]:
         st.metric("Upstream Lead Time Drag", f"+{st.session_state.get('platform_leadtime_impact', 2.5):.1f} Days", delta="Transit Bottleneck", delta_color="inverse")
     with scols[3]:
         st.metric("Risk Action Status", "HEDGE REQUIRED" if curr_si < -0.15 else "STABLE", delta="🔴 Threshold Exceeded" if curr_si < -0.15 else "🟢 Within Limits", delta_color="inverse" if curr_si < -0.15 else "normal")
-        
+
     st.error(f"🚨 **Triangulated Composite Market Sentiment ($S_i = {curr_si:+.3f}$)** indicates elevated supply chain strain. Automated CTRM hedge allocation recommended.")
 
     with st.expander("⚙️ Component Sub-Factor Weighting & Volatility Drivers (Interactive Weight Shift)", expanded=True):
         st.markdown("##### Adjust Component Weights & Propagate to CTRM Risk Desk")
         wcol1, wcol2, wcol3, wcol4 = st.columns(4)
-        
         with wcol1:
             w_gscpi = st.slider("GSCPI Macro Weight (%)", 0, 100, 35, key="sld_w_gscpi")
         with wcol2:
@@ -892,41 +925,47 @@ def render_triangulated_sentiment_section():
             w_gep = st.slider("GEP Volatility Weight (%)", 0, 100, 15, key="sld_w_gep")
 
         total_weight = w_gscpi + w_noaa + w_freight + w_gep
-        st.caption(f"Total Weight Allocation: **{total_weight}%**")
+        denom_w = max(1, total_weight)
+        live_preview_si = round((w_gscpi * s_gscpi + w_noaa * s_noaa + w_freight * s_freight + w_gep * s_gep) / denom_w, 3)
+        st.caption(f"Total Weight Allocation: **{total_weight}%** (Normalized) | Live Preview $S_i$: **{live_preview_si:+.3f}**")
 
         bcols = st.columns(4)
         with bcols[0]:
             st.markdown(
                 f'<div style="background-color:#E74C3C; color:white; padding:12px; border-radius:6px; font-weight:bold; font-size:14px; text-align:center;">'
-                f'GSCPI Macro ({w_gscpi}% Weight)<br/><span style="font-size:12px;">-0.112 σ | Supply Strain</span></div>',
+                f'GSCPI Macro ({w_gscpi}% Weight)<br/><span style="font-size:12px;">{s_gscpi:+.3f} σ | Supply Strain</span></div>',
                 unsafe_allow_html=True
             )
         with bcols[1]:
             st.markdown(
                 f'<div style="background-color:#F39C12; color:white; padding:12px; border-radius:6px; font-weight:bold; font-size:14px; text-align:center;">'
-                f'NOAA Weather ({w_noaa}% Weight)<br/><span style="font-size:12px;">-0.090 | Climate Drag</span></div>',
+                f'NOAA Weather ({w_noaa}% Weight)<br/><span style="font-size:12px;">{s_noaa:+.3f} | Climate Drag</span></div>',
                 unsafe_allow_html=True
             )
         with bcols[2]:
             st.markdown(
                 f'<div style="background-color:#D35400; color:white; padding:12px; border-radius:6px; font-weight:bold; font-size:14px; text-align:center;">'
-                f'Ocean Freight ({w_freight}% Weight)<br/><span style="font-size:12px;">-0.100 | Transit Friction</span></div>',
+                f'Ocean Freight ({w_freight}% Weight)<br/><span style="font-size:12px;">{s_freight:+.3f} | Transit Friction</span></div>',
                 unsafe_allow_html=True
             )
         with bcols[3]:
             st.markdown(
                 f'<div style="background-color:#8E44AD; color:white; padding:12px; border-radius:6px; font-weight:bold; font-size:14px; text-align:center;">'
-                f'GEP Volatility ({w_gep}% Weight)<br/><span style="font-size:12px;">-0.028 | Risk Index</span></div>',
+                f'GEP Volatility ({w_gep}% Weight)<br/><span style="font-size:12px;">{s_gep:+.3f} | Risk Index</span></div>',
                 unsafe_allow_html=True
             )
 
         st.markdown("")
         if st.button("⚡ Propagate Sub-Factor Weights & Trigger CTRM Cascade", type="primary", width='stretch', key="btn_propagate_weights_ctrm"):
-            calc_si = -1.0 * ((w_gscpi * 0.32 + w_noaa * 0.36 + w_freight * 0.40 + w_gep * 0.20) / 100.0)
+            calc_si = live_preview_si
+            calc_demand = int(round(4500 + abs(calc_si) * 19340))
+            calc_leadtime = round(max(0.5, abs(calc_si) * 5.2 + abs(s_freight) * 2.0), 1)
             st.session_state["platform_si_override"] = calc_si
             st.session_state["si_composite"] = calc_si
-            st.session_state["platform_active_signal"] = f"Sub-Factor Weight Shift (GSCPI:{w_gscpi}% / NOAA:{w_noaa}% / Freight:{w_freight}% / GEP:{w_gep}%)"
-            st.toast(f"⚡ Sub-Factor Weights Propagated! Recalculated $S_i = {calc_si:+.3f}$ -> Sent to CTRM & Executive Control Tower!", icon="🚀")
+            st.session_state["platform_demand_impact"] = calc_demand
+            st.session_state["platform_leadtime_impact"] = calc_leadtime
+            st.session_state["platform_active_signal"] = f"Sub-Factor Weight Shift (GSCPI:{w_gscpi}% / NOAA:{w_noaa}% / Freight:{w_freight}% / GEP:{w_gep}% | Si={calc_si:+.3f})"
+            st.toast(f"⚡ Sub-Factor Weights Propagated! $S_i = {calc_si:+.3f}$, Demand +{calc_demand:,}, Lead-Time +{calc_leadtime:.1f}d -> Sent to S&OP & CTRM!", icon="🚀")
             st.rerun()
 
 
