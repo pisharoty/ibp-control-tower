@@ -1144,8 +1144,8 @@ def render_nlp_commercial_sensing(persona):
         with m1:
             st.metric(
                 "Global FBX Container Rate",
-                f"\${_fbx_val:,.0f} / FEU",
-                delta=f"BDI Proxy: {_bdi_val:,.0f} | VLSFO: \${_vlsfo_val:,.0f}/MT",
+                f"\\${_fbx_val:,.0f} / FEU",
+                delta=f"BDI Proxy: {_bdi_val:,.0f} | VLSFO: \\${_vlsfo_val:,.0f}/MT",
                 delta_color="inverse"
             )
             st.caption("🚢 Live Ocean Freight & Bunker Vector")
@@ -1226,12 +1226,12 @@ def render_nlp_commercial_sensing(persona):
                 <p style="color:#888; font-size:12px; margin:0;">Open-Meteo Marine & AIS | Chokepoint Telemetry</p>
                 <h4 style="margin:5px 0 10px 0;">Panama & Red Sea Chokepoint Transit Bottleneck</h4>
                 <p style="color:#aaa; font-size:13px; margin-bottom:8px;"><b>Live Chokepoint Vector:</b> <span style="color:#ff4b4b;">+{_panama_d:.1f}d Panama / +{_redsea_d:.1f}d Red Sea</span></p>
-                <p style="color:#aaa; font-size:13px;">Live marine sea-state & vessel rerouting pushing global FBX composite to <b>\${_fbx_val:,.0f}/FEU</b>.</p>
+                <p style="color:#aaa; font-size:13px;">Live marine sea-state & vessel rerouting pushing global FBX composite to <b>\\${_fbx_val:,.0f}/FEU</b>.</p>
             </div>
             """, unsafe_allow_html=True)
             if st.button("⚡ Ingest Live Freight & Chokepoint Delay", key="btn_ingest_panama", width='stretch'):
                 st.session_state["platform_leadtime_impact"] = max(_panama_d, _redsea_d)
-                st.session_state["platform_active_signal"] = f"Live Freight & Chokepoint Vector (+{max(_panama_d, _redsea_d):.1f}d | FBX \${_fbx_val:,.0f})"
+                st.session_state["platform_active_signal"] = f"Live Freight & Chokepoint Vector (+{max(_panama_d, _redsea_d):.1f}d | FBX \\${_fbx_val:,.0f})"
                 st.toast("⚡ Ingested Live Ocean Freight & Chokepoint Delay into S&OP Engine!", icon="🚀")
 
         with col_b:
@@ -1252,7 +1252,7 @@ def render_nlp_commercial_sensing(persona):
         if st.button("🚀 Propagate Live NOAA Weather & Freight Vectors to Downstream Desks", width='stretch'):
             st.session_state["platform_ais_gis_impact"] = _avg_drag
             st.session_state["platform_leadtime_impact"] = max(_panama_d, _redsea_d)
-            st.session_state["platform_active_signal"] = f"Live NOAA & Freight Vector: +{_avg_drag:.1f}d Spatial Drag (FBX \${_fbx_val:,.0f}/FEU)"
+            st.session_state["platform_active_signal"] = f"Live NOAA & Freight Vector: +{_avg_drag:.1f}d Spatial Drag (FBX \\${_fbx_val:,.0f}/FEU)"
             st.success("✅ Propagated Live NOAA Weather & Ocean Freight Vectors directly to S&OP, CTRM, and Simulator Desks!")
 
 def render_demand_supply_match(persona="Commercial Commodities & Trading Enterprise", term_unit="Units"):
@@ -1383,7 +1383,7 @@ def render_ctrm_desk(persona="Commercial Commodities & Trading Enterprise", term
     mc_scenario_ctrm = st.session_state.get("active_mc_scenario", None)
     mc_loss_ctrm = st.session_state.get("mc_expected_loss", 0.0)
     if mc_scenario_ctrm:
-        st.error(f"🚨 **ENTERPRISE MACRO STRESS INJECTED**: **{mc_scenario_ctrm}** | Systemic VaR Baseline Elevated by **+\${mc_loss_ctrm:.2f}M**")
+        st.error(f"🚨 **ENTERPRISE MACRO STRESS INJECTED**: **{mc_scenario_ctrm}** | Systemic VaR Baseline Elevated by **+\\${mc_loss_ctrm:.2f}M**")
         st.markdown("### ⚡ Multi-Commodity Scenario FIX 4.4 Hedge Basket (`35=E` NewOrderList)")
 
         _pre_port = _get_ctrm_portfolio_rollup(st.session_state.get("executed_hedges", []))
