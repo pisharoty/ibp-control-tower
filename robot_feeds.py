@@ -425,6 +425,12 @@ def compute_strategy_greeks(F, K1, K2, T, r, sigma, strategy_type, volume=1000):
         gamma = c1_g + p1_g
         vega = c1_v + p1_v
         theta = c1_t + p1_t
+    elif "Perpetual" in strategy_type:
+        price = 0.0
+        delta = 1.0
+        gamma = 0.0
+        vega = 0.0
+        theta = 0.0
     elif "Swap" in strategy_type:
         price = F - K1
         delta = 1.0
@@ -437,14 +443,24 @@ def compute_strategy_greeks(F, K1, K2, T, r, sigma, strategy_type, volume=1000):
         gamma = c1_g
         vega = c1_v
         theta = c1_t
-        
+
+    basis_spread = (K1 - F) / max(float(F), 1e-6)
+    funding_rate_ann = max(-0.15, min(0.35, float(r) + basis_spread))
+    funding_8h_bps = (funding_rate_ann / (365.0 * 3.0)) * 10000.0
+    initial_margin = float(F) * float(volume) * 0.10
+    daily_funding_usd = (float(F) * float(volume) * funding_rate_ann) / 365.0
+
     return {
         "price_per_unit": price,
         "total_premium": price * volume,
         "delta": delta,
         "gamma": gamma,
         "vega": vega,
-        "theta": theta
+        "theta": theta,
+        "initial_margin": initial_margin,
+        "funding_rate_ann": funding_rate_ann,
+        "funding_8h_bps": funding_8h_bps,
+        "daily_funding_usd": daily_funding_usd,
     }
 
 def plot_strategy_payoff(F, K1, K2, strategy_type, volume=1000):
@@ -455,7 +471,7 @@ def plot_strategy_payoff(F, K1, K2, strategy_type, volume=1000):
         p2_p, _, _, _, _ = pure_black76_pricing(F, K2, 60/365, 0.045, 0.28, "put")
         net_prem = c1_p - p2_p
         payoff = np.maximum(prices - K1, 0) - np.maximum(K2 - prices, 0) - net_prem
-    elif "Synthetic Long Forward" in strategy_type:
+    elif "Synthetic Long Forward" in strategy_type or "Perpetual" in strategy_type:
         payoff = prices - K1
     elif "Bear Put Spread" in strategy_type:
         p1_p, _, _, _, _ = pure_black76_pricing(F, K1, 60/365, 0.045, 0.28, "put")

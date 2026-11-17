@@ -1407,8 +1407,13 @@ def render_ctrm_desk(persona="Commercial Commodities & Trading Enterprise", term
             )
         with b_col2:
             basket_struct = st.selectbox(
-                "Basket Option Structure:",
-                ["Asian Call Option Collar (Bought Call / Sold Put)", "Zero-Cost Collar (Net Zero Outlay)", "Synthetic Floating-to-Fixed Commodity Swap"],
+                "Basket Derivative Structure:",
+                [
+                    "Perpetual Futures (Zero-Expiry / Funding-Rate Roll)",
+                    "Asian Call Option Collar (Bought Call / Sold Put)",
+                    "Zero-Cost Collar (Net Zero Outlay)",
+                    "Synthetic Floating-to-Fixed Commodity Swap",
+                ],
                 key="ctrm_basket_struct"
             )
 
@@ -1429,11 +1434,12 @@ def render_ctrm_desk(persona="Commercial Commodities & Trading Enterprise", term
             _opt_ratio = min(0.90, max(0.35, 0.45 + 1.35 * max(0.0, _beta_mu) + 0.012 * max(0.0, _d_ld)))
             _leg_vol = max(1, int(round(_open_v * _opt_ratio * (basket_intensity / 100.0))))
             _venue = _venue_for_twin(_sec, _tk)
-            _k1 = round(_sp * 1.03, 2)
-            _k2 = round(_sp * 0.96, 2)
+            _is_perp_b = "Perpetual" in basket_struct
+            _k1 = round(_sp, 2) if _is_perp_b else round(_sp * 1.03, 2)
+            _k2 = 0.0 if _is_perp_b else round(_sp * 0.96, 2)
             _g_leg = rf.compute_strategy_greeks(_sp, _k1, _k2, 60.0 / 365.0, 0.045, min(0.85, max(0.18, _v_ann)), basket_struct, volume=_leg_vol)
-            _outlay = float(_g_leg.get("total_premium", 0.0))
-            _cfar_red = round(float(_tr["95% CFaR ($)"]) * (_leg_vol / max(_open_v, 1.0)) * 0.80, 2)
+            _outlay = 0.0 if _is_perp_b else float(_g_leg.get("total_premium", 0.0))
+            _cfar_red = round(float(_tr["95% CFaR ($)"]) * (_leg_vol / max(_open_v, 1.0)) * (0.85 if _is_perp_b else 0.80), 2)
             _benefit_val = round(max(_cfar_red, abs(_outlay) * 1.25, _leg_vol * _sp * 0.025), 2)
             basket_legs.append({
                 "Commodity": _cname,
@@ -1443,7 +1449,7 @@ def render_ctrm_desk(persona="Commercial Commodities & Trading Enterprise", term
                 "Delay Shock": f"+{_d_ld:.1f}d",
                 "Open Unhedged": f"{int(round(_open_v)):,} {_unit_s}",
                 "Basket Hedge Vol": f"{_leg_vol:,} {_unit_s}",
-                "Strikes (K1 / K2)": f"${_k1:,.2f} / ${_k2:,.2f}",
+                "Strikes (K1 / K2)": f"PERP Mark: ${_k1:,.2f} (∞)" if _is_perp_b else f"${_k1:,.2f} / ${_k2:,.2f}",
                 "Net Outlay ($)": round(_outlay, 2),
                 "CFaR Reduction ($)": _cfar_red,
                 "_raw_leg_vol": _leg_vol,
@@ -1474,9 +1480,14 @@ def render_ctrm_desk(persona="Commercial Commodities & Trading Enterprise", term
                     f"8=FIX.4.4|35=E|49=IBP_CTRM_DESK|56=MULTI_VENUE_ROUTER|52={_ts_fix}|66=BASKET_{datetime.datetime.utcnow().strftime('%Y%m%d_%H%M')}|73={len(basket_legs)}|"
                 ]
                 for idx_l, lg in enumerate(basket_legs, 1):
-                    _fix_lines.append(
-                        f"  67={idx_l}|55={lg['Ticker']}|207={lg['Venue']}|54=1|38={lg['_raw_leg_vol']}|40=2|44={lg['_k1']:.2f}|99={lg['_k2']:.2f}|1000={basket_struct[:22]}|"
-                    )
+                    if "Perpetual" in basket_struct:
+                        _fix_lines.append(
+                            f"  67={idx_l}|55={lg['Ticker']}-PERP|167=FUT|59=1|207={lg['Venue']}|54=1|38={lg['_raw_leg_vol']}|40=2|44={lg['_k1']:.2f}|1000=PERP_FUNDING_ROLL|"
+                        )
+                    else:
+                        _fix_lines.append(
+                            f"  67={idx_l}|55={lg['Ticker']}|207={lg['Venue']}|54=1|38={lg['_raw_leg_vol']}|40=2|44={lg['_k1']:.2f}|99={lg['_k2']:.2f}|1000={basket_struct[:22]}|"
+                        )
                 st.code("\n".join(_fix_lines), language="text")
 
             _scen_tag = f"[{mc_scenario_ctrm[:28]}]"
@@ -1502,7 +1513,7 @@ def render_ctrm_desk(persona="Commercial Commodities & Trading Enterprise", term
                                 "Trade ID": f"TRD-2026-B{base_idx + booked_now:03d}",
                                 "Strategy": strat_name,
                                 "Volume": f"{lg['_raw_leg_vol']:,} {lg['_unit']}",
-                                "Strikes": f"K1: ${lg['_k1']:,.2f} / K2: ${lg['_k2']:,.2f}",
+                                "Strikes": lg["Strikes (K1 / K2)"],
                                 "Net Premium": f"${lg['Net Outlay ($)']:,.2f}",
                                 "Hedge Benefit ($)": lg["_benefit"],
                                 "Status": f"🟢 Executed ({lg['Venue']})"
@@ -1547,13 +1558,14 @@ def render_ctrm_desk(persona="Commercial Commodities & Trading Enterprise", term
     surge_vol = max(1, int(round(_brow["_raw_open_vol"] * _inst_mult)))
     spot_f = float(_brow["_raw_spot"])
     
-    st.subheader("⚙️ Multi-Option Derivatives Strategy Builder")
+    st.subheader("⚙️ Multi-Option & Perpetual Futures Derivatives Strategy Builder")
     col_s1, col_s2 = st.columns(2)
     
     with col_s1:
         strategy_type = st.selectbox(
             "Select Hedging Strategy Structure:",
             [
+                "Perpetual Futures (Zero-Expiry / Funding-Rate Roll)",
                 "Asian Call Option Collar (Bought Call / Sold Put)",
                 "Zero-Cost Collar (Net Zero Outlay)",
                 "Synthetic Long Forward / Futures (Bought Call + Sold Put)",
@@ -1564,51 +1576,90 @@ def render_ctrm_desk(persona="Commercial Commodities & Trading Enterprise", term
             key="ctrm_strat_select"
         )
         vol_input = st.number_input(f"Hedging Contract Volume ({_brow['_unit']}):", value=int(surge_vol), step=max(1, int(surge_vol // 10)), key=f"ctrm_vol_{sel_book_comm}")
+        is_perp_strat = "Perpetual" in strategy_type
+        if is_perp_strat:
+            st.info("♾️ **Zero-Expiry Perpetual Contract**: Eliminates quarterly futures roll slippage. Anchored to spot index via continuous 8-hour funding-rate settlement ($f_{\text{ann}} = r_{\text{SOFR}} + \text{Basis}$).")
 
     with col_s2:
-        k1_strike = st.number_input("Primary Strike ($K_1$ Call/Forward USD):", value=round(spot_f * 1.03, 2), step=max(0.1, round(spot_f * 0.005, 2)), key=f"ctrm_k1_{sel_book_comm}")
-        k2_strike = st.number_input("Secondary Strike ($K_2$ Floor/Put USD):", value=round(spot_f * 0.96, 2), step=max(0.1, round(spot_f * 0.005, 2)), key=f"ctrm_k2_{sel_book_comm}")
-        expiry_days = st.slider("Time to Expiration (Days):", 15, 180, 60, key="ctrm_expiry_in")
-        implied_vol = st.slider("Implied Volatility (σ %):", 10, 100, 28, key="ctrm_iv_in") / 100.0
+        if is_perp_strat:
+            k1_strike = st.number_input("Perpetual Entry / Mark Price ($ USD):", value=round(spot_f, 2), step=max(0.1, round(spot_f * 0.005, 2)), key=f"ctrm_perp_mark_{sel_book_comm}")
+            k2_strike = 0.0
+            perp_im_pct = st.slider("Initial Margin Collateral (% Notional):", 5, 25, 10, key="ctrm_perp_im_pct") / 100.0
+            perp_basis_bps = st.slider("Perp-Spot Basis Spread (bps / yr):", -300, 600, 85, step=5, key="ctrm_perp_basis_bps")
+            expiry_days = 0
+            implied_vol = 0.28
+        else:
+            k1_strike = st.number_input("Primary Strike ($K_1$ Call/Forward USD):", value=round(spot_f * 1.03, 2), step=max(0.1, round(spot_f * 0.005, 2)), key=f"ctrm_k1_{sel_book_comm}")
+            k2_strike = st.number_input("Secondary Strike ($K_2$ Floor/Put USD):", value=round(spot_f * 0.96, 2), step=max(0.1, round(spot_f * 0.005, 2)), key=f"ctrm_k2_{sel_book_comm}")
+            expiry_days = st.slider("Time to Expiration (Days):", 15, 180, 60, key="ctrm_expiry_in")
+            implied_vol = st.slider("Implied Volatility (σ %):", 10, 100, 28, key="ctrm_iv_in") / 100.0
+            perp_im_pct = 0.10
+            perp_basis_bps = 0
 
     greeks = rf.compute_strategy_greeks(
-        spot_f, k1_strike, k2_strike, expiry_days/365.0, 0.045, implied_vol, strategy_type, volume=vol_input
+        spot_f, k1_strike, k2_strike, (expiry_days if expiry_days > 0 else 60)/365.0, 0.045, implied_vol, strategy_type, volume=vol_input
     )
     
-    st.markdown("##### 📊 Strategy Pricing & Black76 Risk Greeks")
-    gcols = st.columns(5)
-    gcols[0].metric("Net Unit Premium", f"${greeks['price_per_unit']:,.2f} / unit")
-    gcols[1].metric("Total Outlay", f"${greeks['total_premium']:,.2f}")
-    gcols[2].metric("Delta (Δ)", f"{greeks['delta']:.3f}")
-    gcols[3].metric("Gamma (Γ)", f"{greeks['gamma']:.5f}")
-    gcols[4].metric("Vega (ν)", f"${greeks['vega']:,.2f}")
+    if is_perp_strat:
+        _perp_notional = spot_f * vol_input
+        _perp_im_usd = _perp_notional * perp_im_pct
+        _perp_f_ann = 0.045 + (perp_basis_bps / 10000.0)
+        _perp_8h_bps = (_perp_f_ann / (365.0 * 3.0)) * 10000.0
+        _perp_daily_usd = (_perp_notional * _perp_f_ann) / 365.0
+        st.markdown("##### 📊 Perpetual Futures Margin, Funding Carry & Linear Risk Greeks")
+        gcols = st.columns(5)
+        gcols[0].metric("Upfront Option Premium", "$0.00 / unit", "Zero Option Outlay")
+        gcols[1].metric("Initial Margin Required", f"${_perp_im_usd:,.2f}", f"{perp_im_pct*100:.0f}% Collateral")
+        gcols[2].metric("Delta (Δ) / Gamma (Γ)", "1.000 / 0.000", "Linear 1:1 Hedge")
+        gcols[3].metric("Annualized Funding Rate", f"{_perp_f_ann*100:+.2f}% / yr", f"{_perp_8h_bps:+.2f} bps / 8h")
+        gcols[4].metric("Est. Daily Funding Carry", f"${_perp_daily_usd:,.2f} / day", "SOFR + Perp Basis")
+    else:
+        st.markdown("##### 📊 Strategy Pricing & Black76 Risk Greeks")
+        gcols = st.columns(5)
+        gcols[0].metric("Net Unit Premium", f"${greeks['price_per_unit']:,.2f} / unit")
+        gcols[1].metric("Total Outlay", f"${greeks['total_premium']:,.2f}")
+        gcols[2].metric("Delta (Δ)", f"{greeks['delta']:.3f}")
+        gcols[3].metric("Gamma (Γ)", f"{greeks['gamma']:.5f}")
+        gcols[4].metric("Vega (ν)", f"${greeks['vega']:,.2f}")
 
     st.plotly_chart(rf.plot_strategy_payoff(spot_f, k1_strike, k2_strike, strategy_type, volume=vol_input), width='stretch')
 
     st.divider()
     st.subheader("⚡ FIX 4.4 Financial Hedge Execution Gateway")
     
+    _fix_sym = f"{_brow['Ticker']}-PERP" if is_perp_strat else f"{_brow['Ticker']}_OPT_HEDGE"
+    _fix_sec_tags = f"167=FUT|59=1|44={k1_strike:.2f}|1000=PERP_ZERO_EXPIRY" if is_perp_strat else f"44={k1_strike:.2f}|99={k2_strike:.2f}|1000={strategy_type[:20]}"
+
     fcol1, fcol2 = st.columns([2, 1])
     with fcol1:
         st.code(f"""
 [FIX 4.4 OUTBOUND DERIVATIVE ORDER PROPOSAL]
-8=FIX.4.4|9=288|35=D|49=IBP_DESK|56=CME_LME_GATEWAY|34=1099|52={datetime.datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ")}|
-11=ORDER_HEDGE_{datetime.datetime.utcnow().strftime("%Y%m%d_%H%M")}|55=LME_COMMODITY_HEDGE|54=1|38={vol_input}|
-40=2|44={k1_strike:.2f}|207=CME_LME|1000={strategy_type[:20]}|10=204|
+8=FIX.4.4|9=296|35=D|49=IBP_DESK|56=CME_LME_PERP_GATEWAY|34=1099|52={datetime.datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ")}|
+11=ORDER_HEDGE_{datetime.datetime.utcnow().strftime("%Y%m%d_%H%M")}|55={_fix_sym}|54=1|38={vol_input}|
+40=2|207=CME_LME|{_fix_sec_tags}|10=204|
         """, language="text")
     with fcol2:
         st.markdown("##### Executive Trade Execution")
         if st.button("⚡ Execute Derivative Order via FIX 4.4", type="primary", width='stretch', key="btn_exec_ctrm_fix"):
             trade_count = len(st.session_state.get("executed_hedges", [])) + 1
-            benefit = abs(greeks['total_premium']) if greeks['total_premium'] != 0 else 3250000.0
+            if is_perp_strat:
+                benefit = round(max(float(_brow["95% CFaR ($)"]), spot_f * vol_input * 0.045), 2)
+                strikes_lbl = f"PERP Mark: ${k1_strike:,.2f} (∞)"
+                prem_lbl = f"$0.00 (IM: ${_perp_im_usd:,.0f})"
+                status_lbl = f"🟢 Active PERP ({_perp_f_ann*100:+.2f}%/yr)"
+            else:
+                benefit = abs(greeks['total_premium']) if greeks['total_premium'] != 0 else 3250000.0
+                strikes_lbl = f"K1: ${k1_strike:,.2f} / K2: ${k2_strike:,.2f}"
+                prem_lbl = f"${greeks['total_premium']:,.2f}"
+                status_lbl = "🟢 Executed & Matched"
             new_trade = {
-                "Trade ID": f"TRD-2026-X{trade_count:03d}",
+                "Trade ID": f"TRD-2026-{'P' if is_perp_strat else 'X'}{trade_count:03d}",
                 "Strategy": f"{_brow['Ticker']} {strategy_type}",
-                "Volume": f"{vol_input:,} {term_unit}",
-                "Strikes": f"K1: ${k1_strike:,.2f} / K2: ${k2_strike:,.2f}",
-                "Net Premium": f"${greeks['total_premium']:,.2f}",
+                "Volume": f"{vol_input:,} {_brow['_unit']}",
+                "Strikes": strikes_lbl,
+                "Net Premium": prem_lbl,
                 "Hedge Benefit ($)": benefit,
-                "Status": "🟢 Executed & Matched"
+                "Status": status_lbl
             }
             if "executed_hedges" not in st.session_state:
                 st.session_state["executed_hedges"] = []
