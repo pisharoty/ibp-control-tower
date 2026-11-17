@@ -1391,11 +1391,18 @@ def render_ctrm_desk(persona="Commercial Commodities & Trading Enterprise", term
         _shocks_map = st.session_state.get("mc_twin_shocks") or {}
 
         def _venue_for_twin(sec_name, ticker_sym):
-            if ticker_sym in ("HG=F", "ALI=F", "ZN=F"):
+            _t = str(ticker_sym or "").strip().upper()
+            _s = str(sec_name or "").strip().lower()
+            if _t in ("HG=F", "ALI=F", "ZN=F", "NI=F", "PB=F", "SN=F"):
                 return "LME"
-            if ticker_sym in ("KC=F", "CC=F", "SB=F", "CT=F", "OJ=F"):
+            if _t in ("KC=F", "CC=F", "SB=F", "CT=F", "OJ=F", "BZ=F", "QS=F", "LGO=F"):
                 return "ICE"
-            if sec_name in ("Energy & Fuels", "Grains, Oilseeds & Softs", "Livestock & Proteins") or ticker_sym in ("GC=F", "SI=F"):
+            if _t in (
+                "CL=F", "NG=F", "RB=F", "HO=F",
+                "ZW=F", "ZC=F", "ZS=F", "ZM=F", "ZL=F", "ZO=F", "ZR=F",
+                "LE=F", "HE=F", "GF=F",
+                "GC=F", "SI=F", "PL=F", "PA=F", "LBR=F"
+            ) or any(k in _s for k in ("energy", "fuel", "grain", "oilseed", "agri", "livestock", "protein", "precious")):
                 return "CME"
             return "OTC_SWAP"
 
@@ -1627,6 +1634,21 @@ def render_ctrm_desk(persona="Commercial Commodities & Trading Enterprise", term
     st.divider()
     st.subheader("⚡ FIX 4.4 Financial Hedge Execution Gateway")
     
+    _tk_single = str(_brow.get("Ticker", "")).strip().upper()
+    if _tk_single in ("HG=F", "ALI=F", "ZN=F", "NI=F", "PB=F", "SN=F"):
+        _single_venue = "LME"
+    elif _tk_single in ("KC=F", "CC=F", "SB=F", "CT=F", "OJ=F", "BZ=F", "QS=F", "LGO=F"):
+        _single_venue = "ICE"
+    elif _tk_single in (
+        "CL=F", "NG=F", "RB=F", "HO=F",
+        "ZW=F", "ZC=F", "ZS=F", "ZM=F", "ZL=F", "ZO=F", "ZR=F",
+        "LE=F", "HE=F", "GF=F",
+        "GC=F", "SI=F", "PL=F", "PA=F", "LBR=F"
+    ):
+        _single_venue = "CME"
+    else:
+        _single_venue = "OTC_SWAP"
+
     _fix_sym = f"{_brow['Ticker']}-PERP" if is_perp_strat else f"{_brow['Ticker']}_OPT_HEDGE"
     _fix_sec_tags = f"167=FUT|59=1|44={k1_strike:.2f}|1000=PERP_ZERO_EXPIRY" if is_perp_strat else f"44={k1_strike:.2f}|99={k2_strike:.2f}|1000={strategy_type[:20]}"
 
@@ -1634,9 +1656,9 @@ def render_ctrm_desk(persona="Commercial Commodities & Trading Enterprise", term
     with fcol1:
         st.code(f"""
 [FIX 4.4 OUTBOUND DERIVATIVE ORDER PROPOSAL]
-8=FIX.4.4|9=296|35=D|49=IBP_DESK|56=CME_LME_PERP_GATEWAY|34=1099|52={datetime.datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ")}|
+8=FIX.4.4|9=296|35=D|49=IBP_DESK|56={_single_venue}_PERP_GATEWAY|34=1099|52={datetime.datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ")}|
 11=ORDER_HEDGE_{datetime.datetime.utcnow().strftime("%Y%m%d_%H%M")}|55={_fix_sym}|54=1|38={vol_input}|
-40=2|207=CME_LME|{_fix_sec_tags}|10=204|
+40=2|207={_single_venue}|{_fix_sec_tags}|10=204|
         """, language="text")
     with fcol2:
         st.markdown("##### Executive Trade Execution")
