@@ -1,0 +1,58 @@
+{
+  "LME Copper Cathode": {
+    "volume": 10000.0,
+    "hedged_pct": 35.0,
+    "budget_price": 13380.15,
+    "lead_days": 45,
+    "basis_rho": 0.92
+  },
+  "Rare Earth & Strategic Metals Basket": {
+    "volume": 180000.0,
+    "hedged_pct": 25.0,
+    "budget_price": 45.8,
+    "lead_days": 60,
+    "basis_rho": 0.88
+  },
+  "WTI Crude Oil": {
+    "volume": 85000.0,
+    "hedged_pct": 50.0,
+    "budget_price": 70.43,
+    "lead_days": 30,
+    "basis_rho": 0.96
+  },
+  "CBOT Milling Wheat": {
+    "volume": 320000.0,
+    "hedged_pct": 35.0,
+    "budget_price": 5.66,
+    "lead_days": 45,
+    "basis_rho": 0.91
+  },
+  "CME Live Cattle": {
+    "volume": 1200000.0,
+    "hedged_pct": 30.0,
+    "budget_price": 1.85,
+    "lead_days": 35,
+    "basis_rho": 0.89
+  },
+  "Potassium Chloride & MOP": {
+    "volume": 15000.0,
+    "hedged_pct": 20.0,
+    "budget_price": 48.76,
+    "lead_days": 50,
+    "basis_rho": 0.87
+  },
+  "Primary Aluminum Ingot": {
+    "volume": 10000.0,
+    "hedged_pct": 35.0,
+    "budget_price": 3057.6,
+    "lead_days": 45,
+    "basis_rho": 0.92
+  },
+  "Special High Grade Zinc": {
+    "volume": 10000.0,
+    "hedged_pct": 35.0,
+    "budget_price": 3969.0,
+    "lead_days": 45,
+    "basis_rho": 0.92
+  }
+}
